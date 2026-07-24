@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Links directos a internet (¡Cargan directo sin descargar nada!)
+# 2. Links directos a internet
 URLS_ESCUDOS = {
     "lpf_logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg/200px-Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg.png",
     "argentinos": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/AAAJ_logo.svg/100px-AAAJ_logo.svg.png",
@@ -48,16 +48,15 @@ URLS_ESCUDOS = {
 }
 
 def normalizar_texto(texto):
-    if not isinstance(texto, str):
-        return ""
+    if not isinstance(texto, str): return ""
     texto = re.sub(r'\[.*?\]', '', texto) 
     texto = re.sub(r'\(.*?\)', '', texto) 
     texto = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
     return texto.lower().strip()
 
-def obtener_escudo(nombre_equipo):
+def obtener_url_escudo(nombre_equipo):
     norm = normalizar_texto(nombre_equipo)
-    clave = "lpf_logo" # Logo por defecto si no encuentra el equipo
+    clave = "lpf_logo"
     
     if "independiente riv" in norm or "rivadavia" in norm: clave = "independiente_rivadavia"
     elif "independiente" in norm: clave = "independiente"
@@ -93,7 +92,17 @@ def obtener_escudo(nombre_equipo):
         
     return URLS_ESCUDOS.get(clave, URLS_ESCUDOS["lpf_logo"])
 
-# 3. Encabezado principal
+# 3. CSS para que la tabla HTML se vea moderna y prolija
+st.markdown("""
+<style>
+.tabla-lpf { width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 20px;}
+.tabla-lpf th { padding: 12px; border-bottom: 2px solid #555; text-align: center !important;}
+.tabla-lpf td { padding: 8px; border-bottom: 1px solid #333; vertical-align: middle; }
+.tabla-lpf tr:hover { background-color: rgba(255, 255, 255, 0.05); }
+</style>
+""", unsafe_allow_html=True)
+
+# 4. Encabezado principal
 col_lpf, col_title = st.columns([1, 6])
 with col_lpf:
     st.markdown(f'<img src="{URLS_ESCUDOS["lpf_logo"]}" width="80">', unsafe_allow_html=True)
@@ -103,7 +112,7 @@ with col_title:
 
 st.markdown("---")
 
-# 4. Carga de datos y renderizado de la tabla
+# 5. Carga de datos y Tabla HTML Forzada
 CSV_PATH = "datos_procesados.csv"
 
 if not os.path.exists(CSV_PATH):
@@ -113,41 +122,26 @@ else:
     df.columns = df.columns.str.strip()
     
     if "Equipo" in df.columns:
-        # Limpiar nombres para que queden prolijos
         df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]', '', x).strip())
         
-        # Asignar los links de los escudos
-        df["Escudo"] = df["Equipo"].apply(obtener_escudo)
+        # ACA ESTÁ LA MAGIA: Metemos la etiqueta de imagen HTML directo en la celda del DataFrame
+        df["Escudo"] = df["Equipo"].apply(
+            lambda x: f'<img src="{obtener_url_escudo(x)}" width="35" style="display:block; margin:auto;">'
+        )
         
+        # Ordenamos las columnas
         columnas_deseadas = ["Escudo", "Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
         cols_existentes = [c for c in columnas_deseadas if c in df.columns]
-        
         otras_cols = [c for c in df.columns if c not in cols_existentes]
         df_mostrar = df[cols_existentes + otras_cols].copy()
         
-        st.dataframe(
-            df_mostrar,
-            hide_index=True,
-            column_config={
-                "Escudo": st.column_config.ImageColumn(
-                    "🛡️", 
-                    width="small"
-                ),
-                "Equipo": st.column_config.TextColumn("Equipo", width="medium"),
-                "Puntos": st.column_config.NumberColumn("Puntos", format="%d"),
-                "PJ": st.column_config.NumberColumn("PJ", format="%d"),
-                "PG": st.column_config.NumberColumn("PG", format="%d"),
-                "PE": st.column_config.NumberColumn("PE", format="%d"),
-                "PP": st.column_config.NumberColumn("PP", format="%d"),
-                "GF": st.column_config.NumberColumn("GF", format="%d"),
-                "GC": st.column_config.NumberColumn("GC", format="%d"),
-            },
-            use_container_width=True
-        )
+        # Renderizamos la tabla puenteando la función rota de Streamlit
+        html_tabla = df_mostrar.to_html(escape=False, index=False, classes="tabla-lpf")
+        st.markdown(html_tabla, unsafe_allow_html=True)
 
         st.markdown("---")
 
-        # 5. Predictor
+        # 6. Predictor
         st.subheader("🔮 Predictor de Enfrentamientos")
         lista_equipos = sorted(df["Equipo"].unique())
 
@@ -161,17 +155,17 @@ else:
             if local == visitante:
                 st.warning("Selecciona dos equipos distintos.")
             else:
-                escudo_local = obtener_escudo(local)
-                escudo_vis = obtener_escudo(visitante)
+                url_local = obtener_url_escudo(local)
+                url_vis = obtener_url_escudo(visitante)
 
                 c_loc, c_vs, c_vis = st.columns([2, 1, 2])
                 with c_loc:
-                    st.markdown(f'<img src="{escudo_local}" width="90">', unsafe_allow_html=True)
+                    st.markdown(f'<img src="{url_local}" width="90">', unsafe_allow_html=True)
                     st.markdown(f"### **{local}**")
                 with c_vs:
                     st.markdown("<h2 style='text-align: center; margin-top: 20px;'>VS</h2>", unsafe_allow_html=True)
                 with c_vis:
-                    st.markdown(f'<img src="{escudo_vis}" width="90">', unsafe_allow_html=True)
+                    st.markdown(f'<img src="{url_vis}" width="90">', unsafe_allow_html=True)
                     st.markdown(f"### **{visitante}**")
 
                 stats_loc = df[df["Equipo"] == local].iloc[0]
