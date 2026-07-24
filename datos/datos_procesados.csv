@@ -1,24 +1,24 @@
-Fecha,Local,Visitante,Goles_Local,Goles_Visitante,Resultado,resultado_num,local_gf_5,local_gc_5,local_pts_5,visita_gf_5,visita_gc_5,visita_pts_5,local_cod,visitante_cod
-2024-01-26,Independiente,Independiente Rivadavia,1,0,L,1,1.0,1.0,1.0,1.0,1.0,1.0,0,5
-2024-01-27,Boca Juniors,Platense,0,0,E,0,1.0,1.0,1.0,1.0,1.0,1.0,1,6
-2024-01-27,Racing Club,Unión,0,1,V,2,1.0,1.0,1.0,1.0,1.0,1.0,2,7
-2024-01-27,San Lorenzo,Lanús,0,2,V,2,1.0,1.0,1.0,1.0,1.0,1.0,3,8
-2024-01-28,River Plate,Argentinos Juniors,1,1,E,0,1.0,1.0,1.0,1.0,1.0,1.0,4,9
-2024-01-30,Independiente,Gimnasia LP,0,1,V,2,1.0,0.0,3.0,1.0,1.0,1.0,0,10
-2024-01-31,River Plate,Barracas Central,2,0,L,1,1.0,1.0,1.0,1.0,1.0,1.0,4,11
-2024-01-31,Racing Club,Tigre,3,0,L,1,0.0,1.0,0.0,1.0,1.0,1.0,2,12
-2024-02-01,Boca Juniors,Sarmiento,1,1,E,0,0.0,0.0,1.0,1.0,1.0,1.0,1,13
-2024-02-04,River Plate,Vélez Sarsfield,5,0,L,1,1.5,0.5,2.0,1.0,1.0,1.0,4,14
-2024-02-05,Racing Club,Estudiantes LP,0,0,E,0,1.5,0.5,1.5,1.0,1.0,1.0,2,15
-2024-02-05,Boca Juniors,Tigre,2,0,L,1,0.5,0.5,1.0,0.0,3.0,0.0,1,12
-2024-02-08,Independiente,Huracán,0,0,E,0,0.5,0.5,1.5,1.0,1.0,1.0,0,16
-2024-02-09,Racing Club,San Lorenzo,4,1,L,1,1.0,0.3333333333333333,1.3333333333333333,0.0,2.0,0.0,2,3
-2024-02-10,Boca Juniors,Defensa y Justicia,0,0,E,0,1.0,0.3333333333333333,1.6666666666666667,1.0,1.0,1.0,1,17
-2024-02-11,River Plate,Riestra,3,0,L,1,2.6666666666666665,0.3333333333333333,2.3333333333333335,1.0,1.0,1.0,4,18
-2024-02-13,Independiente,Rosario Central,1,0,L,1,0.3333333333333333,0.3333333333333333,1.3333333333333333,1.0,1.0,1.0,0,19
-2024-02-14,Boca Juniors,Central Córdoba,2,0,L,1,0.75,0.25,1.5,1.0,1.0,1.0,1,20
-2024-02-14,River Plate,Atlético Tucumán,0,0,E,0,2.75,0.25,2.5,1.0,1.0,1.0,4,21
-2024-02-18,Boca Juniors,Lanús,1,2,V,2,1.0,0.2,1.8,2.0,0.0,3.0,1,8
-2024-02-18,River Plate,Banfield,1,1,E,0,2.2,0.2,2.2,1.0,1.0,1.0,4,22
-2024-02-24,Independiente,Racing Club,0,1,V,2,0.5,0.25,1.75,1.75,0.5,1.75,0,2
-2024-02-25,River Plate,Boca Juniors,1,1,E,0,2.2,0.2,2.2,1.2,0.6,1.6,4,1
+Fecha,Local,Visitante,Goles_Local,Goles_Visitante,Resultado,Fecha_Partido,Racha_Local,Racha_Visita
+2024-01-27,Boca Juniors,Platense,0,0,E,0,0,0
+2024-01-28,River Plate,Argentinos Juniors,1,1,E,1,0,0
+2024-01-27,Racing Club,Unión,0,1,V,2,0,0
+2024-01-26,Independiente,Independiente Rivadavia,1,0,L,3,0,0
+2024-01-27,San Lorenzo,Lanús,0,2,V,4,0,0
+2024-02-01,Boca Juniors,Sarmiento,1,1,E,5,1,0
+2024-01-31,River Plate,Barracas Central,2,0,L,6,1,0
+2024-01-31,Racing Club,Tigre,3,0,L,7,0,0
+2024-01-30,Independiente,Gimnasia LP,0,1,V,8,3,0
+2024-02-05,Boca Juniors,Tigre,2,0,L,9,2,0
+2024-02-04,River Plate,Vélez Sarsfield,5,0,L,10,4,0
+2024-02-05,Racing Club,Estudiantes LP,0,0,E,11,3,0
+2024-02-08,Independiente,Huracán,0,0,E,12,3,0
+2024-02-10,Boca Juniors,Defensa y Justicia,0,0,E,13,5,0
+2024-02-11,River Plate,Riestra,3,0,L,14,7,0
+2024-02-09,Racing Club,San Lorenzo,4,1,L,15,4,0
+2024-02-13,Independiente,Rosario Central,1,0,L,16,4,0
+2024-02-14,Boca Juniors,Central Córdoba,2,0,L,17,6,0
+2024-02-14,River Plate,Atlético Tucumán,0,0,E,18,10,0
+2024-02-18,Boca Juniors,Lanús,1,2,V,19,9,3
+2024-02-18,River Plate,Banfield,1,1,E,20,11,0
+2024-02-25,River Plate,Boca Juniors,1,1,E,21,11,8
+2024-02-24,Independiente,Racing Club,0,1,V,22,7,7
