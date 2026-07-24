@@ -1,100 +1,53 @@
-import numpy as np
 import pandas as pd
+import numpy as np
 
-print(
-    "🔄 Procesando racha y forma reciente de los equipos (Últimos 5 partidos)..."
-)
+def calcular_rachas(df, n_partidos=5):
+    """
+    Calcula los puntos obtenidos por cada equipo en sus últimos N partidos.
+    """
+    df['Fecha_Partido'] = pd.to_datetime(df['Fecha_Partido']) if 'Fecha_Partido' in df.columns else df.index
+    df = df.sort_values(by='Fecha_Partido').reset_index(drop=True)
 
-# 1. Cargar partidos descargados de la API
-df = pd.read_csv("datos/liga_argentina.csv")
+    # Creamos columnas vacías para las rachas
+    df['Racha_Local'] = 0
+    df['Racha_Visita'] = 0
 
-# Asegurar orden cronológico por fecha
-df["Fecha"] = pd.to_datetime(df["Fecha"])
-df = df.sort_values("Fecha").reset_index(drop=True)
+    # Historial de resultados por equipo: list de puntos [3, 1, 0, ...]
+    historial_puntos = {}
 
-# Mapeo de resultado para el modelo (1: Local, 0: Empate, 2: Visitante)
-mapeo_resultados = {"L": 1, "E": 0, "V": 2}
-df["resultado_num"] = df["Resultado"].map(mapeo_resultados)
+    for i, fila in df.iterrows():
+        local = fila['Local']
+        visita = fila['Visitante']
+        res = fila['Resultado']
 
+        # Inicializar historial si no existe
+        if local not in historial_puntos: historial_puntos[local] = []
+        if visita not in historial_puntos: historial_puntos[visita] = []
 
-# Función para calcular la racha/forma de un equipo ANTES de un partido específico
-def obtener_estadisticas_previas(df_partidos, fecha, equipo, ultimos_n=5):
-    # Buscar partidos anteriores de este equipo
-    partidos_previos = df_partidos[
-        (df_partidos["Fecha"] < fecha)
-        & (
-            (df_partidos["Local"] == equipo)
-            | (df_partidos["Visitante"] == equipo)
-        )
-    ].tail(ultimos_n)
+        # 1. Calcular la racha PREVIA a este partido (últimos N encuentros)
+        df.at[i, 'Racha_Local'] = sum(historial_puntos[local][-n_partidos:]) if historial_puntos[local] else 0
+        df.at[i, 'Racha_Visita'] = sum(historial_puntos[visita][-n_partidos:]) if historial_puntos[visita] else 0
 
-    if len(partidos_previos) == 0:
-        return 1.0, 1.0, 1.0  # Valores por defecto si es el primer partido
+        # 2. Guardar el resultado de HOY para los próximos partidos
+        if res == 'L':
+            historial_puntos[local].append(3)
+            historial_puntos[visita].append(0)
+        elif res == 'V':
+            historial_puntos[local].append(0)
+            historial_puntos[visita].append(3)
+        else: # Empate 'E'
+            historial_puntos[local].append(1)
+            historial_puntos[visita].append(1)
 
-    goles_favor = []
-    goles_contra = []
-    puntos = []
+    return df
 
-    for _, fila in partidos_previos.iterrows():
-        es_local = fila["Local"] == equipo
-        gf = fila["Goles_Local"] if es_local else fila["Goles_Visitante"]
-        gc = fila["Goles_Visitante"] if es_local else fila["Goles_Local"]
-        res = fila["Resultado"]
-
-        if (es_local and res == "L") or (not es_local and res == "V"):
-            pts = 3
-        elif res == "E":
-            pts = 1
-        else:
-            pts = 0
-
-        goles_favor.append(gf)
-        goles_contra.append(gc)
-        puntos.append(pts)
-
-    return np.mean(goles_favor), np.mean(goles_contra), np.mean(puntos)
-
-
-# Crear listas para almacenar las nuevas métricas
-gf_local, gc_local, pts_local = [], [], []
-gf_visita, gc_visita, pts_visita = [], [], []
-
-print("⏳ Calculando métricas de racha fecha por fecha...")
-
-for idx, fila in df.iterrows():
-    fecha = fila["Fecha"]
-    local = fila["Local"]
-    visita = fila["Visitante"]
-
-    # Racha local
-    g_fav_l, g_con_l, p_l = obtener_estadisticas_previas(df, fecha, local)
-    gf_local.append(g_fav_l)
-    gc_local.append(g_con_l)
-    pts_local.append(p_l)
-
-    # Racha visitante
-    g_fav_v, g_con_v, p_v = obtener_estadisticas_previas(df, fecha, visita)
-    gf_visita.append(g_fav_v)
-    gc_visita.append(g_con_v)
-    pts_visita.append(p_v)
-
-df["local_gf_5"] = gf_local
-df["local_gc_5"] = gc_local
-df["local_pts_5"] = pts_local
-
-df["visita_gf_5"] = gf_visita
-df["visita_gc_5"] = gc_visita
-df["visita_pts_5"] = pts_visita
-
-# Codificar nombres de equipos
-equipos = pd.concat([df["Local"], df["Visitante"]]).unique()
-mapa_equipos = {equipo: i for i, equipo in enumerate(equipos)}
-df["local_cod"] = df["Local"].map(mapa_equipos)
-df["visitante_cod"] = df["Visitante"].map(mapa_equipos)
-
-# Guardar en archivo procesado
-df.to_csv("datos/datos_procesados.csv", index=False)
-
-print(
-    "✅ ¡Métricas de racha calculadas con éxito y guardadas en 'datos_procesados.csv'!"
-)
+if __name__ == "__main__":
+    print("🔄 Cargando datos originales...")
+    df = pd.read_csv("datos/liga_argentina.csv")
+    
+    print("⚡ Calculando rachas recientes...")
+    df_procesado = calcular_rachas(df, n_partidos=5)
+    
+    # Guardar el archivo procesado con las nuevas variables
+    df_procesado.to_csv("datos/datos_procesados.csv", index=False)
+    print("✅ ¡'datos_procesados.csv' generado con éxito con las rachas!")
