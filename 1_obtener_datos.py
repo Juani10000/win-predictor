@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 
 # Pegá tu clave entre las comillas
-API_TOKEN = 'TU_API_KEY_AQUI'
+API_TOKEN = 'c0bd172b59bf4d74b6fcc2158f75c56c'
 
 def obtener_partidos_reales():
     print("📡 Descargando datos oficiales de la Liga Argentina...")
