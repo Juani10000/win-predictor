@@ -2,30 +2,19 @@ import streamlit as st
 import pandas as pd
 import os
 import re
-import requests
-from io import BytesIO
-from PIL import Image
 
 # =====================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ENCABEZADO CON LOGO DE LA LPF
+# 1. CONFIGURACIÓN DE PÁGINA Y ENCABEZADO
 # =====================================================================
-st.set_page_config(page_title="Win Predictor - LPF Argentina", layout="wide")
+st.set_page_config(page_title="Win Predictor - LPF", layout="wide")
 
 col_logo, col_titulo = st.columns([1, 6])
-
 with col_logo:
-    # TRUCO DEFINITIVO: Python descarga la imagen en memoria y la muestra
-    try:
-        url_logo = "https://upload.wikimedia.org/wikipedia/commons/d/d4/Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png"
-        respuesta = requests.get(url_logo, timeout=5)
-        imagen_logo = Image.open(BytesIO(respuesta.content))
-        st.image(imagen_logo, width=110)
-    except Exception:
-        # Si algo falla (sin internet, antivirus, etc.), pone un emoji para no romper la app
-        st.markdown("<h1 style='font-size: 60px;'>⚽</h1>", unsafe_allow_html=True)
+    # Método infalible: Markdown nativo de Streamlit
+    st.markdown("![Logo LPF](https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png/120px-Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png)")
 
 with col_titulo:
-    st.title("⚽ Win Predictor - Liga Profesional Argentina")
+    st.title("⚽ Win Predictor - Liga Profesional")
     st.markdown("**Tabla Anual & Predictor de Partidos (Local / Empate / Visitante)**")
 
 st.markdown("---")
@@ -83,7 +72,7 @@ if os.path.exists(RUTA_CSV):
             prom_loc = (pts_loc / pj_loc) * 1.12
             prom_vis = (pts_vis / pj_vis)
 
-            # Cálculo de la probabilidad de empate según la paridad entre equipos
+            # Cálculo de la probabilidad de empate
             diferencia = abs(prom_loc - prom_vis)
             prob_empate = max(18.0, min(33.0, 29.0 - (diferencia * 7.5)))
 
@@ -108,7 +97,7 @@ if os.path.exists(RUTA_CSV):
             m2.metric("Empate", f"{prob_empate:.1f}%")
             m3.metric(f"Victoria {visitante}", f"{prob_vis:.1f}%")
 
-            # Barras comparativas
+            # Barras visuales (usando max(1, x) para evitar que rompa si da 0)
             st.markdown("**Distribución visual:**")
             col_b1, col_b2, col_b3 = st.columns([max(1, int(prob_loc)), max(1, int(prob_empate)), max(1, int(prob_vis))])
             with col_b1:
