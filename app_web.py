@@ -10,7 +10,7 @@ st.write("Seleccioná los equipos para ver el pronóstico de la Inteligencia Art
 
 @st.cache_data
 def preparar_modelo():
-    # Intenta buscar el archivo en la carpeta 'datos/' o en la raíz
+    # Intenta buscar el archivo procesado con las rachas
     try:
         df = pd.read_csv("datos/datos_procesados.csv")
     except FileNotFoundError:
@@ -24,17 +24,16 @@ def preparar_modelo():
     df["Local_Num"] = le.transform(df["Local"])
     df["Visita_Num"] = le.transform(df["Visitante"])
     
-    # El Cerebro: Le decimos a la IA que estudie a los equipos Y sus rachas
+    # El Cerebro: Entrenar con Rachas Recientes
     X = df[["Local_Num", "Visita_Num", "Racha_Local", "Racha_Visita"]]
     y = df["Resultado"]
     
-    # Entrenar el modelo
     modelo = RandomForestClassifier(n_estimators=100, random_state=42)
     modelo.fit(X, y)
     
     return df, modelo, le, todos_los_equipos
 
-# Función para calcular cómo llega un equipo HOY (sus últimos 5 partidos)
+# Función para calcular los puntos en los últimos 5 partidos de un equipo
 def puntos_ultimos_5(df, equipo):
     partidos = df[(df['Local'] == equipo) | (df['Visitante'] == equipo)].tail(5)
     puntos = 0
@@ -64,14 +63,12 @@ try:
             
             st.info(f"📊 **El Momento:** {local} sacó **{racha_l} pts** en sus últimos 5 partidos. {visitante} sacó **{racha_v} pts**.")
             
-            # Preparar los datos para preguntarle a la IA
             loc_num = le.transform([local])[0]
             vis_num = le.transform([visitante])[0]
             
             datos_hoy = pd.DataFrame([[loc_num, vis_num, racha_l, racha_v]], 
                                      columns=["Local_Num", "Visita_Num", "Racha_Local", "Racha_Visita"])
             
-            # Predicción
             prediccion = modelo.predict(datos_hoy)[0]
             probabilidades = modelo.predict_proba(datos_hoy)[0]
             clases = list(modelo.classes_)
@@ -91,35 +88,48 @@ try:
                 
             st.write(f"**Probabilidades:** {local}: **{prob_L:.1f}%** | Empate: **{prob_E:.1f}%** | {visitante}: **{prob_V:.1f}%**")
 
-    # --- TABLA DE POSICIONES ---
+    # --- TABLA DE POSICIONES REAL ---
     st.divider()
-    st.subheader("🏆 Tabla de Posiciones")
+    st.subheader("🏆 Tabla de Posiciones Real")
     
-    tabla = {}
-    for _, fila in df.iterrows():
-        loc = fila["Local"]
-        vis = fila["Visitante"]
-        res = fila["Resultado"]
-        
-        if loc not in tabla: tabla[loc] = {"Pts": 0, "PJ": 0}
-        if vis not in tabla: tabla[vis] = {"Pts": 0, "PJ": 0}
-        
-        tabla[loc]["PJ"] += 1
-        tabla[vis]["PJ"] += 1
-        
-        if res == "L":
-            tabla[loc]["Pts"] += 3
-        elif res == "V":
-            tabla[vis]["Pts"] += 3
-        else:
-            tabla[loc]["Pts"] += 1
-            tabla[vis]["Pts"] += 1
+    @st.cache_data(ttl=3600)  # Se actualiza sola cada 1 hora
+    def obtener_tabla_real():
+        try:
+            # Descarga la tabla de posiciones real desde Wikipedia / Promiedos
+            url = "https://es.wikipedia.org/wiki/Primera_Divisi%C3%B3n_de_Argentina"
+            tablas = pd.read_html(url)
+            # Busca la tabla que contenga Pos / Equipo / Pts
+            for t in tablas:
+                if any("Equipo" in col or "Club" in col for col in t.columns) and any("Pts" in col or "PTS" in col for col in t.columns):
+                    return t
+            return None
+        except Exception:
+            return None
 
-    df_tabla = pd.DataFrame.from_dict(tabla, orient="index").sort_values(by=["Pts"], ascending=False).reset_index()
-    df_tabla = df_tabla.rename(columns={"index": "Equipo"})
-    df_tabla.index = df_tabla.index + 1
+    tabla_real = obtener_tabla_real()
     
-    st.dataframe(df_tabla, use_container_width=True)
+    if tabla_real is not None:
+        st.dataframe(tabla_real, use_container_width=True)
+    else:
+        # Si no puede conectarse a internet, muestra la tabla acumulada del CSV limpio
+        st.write("*(Mostrando tabla calculada del archivo local)*")
+        tabla = {}
+        for _, fila in df.iterrows():
+            loc, vis, res = fila["Local"], fila["Visitante"], fila["Resultado"]
+            if loc not in tabla: tabla[loc] = {"Pts": 0, "PJ": 0}
+            if vis not in tabla: tabla[vis] = {"Pts": 0, "PJ": 0}
+            tabla[loc]["PJ"] += 1
+            tabla[vis]["PJ"] += 1
+            if res == "L": tabla[loc]["Pts"] += 3
+            elif res == "V": tabla[vis]["Pts"] += 3
+            else:
+                tabla[loc]["Pts"] += 1
+                tabla[vis]["Pts"] += 1
+        
+        df_tabla = pd.DataFrame.from_dict(tabla, orient="index").sort_values(by=["Pts"], ascending=False).reset_index()
+        df_tabla = df_tabla.rename(columns={"index": "Equipo"})
+        df_tabla.index = df_tabla.index + 1
+        st.dataframe(df_tabla, use_container_width=True)
 
 except FileNotFoundError:
     st.error("❌ No se encontró el archivo de datos. Asegurate de correr el robot en GitHub Actions primero.")
