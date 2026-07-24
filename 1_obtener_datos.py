@@ -1,42 +1,36 @@
 import pandas as pd
 import requests
 
-# URL de ESPN (Posiciones de la Liga Profesional Argentina)
-URL = "https://www.espn.com.ar/futbol/posiciones/_/liga/arg.1"
+# URL de FutbolArgentino.com (Posiciones actualizadas)
+URL = "https://www.futbolargentino.com/primera-division/tabla-de-posiciones"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-def obtener_tabla_espn():
-    print("⏳ Conectando a ESPN...")
+def obtener_tabla_posiciones():
+    print("⏳ Conectando a FutbolArgentino.com...")
     response = requests.get(URL, headers=HEADERS)
     response.raise_for_status()
     
-    # Pandas lee todas las tablas de la página
+    # Extraemos todas las tablas de la página
     tablas = pd.read_html(response.text)
     
-    # ESPN divide visualmente la tabla en 2: 
-    # tablas[0] tiene los nombres de los equipos
-    # tablas[1] tiene los puntos, partidos jugados, goles, etc.
-    if len(tablas) < 2:
-        raise ValueError("No se encontraron las tablas esperadas en ESPN.")
+    if not tablas:
+        raise ValueError("No se encontró ninguna tabla en la página.")
         
-    equipos = tablas[0]
-    estadisticas = tablas[1]
-    
-    # Unimos las dos mitades para tener la tabla completa
-    df_completo = pd.concat([equipos, estadisticas], axis=1)
+    # La tabla principal suele ser la primera
+    df = tablas[0]
     
     print("✅ Tabla extraída correctamente. Primeras filas:")
-    print(df_completo.head())
+    print(df.head())
     
-    # Guardamos en CSV
-    df_completo.to_csv("tabla_anual.csv", index=False, encoding="utf-8-sig")
+    # Guardamos el CSV que va a leer tu Streamlit
+    df.to_csv("tabla_anual.csv", index=False, encoding="utf-8-sig")
     print("💾 Archivo 'tabla_anual.csv' guardado con éxito.")
 
 if __name__ == "__main__":
     try:
-        obtener_tabla_espn()
+        obtener_tabla_posiciones()
     except Exception as e:
         print(f"❌ Falló el proceso de extracción: {e}")
         exit(1)
