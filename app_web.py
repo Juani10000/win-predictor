@@ -13,31 +13,50 @@ DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
 
 # =====================================================================
-# 2. URLs de los escudos (Basta de archivos locales)
+# 2. Diccionario de Corazones (Solución definitiva)
 # =====================================================================
-ESCUDOS_URL = {
-    "boca": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Boca_Juniors_logo.svg/120px-Boca_Juniors_logo.svg.png",
-    "river": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Logo_River_Plate.png/120px-Logo_River_Plate.png",
-    "racing": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Escudo_de_Racing_Club_%282014%29.svg/120px-Escudo_de_Racing_Club_%282014%29.svg.png",
-    "independiente": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Escudo_del_Club_Atl%C3%A9tico_Independiente.svg/120px-Escudo_del_Club_Atl%C3%A9tico_Independiente.svg.png",
-    "san lorenzo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg/120px-Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg.png"
+CORAZONES = {
+    "boca": "💙💛💙",
+    "river": "🤍❤️🤍",
+    "racing": "🩵🤍🩵",
+    "independiente": "❤️❤️❤️",
+    "san lorenzo": "❤️💙❤️",
+    "huracan": "🤍🤍🤍",
+    "estudiantes": "❤️🤍❤️",
+    "gimnasia": "💙🤍💙",
+    "rosario central": "💙💛💙",
+    "newells": "❤️🖤❤️",
+    "talleres": "💙🤍💙",
+    "belgrano": "🩵🩵🩵",
+    "instituto": "❤️🤍❤️",
+    "argentinos": "❤️❤️❤️",
+    "velez": "🤍💙🤍",
+    "lanus": "🤎🤎🤎",
+    "banfield": "💚🤍💚",
+    "defensa": "💛💚💛",
+    "platense": "🤎🤍🤎",
+    "tigre": "💙❤️💙",
+    "union": "❤️🤍❤️",
+    "godoy cruz": "💙🤍💙",
+    "tucuman": "🩵🤍🩵",
+    "central cordoba": "🖤🤍🖤",
+    "sarmiento": "💚💚💚",
+    "barracas": "❤️🤍❤️",
+    "independiente rivadavia": "💙💙💙",
+    "riestra": "🖤🤍🖤"
 }
-# Escudo genérico por si falta alguno
-URL_DEFECTO = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/120px-No_image_available.svg.png"
 
 def limpiar_texto(texto):
-    """Saca tildes y deja todo en minúsculas para que el buscador no se confunda."""
     txt = str(texto).lower()
     txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode("utf-8")
     return re.sub(r'[^a-z\s]', '', txt).strip()
 
-def obtener_url_escudo(nombre_equipo):
-    """Busca en el diccionario la URL del escudo correspondiente."""
+def obtener_corazones(nombre_equipo):
     equipo_limpio = limpiar_texto(nombre_equipo)
-    for clave, url in ESCUDOS_URL.items():
+    for clave, emojis in CORAZONES.items():
         if clave in equipo_limpio:
-            return url
-    return URL_DEFECTO
+            return emojis
+    return "⚽" # Emoji por defecto si no encuentra el equipo
 
 # =====================================================================
 # 3. Carga de Datos y Visualización de la Tabla
@@ -50,25 +69,21 @@ else:
     # Limpiar nombres de los equipos
     df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
     
-    # Asignar la URL del escudo en lugar de base64
-    df["Escudo"] = df["Equipo"].apply(obtener_url_escudo)
+    # Asignar los emojis
+    df["Colores"] = df["Equipo"].apply(obtener_corazones)
     
-    # Mover la columna 'Escudo' al principio
+    # Mover la columna 'Colores' al principio
     cols = df.columns.tolist()
-    if "Escudo" in cols:
-        cols.insert(0, cols.pop(cols.index("Escudo")))
+    if "Colores" in cols:
+        cols.insert(0, cols.pop(cols.index("Colores")))
         df = df[cols]
 
     st.subheader("📊 Tabla de Posiciones")
     
-    # Mostrar tabla usando URLs
     st.dataframe(
         df,
         use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Escudo": st.column_config.ImageColumn("🛡️", help="Escudo del equipo")
-        }
+        hide_index=True
     )
     st.markdown("---")
 
@@ -88,20 +103,20 @@ else:
         if local == visitante:
             st.warning("Seleccioná dos equipos distintos.")
         else:
-            url_loc = obtener_url_escudo(local)
-            url_vis = obtener_url_escudo(visitante)
+            corazon_loc = obtener_corazones(local)
+            corazon_vis = obtener_corazones(visitante)
 
             c_loc, c_vs, c_vis = st.columns([2, 1, 2])
             
             with c_loc:
-                st.image(url_loc, width=100)
+                st.markdown(f"<h1>{corazon_loc}</h1>", unsafe_allow_html=True)
                 st.markdown(f"### **{local}**")
                 
             with c_vs:
                 st.markdown("<h1 style='text-align: center; margin-top: 20px;'>VS</h1>", unsafe_allow_html=True)
                 
             with c_vis:
-                st.image(url_vis, width=100)
+                st.markdown(f"<h1>{corazon_vis}</h1>", unsafe_allow_html=True)
                 st.markdown(f"### **{visitante}**")
 
             # Cálculo Matemático
