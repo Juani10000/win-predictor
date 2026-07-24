@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. CDN de Escudos Oficiales (FotMob CDN - Permite CORS sin bloqueos)
+# 2. CDN de Escudos Oficiales (FotMob CDN)
 LOGO_LPF = "https://images.fotmob.com/image_resources/logo/leaguelogo/112.png"
 
 ESCUDOS_EQUIPOS = {
@@ -50,16 +50,13 @@ ESCUDOS_EQUIPOS = {
 def normalizar_texto(texto):
     if not isinstance(texto, str):
         return ""
-    # Eliminar llamadas a pie de página tipo [n. 1], [1], etc.
     texto = re.sub(r'\[.*?\]', '', texto)
-    # Quitar acentos y caracteres especiales
     texto = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
     return texto.lower().strip()
 
 def obtener_escudo(nombre_equipo):
     norm = normalizar_texto(nombre_equipo)
     
-    # 1. Reglas específicas para evitar solapamientos (e.g. Independiente vs Independiente Rivadavia)
     if "independiente riv" in norm or "rivadavia" in norm:
         return ESCUDOS_EQUIPOS["independiente rivadavia"]
     if "independiente" in norm:
@@ -77,12 +74,10 @@ def obtener_escudo(nombre_equipo):
     if "estudiantes" in norm:
         return ESCUDOS_EQUIPOS["estudiantes lp"]
         
-    # 2. Búsqueda directa por palabras clave
     for clave, url in ESCUDOS_EQUIPOS.items():
         if clave in norm:
             return url
             
-    # Fallback al logo de la LPF si es un equipo no identificado
     return LOGO_LPF
 
 # 3. Encabezado principal con el Logo Oficial de la LPF
@@ -106,23 +101,16 @@ else:
     # Limpieza de nombres de columna
     df.columns = df.columns.str.strip()
     
-    # Asegurar que existan las columnas esenciales
     if "Equipo" in df.columns:
-        # Limpiar notas al pie del nombre del equipo directamente en el DataFrame
         df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]', '', x).strip())
-        
-        # Asignar la URL del escudo
         df["Escudo"] = df["Equipo"].apply(obtener_escudo)
         
-        # Definir orden deseado de columnas
         columnas_deseadas = ["Escudo", "Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
         cols_existentes = [c for c in columnas_deseadas if c in df.columns]
         
-        # Agregar cualquier otra columna extra que traiga el CSV
-         Obras_cols = [c for c in df.columns if c not in cols_existentes]
-        df_mostrar = df[cols_existentes + Obras_cols].copy()
+        otras_cols = [c for c in df.columns if c not in cols_existentes]
+        df_mostrar = df[cols_existentes + otras_cols].copy()
         
-        # Renderizado de la tabla con st.dataframe
         st.dataframe(
             df_mostrar,
             hide_index=True,
@@ -146,7 +134,7 @@ else:
         st.markdown("---")
 
         # 5. Sección del Predictor de Partidos
-        st.subheader("🔮 Predictor de Enfrontamientos")
+        st.subheader("🔮 Predictor de Enfrentamientos")
         lista_equipos = sorted(df["Equipo"].unique())
 
         if len(lista_equipos) >= 2:
@@ -162,7 +150,6 @@ else:
                 escudo_local = obtener_escudo(local)
                 escudo_vis = obtener_escudo(visitante)
 
-                # Visualización del enfrentamiento con escudos
                 c_loc, c_vs, c_vis = st.columns([2, 1, 2])
                 with c_loc:
                     st.image(escudo_local, width=90)
@@ -173,7 +160,6 @@ else:
                     st.image(escudo_vis, width=90)
                     st.markdown(f"### **{visitante}**")
 
-                # Obtener estadísticas de los equipos
                 stats_loc = df[df["Equipo"] == local].iloc[0]
                 stats_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -185,7 +171,6 @@ else:
                 prom_loc = pts_loc / pj_loc
                 prom_vis = pts_vis / pj_vis
 
-                # Cálculo de probabilidades por rendimiento
                 factor_localia = 1.15
                 score_loc = prom_loc * factor_localia
                 score_vis = prom_vis
