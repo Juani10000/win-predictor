@@ -9,36 +9,37 @@ st.set_page_config(page_title="Tabla Anual & Predictor - LPF", layout="wide")
 st.title("⚽ Tabla Anual & Predictor - Liga Profesional")
 st.markdown("---")
 
-# 2. DICCIONARIO DE ESCUDOS (URLs directas de Internet)
-ESCUDOS_WEB = {
-    "boca": "https://upload.wikimedia.org/wikipedia/commons/1/1b/Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.png",
-    "river": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Escudo_del_C_A_River_Plate.png",
-    "racing": "https://upload.wikimedia.org/wikipedia/commons/5/56/Escudo_de_Racing_Club_%282014%29.png",
-    "independiente": "https://upload.wikimedia.org/wikipedia/commons/d/db/Escudo_del_C._A._Independiente.png",
-    "san lorenzo": "https://upload.wikimedia.org/wikipedia/commons/7/77/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.png",
-    "huracan": "https://upload.wikimedia.org/wikipedia/commons/a/a2/Escudo_de_Hurac%C3%A1n.png",
-    "estudiantes": "https://upload.wikimedia.org/wikipedia/commons/a/a1/Escudo_de_Estudiantes_de_La_Plata.png",
-    "gimnasia": "https://upload.wikimedia.org/wikipedia/commons/0/04/Escudo_Gimnasia_y_Esgrima_La_Plata.png",
-    "rosario central": "https://upload.wikimedia.org/wikipedia/commons/b/b5/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.png",
-    "newell": "https://upload.wikimedia.org/wikipedia/commons/a/a8/Escudo_Newell%27s_Old_Boys.png",
-    "talleres": "https://upload.wikimedia.org/wikipedia/commons/c/c5/Escudo_de_Talleres.png",
-    "belgrano": "https://upload.wikimedia.org/wikipedia/commons/2/23/Escudo_del_Club_Atl%C3%A9tico_Belgrano.png",
-    "instituto": "https://upload.wikimedia.org/wikipedia/commons/7/78/Escudo_del_Instituto_Atl%C3%A9tico_Central_C%C3%B3rdoba.png",
-    "argentinos": "https://upload.wikimedia.org/wikipedia/commons/4/4b/Escudo_de_Argentinos_Juniors.png",
-    "velez": "https://upload.wikimedia.org/wikipedia/commons/2/21/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.png",
-    "lanus": "https://upload.wikimedia.org/wikipedia/commons/b/b8/Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.png",
-    "banfield": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Escudo_del_Club_Atl%C3%A9tico_Banfield.png",
-    "defensa": "https://upload.wikimedia.org/wikipedia/commons/8/87/Escudo_de_Defensa_y_Justicia.png",
-    "platense": "https://upload.wikimedia.org/wikipedia/commons/c/c8/Escudo_del_Club_Atl%C3%A9tico_Platense.png",
-    "tigre": "https://upload.wikimedia.org/wikipedia/commons/1/17/Escudo_del_Club_Atl%C3%A9tico_Tigre.png",
-    "union": "https://upload.wikimedia.org/wikipedia/commons/e/e0/Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.png",
-    "godoy cruz": "https://upload.wikimedia.org/wikipedia/commons/b/bc/Escudo_de_Godoy_Cruz.png",
-    "tucuman": "https://upload.wikimedia.org/wikipedia/commons/8/8e/Escudo_del_Club_Atl%C3%A9tico_Tucum%C3%A1n.png",
-    "central cordoba": "https://upload.wikimedia.org/wikipedia/commons/2/2a/Escudo_de_Central_C%C3%B3rdoba.png",
-    "sarmiento": "https://upload.wikimedia.org/wikipedia/commons/7/7e/Escudo_de_Sarmiento_de_Jun%C3%ADn.png",
-    "barracas": "https://upload.wikimedia.org/wikipedia/commons/b/be/Escudo_de_Barracas_Central.png",
-    "riestra": "https://upload.wikimedia.org/wikipedia/commons/3/36/Escudo_de_Deportivo_Riestra.png",
-    "independiente rivadavia": "https://upload.wikimedia.org/wikipedia/commons/5/52/Escudo_de_Independiente_Rivadavia.png"
+# 2. DICCIONARIO INFALIBLE (EMOJIS)
+# Como es texto nativo, Streamlit lo carga sí o sí, al instante.
+EMOJIS_EQUIPOS = {
+    "boca": "🔵🟡🔵",
+    "river": "⚪🔴⚪",
+    "racing": "🩵🤍🩵",
+    "independiente": "🔴👹🔴",
+    "san lorenzo": "🔴🔵🔴",
+    "huracan": "⚪🎈⚪",
+    "estudiantes": "🔴🦁🔴",
+    "gimnasia": "🔵🐺🔵",
+    "rosario central": "🟡🔵🟡",
+    "newell": "🔴⚫🔴",
+    "talleres": "🔵⚪🔵",
+    "belgrano": "🩵🏴‍☠️🩵",
+    "instituto": "🔴⚪🔴",
+    "argentinos": "🔴🐞🔴",
+    "velez": "⚪🔵⚪",
+    "lanus": "🟤🧱🟤",
+    "banfield": "🟩⬜🟩",
+    "defensa": "🟡🟢🟡",
+    "platense": "🟤⚪🟤",
+    "tigre": "🔵🔴🔵",
+    "union": "🔴⚪🔴",
+    "godoy cruz": "🔵🍷🔵",
+    "tucuman": "🩵🤍🩵",
+    "central cordoba": "⚫⚪⚫",
+    "sarmiento": "🟩🟢🟩",
+    "barracas": "🔴⚪🔴",
+    "riestra": "⚫⚡⚫",
+    "independiente rivadavia": "🔵🟣🔵"
 }
 
 def normalizar_texto(txt):
@@ -48,12 +49,12 @@ def normalizar_texto(txt):
     txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode("utf-8")
     return txt.strip()
 
-def buscar_url_escudo(nombre_equipo):
+def buscar_emoji(nombre_equipo):
     nombre_limpio = normalizar_texto(nombre_equipo)
-    for clave, url in ESCUDOS_WEB.items():
+    for clave, emoji in EMOJIS_EQUIPOS.items():
         if clave in nombre_limpio:
-            return url
-    return None
+            return emoji
+    return "⚽" # Si no encuentra, pone una pelota genérica
 
 # =====================================================================
 # 3. CARGA DE DATOS (TABLA DE POSICIONES)
@@ -91,26 +92,21 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.warning("Seleccioná dos equipos distintos.")
         else:
-            url_loc = buscar_url_escudo(local)
-            url_vis = buscar_url_escudo(visitante)
+            emoji_loc = buscar_emoji(local)
+            emoji_vis = buscar_emoji(visitante)
 
             c_loc, c_vs, c_vis = st.columns([2, 1, 2])
             
             with c_loc:
-                if url_loc:
-                    st.image(url_loc, width=120)
-                else:
-                    st.caption("🛡️ (Sin escudo)")
+                # Mostramos los colores en tamaño gigante
+                st.markdown(f"<h1 style='text-align: left; font-size: 60px;'>{emoji_loc}</h1>", unsafe_allow_html=True)
                 st.markdown(f"### **{local}**")
                 
             with c_vs:
                 st.markdown("<h1 style='text-align: center; margin-top: 25px;'>VS</h1>", unsafe_allow_html=True)
                 
             with c_vis:
-                if url_vis:
-                    st.image(url_vis, width=120)
-                else:
-                    st.caption("🛡️ (Sin escudo)")
+                st.markdown(f"<h1 style='text-align: left; font-size: 60px;'>{emoji_vis}</h1>", unsafe_allow_html=True)
                 st.markdown(f"### **{visitante}**")
 
             # Cálculo de Probabilidades
