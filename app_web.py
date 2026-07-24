@@ -3,6 +3,7 @@ import pandas as pd
 import unicodedata
 import re
 import os
+import base64
 
 # 1. Configuración de la página Streamlit
 st.set_page_config(
@@ -11,40 +12,48 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Escudos directos desde Wikimedia Commons (A prueba de fallos)
-LOGO_LPF = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg/200px-Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg.png"
+# Función clave para que Streamlit lea imágenes locales en la tabla
+def get_image_base64(ruta_imagen):
+    if os.path.exists(ruta_imagen):
+        with open(ruta_imagen, "rb") as f:
+            data = f.read()
+        return f"data:image/png;base64,{base64.b64encode(data).decode()}"
+    return "" # Si no encuentra la imagen, devuelve vacío
 
-ESCUDOS_WIKIPEDIA = {
-    "argentinos": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/AAAJ_logo.svg/100px-AAAJ_logo.svg.png",
-    "atletico tucuman": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg/100px-Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg.png",
-    "banfield": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Escudo_del_Club_Atl%C3%A9tico_Banfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Banfield.svg.png",
-    "barracas": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Escudo_de_Barracas_Central.svg/100px-Escudo_de_Barracas_Central.svg.png",
-    "belgrano": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg/100px-Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg.png",
-    "boca": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg.png",
-    "central cordoba": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg/100px-Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg.png",
-    "defensa": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg/100px-Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg.png",
-    "riestra": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Deportivo_Riestra_logo.svg/100px-Deportivo_Riestra_logo.svg.png",
-    "estudiantes lp": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Escudo_de_Estudiantes_de_La_Plata.svg/100px-Escudo_de_Estudiantes_de_La_Plata.svg.png",
-    "gimnasia lp": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Gimnasia_y_Esgrima_de_La_Plata_logo.svg/100px-Gimnasia_y_Esgrima_de_La_Plata_logo.svg.png",
-    "godoy cruz": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg/100px-Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg.png",
-    "huracan": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg.png",
-    "independiente rivadavia": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg/100px-Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg.png",
-    "independiente": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Escudo_del_Club_Atl%C3%A9tico_Independiente.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Independiente.svg.png",
-    "instituto": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Escudo_de_Instituto_ACC.svg/100px-Escudo_de_Instituto_ACC.svg.png",
-    "lanus": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg.png",
-    "newell": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg.png",
-    "platense": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Escudo_del_Club_Atl%C3%A9tico_Platense.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Platense.svg.png",
-    "racing": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Escudo_de_Racing_Club.svg/100px-Escudo_de_Racing_Club.svg.png",
-    "river": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_C_A_River_Plate.svg/100px-Escudo_del_C_A_River_Plate.svg.png",
-    "rosario central": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg.png",
-    "san lorenzo": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg.png",
-    "sarmiento": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg.png",
-    "talleres": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg.png",
-    "tigre": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Escudo_del_Club_Atl%C3%A9tico_Tigre.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Tigre.svg.png",
-    "union": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg.png",
-    "velez": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg.png",
-    "aldosivi": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg.png",
-    "san martin sj": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg.png"
+# 2. Diccionario apuntando a tus archivos locales
+LOGO_LPF = get_image_base64("escudos/lpf_logo.png")
+
+ESCUDOS_LOCALES = {
+    "argentinos": "escudos/argentinos.png",
+    "atletico tucuman": "escudos/atletico_tucuman.png",
+    "banfield": "escudos/banfield.png",
+    "barracas": "escudos/barracas.png",
+    "belgrano": "escudos/belgrano.png",
+    "boca": "escudos/boca.png",
+    "central cordoba": "escudos/central_cordoba.png",
+    "defensa": "escudos/defensa.png",
+    "riestra": "escudos/riestra.png",
+    "estudiantes lp": "escudos/estudiantes_lp.png",
+    "gimnasia lp": "escudos/gimnasia_lp.png",
+    "godoy cruz": "escudos/godoy_cruz.png",
+    "huracan": "escudos/huracan.png",
+    "independiente rivadavia": "escudos/independiente_rivadavia.png",
+    "independiente": "escudos/independiente.png",
+    "instituto": "escudos/instituto.png",
+    "lanus": "escudos/lanus.png",
+    "newell": "escudos/newell.png",
+    "platense": "escudos/platense.png",
+    "racing": "escudos/racing.png",
+    "river": "escudos/river.png",
+    "rosario central": "escudos/rosario_central.png",
+    "san lorenzo": "escudos/san_lorenzo.png",
+    "sarmiento": "escudos/sarmiento.png",
+    "talleres": "escudos/talleres.png",
+    "tigre": "escudos/tigre.png",
+    "union": "escudos/union.png",
+    "velez": "escudos/velez.png",
+    "aldosivi": "escudos/aldosivi.png",
+    "san martin sj": "escudos/san_martin_sj.png"
 }
 
 def normalizar_texto(texto):
@@ -57,74 +66,80 @@ def normalizar_texto(texto):
 
 def obtener_escudo(nombre_equipo):
     norm = normalizar_texto(nombre_equipo)
+    ruta = ""
     
     if "independiente riv" in norm or "rivadavia" in norm:
-        return ESCUDOS_WIKIPEDIA["independiente rivadavia"]
-    if "independiente" in norm:
-        return ESCUDOS_WIKIPEDIA["independiente"]
-    if "central cordoba" in norm or "sde" in norm or "santiago" in norm:
-        return ESCUDOS_WIKIPEDIA["central cordoba"]
-    if "rosario central" in norm:
-        return ESCUDOS_WIKIPEDIA["rosario central"]
-    if "gimnasia" in norm:
-        return ESCUDOS_WIKIPEDIA["gimnasia lp"]
-    if "estudiantes" in norm:
-        return ESCUDOS_WIKIPEDIA["estudiantes lp"]
-    if "argentinos" in norm:
-        return ESCUDOS_WIKIPEDIA["argentinos"]
-    if "atletico tucuman" in norm or "tucuman" in norm:
-        return ESCUDOS_WIKIPEDIA["atletico tucuman"]
-    if "barracas" in norm:
-        return ESCUDOS_WIKIPEDIA["barracas"]
-    if "boca" in norm:
-        return ESCUDOS_WIKIPEDIA["boca"]
-    if "defensa" in norm:
-        return ESCUDOS_WIKIPEDIA["defensa"]
-    if "riestra" in norm:
-        return ESCUDOS_WIKIPEDIA["riestra"]
-    if "godoy cruz" in norm:
-        return ESCUDOS_WIKIPEDIA["godoy cruz"]
-    if "huracan" in norm:
-        return ESCUDOS_WIKIPEDIA["huracan"]
-    if "instituto" in norm:
-        return ESCUDOS_WIKIPEDIA["instituto"]
-    if "lanus" in norm:
-        return ESCUDOS_WIKIPEDIA["lanus"]
-    if "newell" in norm:
-        return ESCUDOS_WIKIPEDIA["newell"]
-    if "platense" in norm:
-        return ESCUDOS_WIKIPEDIA["platense"]
-    if "racing" in norm:
-        return ESCUDOS_WIKIPEDIA["racing"]
-    if "river" in norm:
-        return ESCUDOS_WIKIPEDIA["river"]
-    if "san lorenzo" in norm:
-        return ESCUDOS_WIKIPEDIA["san lorenzo"]
-    if "sarmiento" in norm:
-        return ESCUDOS_WIKIPEDIA["sarmiento"]
-    if "talleres" in norm:
-        return ESCUDOS_WIKIPEDIA["talleres"]
-    if "tigre" in norm:
-        return ESCUDOS_WIKIPEDIA["tigre"]
-    if "union" in norm:
-        return ESCUDOS_WIKIPEDIA["union"]
-    if "velez" in norm:
-        return ESCUDOS_WIKIPEDIA["velez"]
-    if "belgrano" in norm:
-        return ESCUDOS_WIKIPEDIA["belgrano"]
-    if "banfield" in norm:
-        return ESCUDOS_WIKIPEDIA["banfield"]
-    if "aldosivi" in norm:
-        return ESCUDOS_WIKIPEDIA["aldosivi"]
-    if "san martin" in norm:
-        return ESCUDOS_WIKIPEDIA["san martin sj"]
+        ruta = ESCUDOS_LOCALES["independiente rivadavia"]
+    elif "independiente" in norm:
+        ruta = ESCUDOS_LOCALES["independiente"]
+    elif "central cordoba" in norm or "sde" in norm or "santiago" in norm:
+        ruta = ESCUDOS_LOCALES["central cordoba"]
+    elif "rosario central" in norm:
+        ruta = ESCUDOS_LOCALES["rosario central"]
+    elif "gimnasia" in norm:
+        ruta = ESCUDOS_LOCALES["gimnasia lp"]
+    elif "estudiantes" in norm:
+        ruta = ESCUDOS_LOCALES["estudiantes lp"]
+    elif "argentinos" in norm:
+        ruta = ESCUDOS_LOCALES["argentinos"]
+    elif "atletico tucuman" in norm or "tucuman" in norm:
+        ruta = ESCUDOS_LOCALES["atletico tucuman"]
+    elif "barracas" in norm:
+        ruta = ESCUDOS_LOCALES["barracas"]
+    elif "boca" in norm:
+        ruta = ESCUDOS_LOCALES["boca"]
+    elif "defensa" in norm:
+        ruta = ESCUDOS_LOCALES["defensa"]
+    elif "riestra" in norm:
+        ruta = ESCUDOS_LOCALES["riestra"]
+    elif "godoy cruz" in norm:
+        ruta = ESCUDOS_LOCALES["godoy cruz"]
+    elif "huracan" in norm:
+        ruta = ESCUDOS_LOCALES["huracan"]
+    elif "instituto" in norm:
+        ruta = ESCUDOS_LOCALES["instituto"]
+    elif "lanus" in norm:
+        ruta = ESCUDOS_LOCALES["lanus"]
+    elif "newell" in norm:
+        ruta = ESCUDOS_LOCALES["newell"]
+    elif "platense" in norm:
+        ruta = ESCUDOS_LOCALES["platense"]
+    elif "racing" in norm:
+        ruta = ESCUDOS_LOCALES["racing"]
+    elif "river" in norm:
+        ruta = ESCUDOS_LOCALES["river"]
+    elif "san lorenzo" in norm:
+        ruta = ESCUDOS_LOCALES["san lorenzo"]
+    elif "sarmiento" in norm:
+        ruta = ESCUDOS_LOCALES["sarmiento"]
+    elif "talleres" in norm:
+        ruta = ESCUDOS_LOCALES["talleres"]
+    elif "tigre" in norm:
+        ruta = ESCUDOS_LOCALES["tigre"]
+    elif "union" in norm:
+        ruta = ESCUDOS_LOCALES["union"]
+    elif "velez" in norm:
+        ruta = ESCUDOS_LOCALES["velez"]
+    elif "belgrano" in norm:
+        ruta = ESCUDOS_LOCALES["belgrano"]
+    elif "banfield" in norm:
+        ruta = ESCUDOS_LOCALES["banfield"]
+    elif "aldosivi" in norm:
+        ruta = ESCUDOS_LOCALES["aldosivi"]
+    elif "san martin" in norm:
+        ruta = ESCUDOS_LOCALES["san martin sj"]
         
+    # Si encontró la ruta, la convierte a base64 para que Streamlit la muestre sin internet
+    if ruta:
+        return get_image_base64(ruta)
     return LOGO_LPF
 
 # 3. Encabezado principal
 col_lpf, col_title = st.columns([1, 6])
 with col_lpf:
-    st.image(LOGO_LPF, width=80)
+    # Mostramos la imagen procesada en base64
+    if LOGO_LPF:
+        st.markdown(f'<img src="{LOGO_LPF}" width="80">', unsafe_allow_html=True)
 with col_title:
     st.title("Tabla Anual - Liga Profesional de Fútbol")
     st.caption("Estadísticas oficiales y predictor de partidos en tiempo real")
@@ -191,12 +206,14 @@ else:
 
                 c_loc, c_vs, c_vis = st.columns([2, 1, 2])
                 with c_loc:
-                    st.image(escudo_local, width=90)
+                    if escudo_local:
+                        st.markdown(f'<img src="{escudo_local}" width="90">', unsafe_allow_html=True)
                     st.markdown(f"### **{local}**")
                 with c_vs:
                     st.markdown("<h2 style='text-align: center; margin-top: 20px;'>VS</h2>", unsafe_allow_html=True)
                 with c_vis:
-                    st.image(escudo_vis, width=90)
+                    if escudo_vis:
+                        st.markdown(f'<img src="{escudo_vis}" width="90">', unsafe_allow_html=True)
                     st.markdown(f"### **{visitante}**")
 
                 stats_loc = df[df["Equipo"] == local].iloc[0]
