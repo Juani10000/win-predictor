@@ -3,93 +3,88 @@ import pandas as pd
 import unicodedata
 import os
 import re
+import base64
 
-# 1. Configuración de la página
+# 1. Configuración
 st.set_page_config(page_title="Tabla Anual - LPF", layout="wide")
 st.title("⚽ Tabla Anual - Liga Profesional")
 st.markdown("---")
 
+# 2. Rutas directas (Todo en la misma carpeta)
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
 
-# =====================================================================
-# 2. Diccionario de Corazones (Solución definitiva)
-# =====================================================================
-CORAZONES = {
-    "boca": "💙💛💙",
-    "river": "🤍❤️🤍",
-    "racing": "🩵🤍🩵",
-    "independiente": "❤️❤️❤️",
-    "san lorenzo": "❤️💙❤️",
-    "huracan": "🤍🤍🤍",
-    "estudiantes": "❤️🤍❤️",
-    "gimnasia": "💙🤍💙",
-    "rosario central": "💙💛💙",
-    "newells": "❤️🖤❤️",
-    "talleres": "💙🤍💙",
-    "belgrano": "🩵🩵🩵",
-    "instituto": "❤️🤍❤️",
-    "argentinos": "❤️❤️❤️",
-    "velez": "🤍💙🤍",
-    "lanus": "🤎🤎🤎",
-    "banfield": "💚🤍💚",
-    "defensa": "💛💚💛",
-    "platense": "🤎🤍🤎",
-    "tigre": "💙❤️💙",
-    "union": "❤️🤍❤️",
-    "godoy cruz": "💙🤍💙",
-    "tucuman": "🩵🤍🩵",
-    "central cordoba": "🖤🤍🖤",
-    "sarmiento": "💚💚💚",
-    "barracas": "❤️🤍❤️",
-    "independiente rivadavia": "💙💙💙",
-    "riestra": "🖤🤍🖤"
-}
-
+# Funciones de limpieza
 def limpiar_texto(texto):
     txt = str(texto).lower()
+    txt = re.sub(r'\.(png|jpg|jpeg)', '', txt) # Le saca la extensión si la tiene
     txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode("utf-8")
-    return re.sub(r'[^a-z\s]', '', txt).strip()
+    return re.sub(r'[^a-z0-9]', '', txt).strip()
 
-def obtener_corazones(nombre_equipo):
+def buscar_imagen_local(nombre_equipo):
+    """Busca el PNG suelto en la misma carpeta que app.py"""
     equipo_limpio = limpiar_texto(nombre_equipo)
-    for clave, emojis in CORAZONES.items():
-        if clave in equipo_limpio:
-            return emojis
-    return "⚽" # Emoji por defecto si no encuentra el equipo
+    
+    # Escanea todos los archivos de la carpeta actual
+    for archivo in os.listdir(DIRECTORIO_APP):
+        if archivo.lower().endswith(('.png', '.jpg', '.jpeg')):
+            archivo_limpio = limpiar_texto(archivo)
+            if archivo_limpio in equipo_limpio or equipo_limpio in archivo_limpio:
+                return os.path.join(DIRECTORIO_APP, archivo)
+    return None
 
-# =====================================================================
-# 3. Carga de Datos y Visualización de la Tabla
-# =====================================================================
+def codificar_imagen(ruta):
+    """Convierte la imagen a texto para que la tabla web no la rechace"""
+    if ruta and os.path.exists(ruta):
+        try:
+            with open(ruta, "rb") as f:
+                data = f.read()
+                b64 = base64.b64encode(data).decode("utf-8")
+                ext = os.path.splitext(ruta)[1].lower().replace('.', '')
+                mime = "image/jpeg" if ext in ["jpg", "jpeg"] else "image/png"
+                return f"data:{mime};base64,{b64}"
+        except:
+            return None
+    return None
+
+# 3. Carga de Datos y Tabla
 if not os.path.exists(RUTA_CSV):
-    st.error(f"⚠️ No se encontró el archivo '{RUTA_CSV}'.")
+    st.error(f"⚠️ No se encontró '{RUTA_CSV}'. Guardalo al lado de app.py.")
 else:
     df = pd.read_csv(RUTA_CSV)
-    
-    # Limpiar nombres de los equipos
     df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
     
-    # Asignar los emojis
-    df["Colores"] = df["Equipo"].apply(obtener_corazones)
+    # Encontrar las rutas y convertirlas a Base64
+    df["Ruta_Local"] = df["Equipo"].apply(buscar_imagen_local)
+    df["Escudo"] = df["Ruta_Local"].apply(codificar_imagen)
     
-    # Mover la columna 'Colores' al principio
+    # Ordenar columnas
     cols = df.columns.tolist()
-    if "Colores" in cols:
-        cols.insert(0, cols.pop(cols.index("Colores")))
-        df = df[cols]
+    if "Escudo" in cols:
+        cols.insert(0, cols.pop(cols.index("Escudo")))
+        df_mostrar = df[cols].drop(columns=["Ruta_Local"], errors="ignore")
+    else:
+        df_mostrar = df
+
+    # Mostrar Diagnóstico oculto para ver qué encontró
+    imagenes_encontradas = df["Ruta_Local"].dropna().unique()
+    if len(imagenes_encontradas) > 0:
+        st.success(f"✅ Se cargaron {len(imagenes_encontradas)} escudos correctamente.")
+    else:
+        st.warning("⚠️ No se detectó ningún escudo. Revisá que los PNG estén en la misma carpeta que app.py.")
 
     st.subheader("📊 Tabla de Posiciones")
-    
     st.dataframe(
-        df,
+        df_mostrar,
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        column_config={
+            "Escudo": st.column_config.ImageColumn("🛡️")
+        }
     )
     st.markdown("---")
 
-    # =====================================================================
-    # 4. Predictor de Enfrentamientos
-    # =====================================================================
+    # 4. Predictor
     st.subheader("🔮 Predictor de Enfrentamientos")
     lista_equipos = sorted(df["Equipo"].unique())
 
@@ -103,20 +98,26 @@ else:
         if local == visitante:
             st.warning("Seleccioná dos equipos distintos.")
         else:
-            corazon_loc = obtener_corazones(local)
-            corazon_vis = obtener_corazones(visitante)
+            ruta_loc = buscar_imagen_local(local)
+            ruta_vis = buscar_imagen_local(visitante)
 
             c_loc, c_vs, c_vis = st.columns([2, 1, 2])
             
             with c_loc:
-                st.markdown(f"<h1>{corazon_loc}</h1>", unsafe_allow_html=True)
+                if ruta_loc:
+                    st.image(ruta_loc, width=120)
+                else:
+                    st.caption("🛡️ Sin imagen")
                 st.markdown(f"### **{local}**")
                 
             with c_vs:
                 st.markdown("<h1 style='text-align: center; margin-top: 20px;'>VS</h1>", unsafe_allow_html=True)
                 
             with c_vis:
-                st.markdown(f"<h1>{corazon_vis}</h1>", unsafe_allow_html=True)
+                if ruta_vis:
+                    st.image(ruta_vis, width=120)
+                else:
+                    st.caption("🛡️ Sin imagen")
                 st.markdown(f"### **{visitante}**")
 
             # Cálculo Matemático
@@ -128,7 +129,6 @@ else:
             pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
             pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
 
-            # Ventaja del local (+15%)
             prom_loc = (pts_loc / pj_loc) * 1.15
             prom_vis = pts_vis / pj_vis
             total = prom_loc + prom_vis
