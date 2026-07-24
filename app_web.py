@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 
-st.set_page_config(page_title="Win Predictor - Fútbol Argentino", page_icon="⚽", layout="centered")
+st.set_page_config(page_title="Win Predictor - LPF", page_icon="⚽", layout="centered")
 
 st.title("⚽ Win Predictor - Fútbol Argentino 2026")
 
@@ -18,7 +18,7 @@ if df is None or df.empty:
     st.error("❌ No se encontraron datos procesados. Por favor ejecutá la actualización en GitHub.")
 else:
     st.markdown("### 🔮 Predicción de Partido")
-    st.caption("Cálculo de probabilidades basado en el rendimiento de la Tabla Anual.")
+    st.caption("Cálculo de probabilidades basado en el rendimiento actual.")
     
     lista_equipos = sorted(df["Equipo"].unique())
     
@@ -60,9 +60,49 @@ else:
         m3.metric(f"Gana {visitante}", f"{prob_vis}%")
 
     st.markdown("---")
-    st.subheader("🏆 Tabla Anual Consolidada")
     
-    cols_mostrar = ["Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
-    cols_existentes = [c for c in cols_mostrar if c in df.columns]
+    # Título oficial con Logo de la LPF
+    col_logo, col_titulo = st.columns([1, 6])
+    with col_logo:
+        # Link al logo oficial de la Liga Profesional
+        logo_lpf = "https://upload.wikimedia.org/wikipedia/en/thumb/9/94/Liga_Profesional_de_F%C3%BAtbol_%28Argentina%29_logo.svg/200px-Liga_Profesional_de_F%C3%BAtbol_%28Argentina%29_logo.svg.png"
+        st.image(logo_lpf, width=60)
+    with col_titulo:
+        st.subheader("Tabla Anual - Liga Profesional de Fútbol")
+
+    # DICCIONARIO DE ESCUDOS (Acá podés ir agregando los que faltan buscando el logo en Wikipedia)
+    escudos = {
+        "Independiente Rivadavia": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg/100px-Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg.png",
+        "Boca Juniors": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Boca_Juniors_logo_2012.svg/100px-Boca_Juniors_logo_2012.svg.png",
+        "River Plate": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Logo_River_Plate_2022.png/100px-Logo_River_Plate_2022.png",
+        "Racing Club": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Racing_Club_logo.svg/100px-Racing_Club_logo.svg.png",
+        "Independiente": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Club_Atl%C3%A9tico_Independiente_logo.svg/100px-Club_Atl%C3%A9tico_Independiente_logo.svg.png",
+        "San Lorenzo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg.png",
+        "Estudiantes (LP)": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Escudo_de_Estudiantes_de_La_Plata.svg/100px-Escudo_de_Estudiantes_de_La_Plata.svg.png",
+        "Rosario Central": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg.png",
+        "Belgrano": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Club_Atl%C3%A9tico_Belgrano_logo.svg/100px-Club_Atl%C3%A9tico_Belgrano_logo.svg.png",
+        "Vélez Sarsfield": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg.png",
+        "Argentinos Juniors": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Argentinos_Juniors.svg/100px-Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Argentinos_Juniors.svg.png"
+    }
     
-    st.dataframe(df[cols_existentes].sort_values(by="Puntos", ascending=False), use_container_width=True)
+    # Imagen genérica para los equipos que aún no agregaste al diccionario
+    escudo_generico = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Soccerball.svg/100px-Soccerball.svg.png"
+
+    # Preparamos la tabla para mostrar
+    cols_basicas = ["Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
+    cols_existentes = [c for c in cols_basicas if c in df.columns]
+    
+    df_mostrar = df[cols_existentes].sort_values(by="Puntos", ascending=False).copy()
+    
+    # Agregamos la columna de los escudos usando el diccionario
+    df_mostrar.insert(0, "🛡️", df_mostrar["Equipo"].apply(lambda eq: escudos.get(eq, escudo_generico)))
+
+    # Mostramos la tabla configurando la columna como imagen y ocultando el índice (los números)
+    st.dataframe(
+        df_mostrar,
+        hide_index=True, 
+        column_config={
+            "🛡️": st.column_config.ImageColumn("🛡️", help="Escudo"),
+        },
+        use_container_width=True
+    )
