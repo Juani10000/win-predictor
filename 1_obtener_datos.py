@@ -1,45 +1,22 @@
-import os
 import requests
+from bs4 import BeautifulSoup
 import pandas as pd
 
-# Pegá tu token exacto entre las comillas
-API_TOKEN = 'c0bd172b59bf4d74b6fcc2158f75c56c'
+# 1. URL objetivo y headers de simulación de navegador
+URL = "https://canchallena.lanacion.com.ar/"  # Ajustá a la sección específica
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
 
-def obtener_datos_oficiales():
-    print("📡 Conectando a la API Oficial de Fútbol...")
+def obtener_datos_canchallena():
+    response = requests.get(URL, headers=HEADERS)
+    if response.status_code != 200:
+        raise Exception(f"Error al acceder a Cancha Llena: Status {response.status_code}")
     
-    # Pedimos los partidos de la Liga Argentina (CLI/ARG)
-    url = "https://api.football-data.org/v4/competitions/CLI/matches"
-    headers = {'X-Auth-Token': API_TOKEN}
+    soup = BeautifulSoup(response.text, 'html.parser')
     
-    try:
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        
-        partidos = []
-        for m in data.get('matches', []):
-            if m['status'] == 'FINISHED':
-                partidos.append({
-                    'Local': m['homeTeam']['name'],
-                    'Visitante': m['awayTeam']['name'],
-                    'Goles_Local': m['score']['fullTime']['home'],
-                    'Goles_Visita': m['score']['fullTime']['away'],
-                    'Resultado': 'L' if m['score']['fullTime']['home'] > m['score']['fullTime']['away'] else ('V' if m['score']['fullTime']['away'] > m['score']['fullTime']['home'] else 'E')
-                })
-        
-        df = pd.DataFrame(partidos)
-        
-        # Validación de seguridad: Si no bajó partidos, avisa
-        if df.empty:
-            print("⚠️ Advertencia: No se encontraron partidos finalizados todavía.")
-            return
-
-        os.makedirs("datos", exist_ok=True)
-        df.to_csv("datos/liga_argentina.csv", index=False)
-        print(f"✅ ¡Se descargaron {len(df)} partidos oficiales perfectos!")
-        
-    except Exception as e:
-        print(f"❌ Error al conectar con la API: {e}")
+    # Lógica de extracción según las etiquetas de Cancha Llena
+    print("Conexión exitosa a Cancha Llena.")
 
 if __name__ == "__main__":
-    obtener_datos_oficiales()
+    obtener_datos_canchallena()
