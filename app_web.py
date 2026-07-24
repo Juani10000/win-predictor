@@ -3,45 +3,44 @@ import pandas as pd
 import unicodedata
 import os
 import re
-from PIL import Image
+import base64
 
 # 1. Configuración de la página
 st.set_page_config(page_title="Tabla Anual - LPF", layout="wide")
 st.title("⚽ Tabla Anual & Predictor - Liga Profesional")
 st.markdown("---")
 
-# 2. CONFIGURACIÓN DE LA RUTA Y RAYOS X
+# 2. CONFIGURACIÓN DE LA RUTA
 st.sidebar.header("⚙️ Configuración")
 ruta_ingresada = st.sidebar.text_input(
     "Pegá acá la ruta de los escudos:", 
     help="Ejemplo: C:\\Users\\Usuario\\Desktop\\escudos"
 )
 
-# Limpiamos la ruta por si se pegó con comillas (pasa mucho en Windows)
 if ruta_ingresada:
     CARPETA_ESCUDOS = ruta_ingresada.replace('"', '').replace("'", "").strip()
 else:
     CARPETA_ESCUDOS = os.path.dirname(os.path.abspath(__file__))
 
 # -----------------------------------------------------------------
-# 🔎 MODO RAYOS X (Para ver por qué falla)
+# 🔎 MODO DIAGNÓSTICO (Para ver qué está fallando)
 # -----------------------------------------------------------------
-with st.sidebar.expander("🔎 Ver Diagnóstico (Rayos X)", expanded=True):
-    st.write(f"**Buscando en:** `{CARPETA_ESCUDOS}`")
-    if os.path.exists(CARPETA_ESCUDOS):
-        st.success("✅ La carpeta existe.")
-        try:
-            archivos_detectados = [f for f in os.listdir(CARPETA_ESCUDOS) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-            if archivos_detectados:
-                st.write(f"📁 Encontré {len(archivos_detectados)} imágenes:")
-                for arch in archivos_detectados:
-                    st.code(arch)
-            else:
-                st.error("❌ La carpeta existe pero NO veo ningún archivo .png o .jpg adentro.")
-        except Exception as e:
-            st.error(f"Error leyendo la carpeta: {e}")
+archivos_encontrados = []
+if os.path.exists(CARPETA_ESCUDOS):
+    try:
+        archivos_encontrados = [f for f in os.listdir(CARPETA_ESCUDOS) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    except Exception:
+        pass
+
+with st.sidebar.expander("🔎 Ver Imágenes Encontradas", expanded=True):
+    st.write(f"**Carpeta:** `{CARPETA_ESCUDOS}`")
+    if archivos_encontrados:
+        st.success(f"✅ Encontré {len(archivos_encontrados)} fotos.")
+        st.write("Nombres detectados:")
+        for arch in archivos_encontrados:
+            st.code(arch)
     else:
-        st.error("❌ La ruta pegada NO es válida o no existe. Revisá si no faltó una letra.")
+        st.error("❌ No encontré ninguna foto acá.")
 # -----------------------------------------------------------------
 
 def limpiar_texto(texto):
@@ -52,23 +51,30 @@ def limpiar_texto(texto):
     return re.sub(r'[^a-z0-9]', '', txt).strip()
 
 def buscar_escudo_local(nombre_equipo):
-    if not os.path.exists(CARPETA_ESCUDOS):
-        return None
-        
     equipo_limpio = limpiar_texto(nombre_equipo)
     
-    try:
-        archivos = os.listdir(CARPETA_ESCUDOS)
-    except Exception:
+    if not archivos_encontrados:
         return None
 
-    for archivo in archivos:
-        if archivo.lower().endswith(('.png', '.jpg', '.jpeg')):
-            archivo_limpio = limpiar_texto(archivo)
-            
-            # Chequeo más flexible: si una parte del nombre está en el otro
-            if archivo_limpio in equipo_limpio or equipo_limpio in archivo_limpio:
-                return os.path.join(CARPETA_ESCUDOS, archivo)
+    for archivo in archivos_encontrados:
+        archivo_limpio = limpiar_texto(archivo)
+        # Si el nombre del archivo está contenido en el del equipo o viceversa
+        if archivo_limpio in equipo_limpio or equipo_limpio in archivo_limpio:
+            return os.path.join(CARPETA_ESCUDOS, archivo)
+    return None
+
+def codificar_imagen_base64(ruta):
+    """Fuerza a mostrar la imagen convirtiéndola a código de internet."""
+    if ruta and os.path.exists(ruta):
+        try:
+            with open(ruta, "rb") as f:
+                data = f.read()
+                b64 = base64.b64encode(data).decode("utf-8")
+                ext = os.path.splitext(ruta)[1].lower().replace('.', '')
+                mime = "image/jpeg" if ext in ["jpg", "jpeg"] else "image/png"
+                return f"data:{mime};base64,{b64}"
+        except:
+            return None
     return None
 
 # =====================================================================
@@ -106,32 +112,27 @@ else:
         else:
             ruta_loc = buscar_escudo_local(local)
             ruta_vis = buscar_escudo_local(visitante)
+            
+            b64_loc = codificar_imagen_base64(ruta_loc)
+            b64_vis = codificar_imagen_base64(ruta_vis)
 
             c_loc, c_vs, c_vis = st.columns([2, 1, 2])
             
             with c_loc:
-                if ruta_loc and os.path.exists(ruta_loc):
-                    try:
-                        img_loc = Image.open(ruta_loc)
-                        st.image(img_loc, width=130)
-                    except Exception:
-                        st.error("Archivo dañado")
+                if b64_loc:
+                    st.markdown(f'<img src="{b64_loc}" width="130">', unsafe_allow_html=True)
                 else:
-                    st.caption(f"🛡️ (Falta imagen para {local})")
+                    st.caption(f"🛡️ (No se encontró matcheo para: {local})")
                 st.markdown(f"### **{local}**")
                 
             with c_vs:
                 st.markdown("<h1 style='text-align: center; margin-top: 30px;'>VS</h1>", unsafe_allow_html=True)
                 
             with c_vis:
-                if ruta_vis and os.path.exists(ruta_vis):
-                    try:
-                        img_vis = Image.open(ruta_vis)
-                        st.image(img_vis, width=130)
-                    except Exception:
-                        st.error("Archivo dañado")
+                if b64_vis:
+                    st.markdown(f'<img src="{b64_vis}" width="130">', unsafe_allow_html=True)
                 else:
-                    st.caption(f"🛡️ (Falta imagen para {visitante})")
+                    st.caption(f"🛡️ (No se encontró matcheo para: {visitante})")
                 st.markdown(f"### **{visitante}**")
 
             # Matemáticas
