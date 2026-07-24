@@ -3,22 +3,16 @@ import pandas as pd
 import unicodedata
 import re
 import os
-import urllib.request
-import base64
 
-# 1. Configuración de la página Streamlit
+# 1. Configuración de la página
 st.set_page_config(
     page_title="Tabla Anual - LPF Argentina",
     page_icon="⚽",
     layout="wide"
 )
 
-# Crear la carpeta de escudos si no existe
-if not os.path.exists("escudos"):
-    os.makedirs("escudos")
-
-# 2. URLs estables de Wikipedia (Imágenes Vectoriales Oficiales)
-ESCUDOS_WIKIPEDIA = {
+# 2. Links directos a internet (¡Cargan directo sin descargar nada!)
+URLS_ESCUDOS = {
     "lpf_logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg/200px-Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg.png",
     "argentinos": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/AAAJ_logo.svg/100px-AAAJ_logo.svg.png",
     "atletico_tucuman": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg/100px-Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg.png",
@@ -53,127 +47,63 @@ ESCUDOS_WIKIPEDIA = {
     "san_martin_sj": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg.png"
 }
 
-# 3. Función Automática de Descarga (Con disfraz de Chrome para saltar el bloqueo)
-@st.cache_data(show_spinner=False)
-def asegurar_y_obtener_base64(clave):
-    if clave not in ESCUDOS_WIKIPEDIA:
-        return ""
-    
-    url = ESCUDOS_WIKIPEDIA[clave]
-    ruta_imagen = os.path.join("escudos", f"{clave}.png")
-    
-    # Si la imagen no está en la compu/servidor, la descargamos engañando a Wikipedia
-    if not os.path.exists(ruta_imagen):
-        try:
-            req = urllib.request.Request(
-                url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-            )
-            with urllib.request.urlopen(req) as response, open(ruta_imagen, 'wb') as out_file:
-                out_file.write(response.read())
-        except Exception as e:
-            return "" # Evita que la app se rompa si falla el internet
-            
-    # Convertimos la imagen local a Base64 para que Streamlit la dibuje siempre bien
-    if os.path.exists(ruta_imagen):
-        with open(ruta_imagen, "rb") as f:
-            data = f.read()
-        return f"data:image/png;base64,{base64.b64encode(data).decode()}"
-    return ""
-
 def normalizar_texto(texto):
     if not isinstance(texto, str):
         return ""
-    texto = re.sub(r'\[.*?\]', '', texto) # Borra notas [1]
-    texto = re.sub(r'\(.*?\)', '', texto) # Borra (LP), (C)
+    texto = re.sub(r'\[.*?\]', '', texto) 
+    texto = re.sub(r'\(.*?\)', '', texto) 
     texto = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
     return texto.lower().strip()
 
 def obtener_escudo(nombre_equipo):
     norm = normalizar_texto(nombre_equipo)
-    clave = "lpf_logo"
+    clave = "lpf_logo" # Logo por defecto si no encuentra el equipo
     
-    # Búsqueda rigurosa de equipo
-    if "independiente riv" in norm or "rivadavia" in norm:
-        clave = "independiente_rivadavia"
-    elif "independiente" in norm:
-        clave = "independiente"
-    elif "central cordoba" in norm or "sde" in norm or "santiago" in norm:
-        clave = "central_cordoba"
-    elif "rosario central" in norm:
-        clave = "rosario_central"
-    elif "gimnasia" in norm and "mendoza" in norm:
-        clave = "gimnasia_mendoza"
-    elif "gimnasia" in norm:
-        clave = "gimnasia_lp"
-    elif "estudiantes" in norm:
-        clave = "estudiantes_lp"
-    elif "argentinos" in norm:
-        clave = "argentinos"
-    elif "tucuman" in norm:
-        clave = "atletico_tucuman"
-    elif "barracas" in norm:
-        clave = "barracas"
-    elif "boca" in norm:
-        clave = "boca"
-    elif "defensa" in norm:
-        clave = "defensa"
-    elif "riestra" in norm:
-        clave = "riestra"
-    elif "godoy cruz" in norm:
-        clave = "godoy_cruz"
-    elif "huracan" in norm:
-        clave = "huracan"
-    elif "instituto" in norm:
-        clave = "instituto"
-    elif "lanus" in norm:
-        clave = "lanus"
-    elif "newell" in norm:
-        clave = "newell"
-    elif "platense" in norm:
-        clave = "platense"
-    elif "racing" in norm:
-        clave = "racing"
-    elif "river" in norm:
-        clave = "river"
-    elif "san lorenzo" in norm:
-        clave = "san_lorenzo"
-    elif "sarmiento" in norm:
-        clave = "sarmiento"
-    elif "talleres" in norm:
-        clave = "talleres"
-    elif "tigre" in norm:
-        clave = "tigre"
-    elif "union" in norm:
-        clave = "union"
-    elif "velez" in norm:
-        clave = "velez"
-    elif "belgrano" in norm:
-        clave = "belgrano"
-    elif "banfield" in norm:
-        clave = "banfield"
-    elif "aldosivi" in norm:
-        clave = "aldosivi"
-    elif "san martin" in norm or "san juan" in norm:
-        clave = "san_martin_sj"
+    if "independiente riv" in norm or "rivadavia" in norm: clave = "independiente_rivadavia"
+    elif "independiente" in norm: clave = "independiente"
+    elif "central cordoba" in norm or "sde" in norm or "santiago" in norm: clave = "central_cordoba"
+    elif "rosario central" in norm: clave = "rosario_central"
+    elif "gimnasia" in norm and "mendoza" in norm: clave = "gimnasia_mendoza"
+    elif "gimnasia" in norm: clave = "gimnasia_lp"
+    elif "estudiantes" in norm: clave = "estudiantes_lp"
+    elif "argentinos" in norm: clave = "argentinos"
+    elif "tucuman" in norm: clave = "atletico_tucuman"
+    elif "barracas" in norm: clave = "barracas"
+    elif "boca" in norm: clave = "boca"
+    elif "defensa" in norm: clave = "defensa"
+    elif "riestra" in norm: clave = "riestra"
+    elif "godoy cruz" in norm: clave = "godoy_cruz"
+    elif "huracan" in norm: clave = "huracan"
+    elif "instituto" in norm: clave = "instituto"
+    elif "lanus" in norm: clave = "lanus"
+    elif "newell" in norm: clave = "newell"
+    elif "platense" in norm: clave = "platense"
+    elif "racing" in norm: clave = "racing"
+    elif "river" in norm: clave = "river"
+    elif "san lorenzo" in norm: clave = "san_lorenzo"
+    elif "sarmiento" in norm: clave = "sarmiento"
+    elif "talleres" in norm: clave = "talleres"
+    elif "tigre" in norm: clave = "tigre"
+    elif "union" in norm: clave = "union"
+    elif "velez" in norm: clave = "velez"
+    elif "belgrano" in norm: clave = "belgrano"
+    elif "banfield" in norm: clave = "banfield"
+    elif "aldosivi" in norm: clave = "aldosivi"
+    elif "san martin" in norm or "san juan" in norm: clave = "san_martin_sj"
         
-    return asegurar_y_obtener_base64(clave)
+    return URLS_ESCUDOS.get(clave, URLS_ESCUDOS["lpf_logo"])
 
-# Generamos el logo de la LPF al instante
-logo_lpf_base64 = asegurar_y_obtener_base64("lpf_logo")
-
-# 4. Encabezado principal
+# 3. Encabezado principal
 col_lpf, col_title = st.columns([1, 6])
 with col_lpf:
-    if logo_lpf_base64:
-        st.markdown(f'<img src="{logo_lpf_base64}" width="80">', unsafe_allow_html=True)
+    st.markdown(f'<img src="{URLS_ESCUDOS["lpf_logo"]}" width="80">', unsafe_allow_html=True)
 with col_title:
     st.title("Tabla Anual - Liga Profesional de Fútbol")
     st.caption("Estadísticas oficiales y predictor de partidos en tiempo real")
 
 st.markdown("---")
 
-# 5. Carga de datos y renderizado de la tabla
+# 4. Carga de datos y renderizado de la tabla
 CSV_PATH = "datos_procesados.csv"
 
 if not os.path.exists(CSV_PATH):
@@ -183,10 +113,10 @@ else:
     df.columns = df.columns.str.strip()
     
     if "Equipo" in df.columns:
-        # Quitamos notas al pie como [1] del nombre visible
+        # Limpiar nombres para que queden prolijos
         df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]', '', x).strip())
         
-        # Mapeamos los escudos a las filas (independientemente del orden)
+        # Asignar los links de los escudos
         df["Escudo"] = df["Equipo"].apply(obtener_escudo)
         
         columnas_deseadas = ["Escudo", "Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
@@ -217,7 +147,7 @@ else:
 
         st.markdown("---")
 
-        # 6. Predictor
+        # 5. Predictor
         st.subheader("🔮 Predictor de Enfrentamientos")
         lista_equipos = sorted(df["Equipo"].unique())
 
@@ -236,14 +166,12 @@ else:
 
                 c_loc, c_vs, c_vis = st.columns([2, 1, 2])
                 with c_loc:
-                    if escudo_local:
-                        st.markdown(f'<img src="{escudo_local}" width="90">', unsafe_allow_html=True)
+                    st.markdown(f'<img src="{escudo_local}" width="90">', unsafe_allow_html=True)
                     st.markdown(f"### **{local}**")
                 with c_vs:
                     st.markdown("<h2 style='text-align: center; margin-top: 20px;'>VS</h2>", unsafe_allow_html=True)
                 with c_vis:
-                    if escudo_vis:
-                        st.markdown(f'<img src="{escudo_vis}" width="90">', unsafe_allow_html=True)
+                    st.markdown(f'<img src="{escudo_vis}" width="90">', unsafe_allow_html=True)
                     st.markdown(f"### **{visitante}**")
 
                 stats_loc = df[df["Equipo"] == local].iloc[0]
