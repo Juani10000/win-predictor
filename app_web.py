@@ -1,84 +1,64 @@
 import streamlit as st
 import pandas as pd
-import unicodedata
 import os
-import re
-import base64
+from PIL import Image
 
 # 1. Configuración de la página
 st.set_page_config(page_title="Tabla Anual - LPF", layout="wide")
 st.title("⚽ Tabla Anual & Predictor - Liga Profesional")
 st.markdown("---")
 
-# 2. CONFIGURACIÓN DE LA RUTA
-st.sidebar.header("⚙️ Configuración")
-ruta_ingresada = st.sidebar.text_input(
-    "Pegá acá la ruta de los escudos:", 
-    help="Ejemplo: C:\\Users\\Usuario\\Desktop\\escudos"
-)
+# 2. RUTA DE LA CARPETA
+# Escribí la ruta de tu carpeta acá, asegurate de usar \\ en lugar de \
+# Ejemplo: "C:\\Users\\Usuario\\Desktop\\escudos"
+CARPETA_ESCUDOS = r"C:\TU\RUTA\ACA" 
+# Podés reemplazar la línea de arriba por la ruta que copiaste, dejando la 'r' al principio.
 
-if ruta_ingresada:
-    CARPETA_ESCUDOS = ruta_ingresada.replace('"', '').replace("'", "").strip()
-else:
-    CARPETA_ESCUDOS = os.path.dirname(os.path.abspath(__file__))
+# 3. EL DICCIONARIO INFALIBLE
+# Acá conectamos el nombre exacto del equipo (como aparece en el CSV) con el archivo.
+# Si tu foto se llama distinto, solo cambiá el lado derecho (ej: "boca_escudo.png")
+MAPEO_ARCHIVOS = {
+    "Boca Juniors": "boca.png",
+    "River Plate": "river.png",
+    "Racing Club": "racing.png",
+    "Independiente": "independiente.png",
+    "San Lorenzo": "sanlorenzo.png",
+    "Huracan": "huracan.png",
+    "Estudiantes (LP)": "estudiantes.png",
+    "Gimnasia (LP)": "gimnasia.png",
+    "Rosario Central": "rosario.png",
+    "Newells": "newells.png",
+    "Talleres (C)": "talleres.png",
+    "Belgrano": "belgrano.png",
+    "Instituto": "instituto.png",
+    "Argentinos Juniors": "argentinos.png",
+    "Velez": "velez.png",
+    "Lanus": "lanus.png",
+    "Banfield": "banfield.png",
+    "Defensa y Justicia": "defensa.png",
+    "Platense": "platense.png",
+    "Tigre": "tigre.png",
+    "Union": "union.png",
+    "Godoy Cruz": "godoycruz.png",
+    "Atl. Tucuman": "tucuman.png",
+    "Central Cordoba": "centralcordoba.png",
+    "Sarmiento (J)": "sarmiento.png",
+    "Barracas Central": "barracas.png",
+    "Ind. Rivadavia": "independienterivadavia.png",
+    "Dep. Riestra": "riestra.png"
+}
 
-# -----------------------------------------------------------------
-# 🔎 MODO DIAGNÓSTICO (Para ver qué está fallando)
-# -----------------------------------------------------------------
-archivos_encontrados = []
-if os.path.exists(CARPETA_ESCUDOS):
-    try:
-        archivos_encontrados = [f for f in os.listdir(CARPETA_ESCUDOS) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-    except Exception:
-        pass
-
-with st.sidebar.expander("🔎 Ver Imágenes Encontradas", expanded=True):
-    st.write(f"**Carpeta:** `{CARPETA_ESCUDOS}`")
-    if archivos_encontrados:
-        st.success(f"✅ Encontré {len(archivos_encontrados)} fotos.")
-        st.write("Nombres detectados:")
-        for arch in archivos_encontrados:
-            st.code(arch)
-    else:
-        st.error("❌ No encontré ninguna foto acá.")
-# -----------------------------------------------------------------
-
-def limpiar_texto(texto):
-    txt = str(texto).lower()
-    txt = re.sub(r'\[.*?\]|\(.*?\)', '', txt)
-    txt = re.sub(r'\.(png|jpg|jpeg)', '', txt)
-    txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode("utf-8")
-    return re.sub(r'[^a-z0-9]', '', txt).strip()
-
-def buscar_escudo_local(nombre_equipo):
-    equipo_limpio = limpiar_texto(nombre_equipo)
-    
-    if not archivos_encontrados:
-        return None
-
-    for archivo in archivos_encontrados:
-        archivo_limpio = limpiar_texto(archivo)
-        # Si el nombre del archivo está contenido en el del equipo o viceversa
-        if archivo_limpio in equipo_limpio or equipo_limpio in archivo_limpio:
-            return os.path.join(CARPETA_ESCUDOS, archivo)
-    return None
-
-def codificar_imagen_base64(ruta):
-    """Fuerza a mostrar la imagen convirtiéndola a código de internet."""
-    if ruta and os.path.exists(ruta):
-        try:
-            with open(ruta, "rb") as f:
-                data = f.read()
-                b64 = base64.b64encode(data).decode("utf-8")
-                ext = os.path.splitext(ruta)[1].lower().replace('.', '')
-                mime = "image/jpeg" if ext in ["jpg", "jpeg"] else "image/png"
-                return f"data:{mime};base64,{b64}"
-        except:
-            return None
+def obtener_ruta_imagen(nombre_equipo):
+    # Buscamos si el equipo tiene un archivo asignado en el diccionario
+    for clave, nombre_archivo in MAPEO_ARCHIVOS.items():
+        if clave.lower() in nombre_equipo.lower():
+            ruta_completa = os.path.join(CARPETA_ESCUDOS, nombre_archivo)
+            if os.path.exists(ruta_completa):
+                return ruta_completa
     return None
 
 # =====================================================================
-# 3. Carga de Datos y Tabla de Posiciones
+# 4. Predictor de Enfrentamientos
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
@@ -87,15 +67,7 @@ if not os.path.exists(RUTA_CSV):
     st.error(f"⚠️ No se encontró 'datos_procesados.csv'.")
 else:
     df = pd.read_csv(RUTA_CSV)
-    df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
-
-    st.subheader("📊 Tabla de Posiciones")
-    st.dataframe(df, use_container_width=True, hide_index=True)
-    st.markdown("---")
-
-    # =====================================================================
-    # 4. Predictor de Enfrentamientos
-    # =====================================================================
+    
     st.subheader("🔮 Predictor de Enfrentamientos")
     
     lista_equipos = sorted(df["Equipo"].unique())
@@ -110,29 +82,26 @@ else:
         if local == visitante:
             st.warning("Seleccioná dos equipos distintos.")
         else:
-            ruta_loc = buscar_escudo_local(local)
-            ruta_vis = buscar_escudo_local(visitante)
-            
-            b64_loc = codificar_imagen_base64(ruta_loc)
-            b64_vis = codificar_imagen_base64(ruta_vis)
+            ruta_loc = obtener_ruta_imagen(local)
+            ruta_vis = obtener_ruta_imagen(visitante)
 
             c_loc, c_vs, c_vis = st.columns([2, 1, 2])
             
             with c_loc:
-                if b64_loc:
-                    st.markdown(f'<img src="{b64_loc}" width="130">', unsafe_allow_html=True)
+                if ruta_loc:
+                    st.image(Image.open(ruta_loc), width=130)
                 else:
-                    st.caption(f"🛡️ (No se encontró matcheo para: {local})")
+                    st.caption("🛡️ Revisá el nombre en el diccionario")
                 st.markdown(f"### **{local}**")
                 
             with c_vs:
                 st.markdown("<h1 style='text-align: center; margin-top: 30px;'>VS</h1>", unsafe_allow_html=True)
                 
             with c_vis:
-                if b64_vis:
-                    st.markdown(f'<img src="{b64_vis}" width="130">', unsafe_allow_html=True)
+                if ruta_vis:
+                    st.image(Image.open(ruta_vis), width=130)
                 else:
-                    st.caption(f"🛡️ (No se encontró matcheo para: {visitante})")
+                    st.caption("🛡️ Revisá el nombre en el diccionario")
                 st.markdown(f"### **{visitante}**")
 
             # Matemáticas
