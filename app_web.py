@@ -3,6 +3,7 @@ import pandas as pd
 import unicodedata
 import re
 import os
+import urllib.request
 import base64
 
 # 1. Configuración de la página Streamlit
@@ -12,141 +13,167 @@ st.set_page_config(
     layout="wide"
 )
 
-# Función clave para que Streamlit lea imágenes locales en la tabla
-def get_image_base64(ruta_imagen):
+# Crear la carpeta de escudos si no existe
+if not os.path.exists("escudos"):
+    os.makedirs("escudos")
+
+# 2. URLs estables de Wikipedia (Imágenes Vectoriales Oficiales)
+ESCUDOS_WIKIPEDIA = {
+    "lpf_logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg/200px-Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg.png",
+    "argentinos": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/AAAJ_logo.svg/100px-AAAJ_logo.svg.png",
+    "atletico_tucuman": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg/100px-Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg.png",
+    "banfield": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Escudo_del_Club_Atl%C3%A9tico_Banfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Banfield.svg.png",
+    "barracas": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Escudo_de_Barracas_Central.svg/100px-Escudo_de_Barracas_Central.svg.png",
+    "belgrano": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg/100px-Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg.png",
+    "boca": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg.png",
+    "central_cordoba": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg/100px-Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg.png",
+    "defensa": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg/100px-Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg.png",
+    "riestra": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Deportivo_Riestra_logo.svg/100px-Deportivo_Riestra_logo.svg.png",
+    "estudiantes_lp": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Escudo_de_Estudiantes_de_La_Plata.svg/100px-Escudo_de_Estudiantes_de_La_Plata.svg.png",
+    "gimnasia_lp": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Gimnasia_y_Esgrima_de_La_Plata_logo.svg/100px-Gimnasia_y_Esgrima_de_La_Plata_logo.svg.png",
+    "gimnasia_mendoza": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Escudo_del_Club_Gimnasia_y_Esgrima_de_Mendoza.svg/100px-Escudo_del_Club_Gimnasia_y_Esgrima_de_Mendoza.svg.png",
+    "godoy_cruz": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg/100px-Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg.png",
+    "huracan": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg.png",
+    "independiente_rivadavia": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg/100px-Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg.png",
+    "independiente": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Escudo_del_Club_Atl%C3%A9tico_Independiente.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Independiente.svg.png",
+    "instituto": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Escudo_de_Instituto_ACC.svg/100px-Escudo_de_Instituto_ACC.svg.png",
+    "lanus": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg.png",
+    "newell": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg.png",
+    "platense": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Escudo_del_Club_Atl%C3%A9tico_Platense.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Platense.svg.png",
+    "racing": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Escudo_de_Racing_Club.svg/100px-Escudo_de_Racing_Club.svg.png",
+    "river": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_C_A_River_Plate.svg/100px-Escudo_del_C_A_River_Plate.svg.png",
+    "rosario_central": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg.png",
+    "san_lorenzo": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg.png",
+    "sarmiento": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg.png",
+    "talleres": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg.png",
+    "tigre": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Escudo_del_Club_Atl%C3%A9tico_Tigre.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Tigre.svg.png",
+    "union": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg.png",
+    "velez": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg.png",
+    "aldosivi": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg.png",
+    "san_martin_sj": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg.png"
+}
+
+# 3. Función Automática de Descarga (Con disfraz de Chrome para saltar el bloqueo)
+@st.cache_data(show_spinner=False)
+def asegurar_y_obtener_base64(clave):
+    if clave not in ESCUDOS_WIKIPEDIA:
+        return ""
+    
+    url = ESCUDOS_WIKIPEDIA[clave]
+    ruta_imagen = os.path.join("escudos", f"{clave}.png")
+    
+    # Si la imagen no está en la compu/servidor, la descargamos engañando a Wikipedia
+    if not os.path.exists(ruta_imagen):
+        try:
+            req = urllib.request.Request(
+                url, 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+            )
+            with urllib.request.urlopen(req) as response, open(ruta_imagen, 'wb') as out_file:
+                out_file.write(response.read())
+        except Exception as e:
+            return "" # Evita que la app se rompa si falla el internet
+            
+    # Convertimos la imagen local a Base64 para que Streamlit la dibuje siempre bien
     if os.path.exists(ruta_imagen):
         with open(ruta_imagen, "rb") as f:
             data = f.read()
         return f"data:image/png;base64,{base64.b64encode(data).decode()}"
-    return "" # Si no encuentra la imagen, devuelve vacío
-
-# 2. Diccionario apuntando a tus archivos locales
-LOGO_LPF = get_image_base64("escudos/lpf_logo.png")
-
-ESCUDOS_LOCALES = {
-    "argentinos": "escudos/argentinos.png",
-    "atletico tucuman": "escudos/atletico_tucuman.png",
-    "banfield": "escudos/banfield.png",
-    "barracas": "escudos/barracas.png",
-    "belgrano": "escudos/belgrano.png",
-    "boca": "escudos/boca.png",
-    "central cordoba": "escudos/central_cordoba.png",
-    "defensa": "escudos/defensa.png",
-    "riestra": "escudos/riestra.png",
-    "estudiantes lp": "escudos/estudiantes_lp.png",
-    "gimnasia lp": "escudos/gimnasia_lp.png",
-    "godoy cruz": "escudos/godoy_cruz.png",
-    "huracan": "escudos/huracan.png",
-    "independiente rivadavia": "escudos/independiente_rivadavia.png",
-    "independiente": "escudos/independiente.png",
-    "instituto": "escudos/instituto.png",
-    "lanus": "escudos/lanus.png",
-    "newell": "escudos/newell.png",
-    "platense": "escudos/platense.png",
-    "racing": "escudos/racing.png",
-    "river": "escudos/river.png",
-    "rosario central": "escudos/rosario_central.png",
-    "san lorenzo": "escudos/san_lorenzo.png",
-    "sarmiento": "escudos/sarmiento.png",
-    "talleres": "escudos/talleres.png",
-    "tigre": "escudos/tigre.png",
-    "union": "escudos/union.png",
-    "velez": "escudos/velez.png",
-    "aldosivi": "escudos/aldosivi.png",
-    "san martin sj": "escudos/san_martin_sj.png"
-}
+    return ""
 
 def normalizar_texto(texto):
     if not isinstance(texto, str):
         return ""
-    texto = re.sub(r'\[.*?\]', '', texto)
-    texto = re.sub(r'\(.*?\)', '', texto)
+    texto = re.sub(r'\[.*?\]', '', texto) # Borra notas [1]
+    texto = re.sub(r'\(.*?\)', '', texto) # Borra (LP), (C)
     texto = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
     return texto.lower().strip()
 
 def obtener_escudo(nombre_equipo):
     norm = normalizar_texto(nombre_equipo)
-    ruta = ""
+    clave = "lpf_logo"
     
+    # Búsqueda rigurosa de equipo
     if "independiente riv" in norm or "rivadavia" in norm:
-        ruta = ESCUDOS_LOCALES["independiente rivadavia"]
+        clave = "independiente_rivadavia"
     elif "independiente" in norm:
-        ruta = ESCUDOS_LOCALES["independiente"]
+        clave = "independiente"
     elif "central cordoba" in norm or "sde" in norm or "santiago" in norm:
-        ruta = ESCUDOS_LOCALES["central cordoba"]
+        clave = "central_cordoba"
     elif "rosario central" in norm:
-        ruta = ESCUDOS_LOCALES["rosario central"]
+        clave = "rosario_central"
+    elif "gimnasia" in norm and "mendoza" in norm:
+        clave = "gimnasia_mendoza"
     elif "gimnasia" in norm:
-        ruta = ESCUDOS_LOCALES["gimnasia lp"]
+        clave = "gimnasia_lp"
     elif "estudiantes" in norm:
-        ruta = ESCUDOS_LOCALES["estudiantes lp"]
+        clave = "estudiantes_lp"
     elif "argentinos" in norm:
-        ruta = ESCUDOS_LOCALES["argentinos"]
-    elif "atletico tucuman" in norm or "tucuman" in norm:
-        ruta = ESCUDOS_LOCALES["atletico tucuman"]
+        clave = "argentinos"
+    elif "tucuman" in norm:
+        clave = "atletico_tucuman"
     elif "barracas" in norm:
-        ruta = ESCUDOS_LOCALES["barracas"]
+        clave = "barracas"
     elif "boca" in norm:
-        ruta = ESCUDOS_LOCALES["boca"]
+        clave = "boca"
     elif "defensa" in norm:
-        ruta = ESCUDOS_LOCALES["defensa"]
+        clave = "defensa"
     elif "riestra" in norm:
-        ruta = ESCUDOS_LOCALES["riestra"]
+        clave = "riestra"
     elif "godoy cruz" in norm:
-        ruta = ESCUDOS_LOCALES["godoy cruz"]
+        clave = "godoy_cruz"
     elif "huracan" in norm:
-        ruta = ESCUDOS_LOCALES["huracan"]
+        clave = "huracan"
     elif "instituto" in norm:
-        ruta = ESCUDOS_LOCALES["instituto"]
+        clave = "instituto"
     elif "lanus" in norm:
-        ruta = ESCUDOS_LOCALES["lanus"]
+        clave = "lanus"
     elif "newell" in norm:
-        ruta = ESCUDOS_LOCALES["newell"]
+        clave = "newell"
     elif "platense" in norm:
-        ruta = ESCUDOS_LOCALES["platense"]
+        clave = "platense"
     elif "racing" in norm:
-        ruta = ESCUDOS_LOCALES["racing"]
+        clave = "racing"
     elif "river" in norm:
-        ruta = ESCUDOS_LOCALES["river"]
+        clave = "river"
     elif "san lorenzo" in norm:
-        ruta = ESCUDOS_LOCALES["san lorenzo"]
+        clave = "san_lorenzo"
     elif "sarmiento" in norm:
-        ruta = ESCUDOS_LOCALES["sarmiento"]
+        clave = "sarmiento"
     elif "talleres" in norm:
-        ruta = ESCUDOS_LOCALES["talleres"]
+        clave = "talleres"
     elif "tigre" in norm:
-        ruta = ESCUDOS_LOCALES["tigre"]
+        clave = "tigre"
     elif "union" in norm:
-        ruta = ESCUDOS_LOCALES["union"]
+        clave = "union"
     elif "velez" in norm:
-        ruta = ESCUDOS_LOCALES["velez"]
+        clave = "velez"
     elif "belgrano" in norm:
-        ruta = ESCUDOS_LOCALES["belgrano"]
+        clave = "belgrano"
     elif "banfield" in norm:
-        ruta = ESCUDOS_LOCALES["banfield"]
+        clave = "banfield"
     elif "aldosivi" in norm:
-        ruta = ESCUDOS_LOCALES["aldosivi"]
-    elif "san martin" in norm:
-        ruta = ESCUDOS_LOCALES["san martin sj"]
+        clave = "aldosivi"
+    elif "san martin" in norm or "san juan" in norm:
+        clave = "san_martin_sj"
         
-    # Si encontró la ruta, la convierte a base64 para que Streamlit la muestre sin internet
-    if ruta:
-        return get_image_base64(ruta)
-    return LOGO_LPF
+    return asegurar_y_obtener_base64(clave)
 
-# 3. Encabezado principal
+# Generamos el logo de la LPF al instante
+logo_lpf_base64 = asegurar_y_obtener_base64("lpf_logo")
+
+# 4. Encabezado principal
 col_lpf, col_title = st.columns([1, 6])
 with col_lpf:
-    # Mostramos la imagen procesada en base64
-    if LOGO_LPF:
-        st.markdown(f'<img src="{LOGO_LPF}" width="80">', unsafe_allow_html=True)
+    if logo_lpf_base64:
+        st.markdown(f'<img src="{logo_lpf_base64}" width="80">', unsafe_allow_html=True)
 with col_title:
     st.title("Tabla Anual - Liga Profesional de Fútbol")
     st.caption("Estadísticas oficiales y predictor de partidos en tiempo real")
 
 st.markdown("---")
 
-# 4. Carga de datos y renderizado de la tabla
+# 5. Carga de datos y renderizado de la tabla
 CSV_PATH = "datos_procesados.csv"
 
 if not os.path.exists(CSV_PATH):
@@ -156,7 +183,10 @@ else:
     df.columns = df.columns.str.strip()
     
     if "Equipo" in df.columns:
-        df["Equipo"] = df["Equipo"].astype(str)
+        # Quitamos notas al pie como [1] del nombre visible
+        df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]', '', x).strip())
+        
+        # Mapeamos los escudos a las filas (independientemente del orden)
         df["Escudo"] = df["Equipo"].apply(obtener_escudo)
         
         columnas_deseadas = ["Escudo", "Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
@@ -187,7 +217,7 @@ else:
 
         st.markdown("---")
 
-        # 5. Predictor
+        # 6. Predictor
         st.subheader("🔮 Predictor de Enfrentamientos")
         lista_equipos = sorted(df["Equipo"].unique())
 
