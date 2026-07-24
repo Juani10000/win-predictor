@@ -1,119 +1,71 @@
 import streamlit as st
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
+import os
 
-st.set_page_config(page_title="Win Predictor", page_icon="⚽")
+st.set_page_config(page_title="Win Predictor - Fútbol Argentino", page_icon="⚽", layout="centered")
 
-st.title("⚽ Win Predictor - Liga Argentina")
-st.write("Predicciones de Inteligencia Artificial basadas en rendimiento y rachas recientes.")
+st.title("⚽ Win Predictor - Fútbol Argentino")
 
-@st.cache_data
-def preparar_datos_y_modelo():
-    try:
-        df = pd.read_csv("datos/datos_procesados.csv")
-    except FileNotFoundError:
-        df = pd.read_csv("datos_procesados.csv")
-    
-    # Limpieza básica
-    df = df.dropna(subset=["Local", "Visitante", "Resultado"])
-    
-    le = LabelEncoder()
-    equipos = pd.concat([df["Local"], df["Visitante"]]).unique()
-    le.fit(equipos)
-    
-    df["Local_Num"] = le.transform(df["Local"])
-    df["Visita_Num"] = le.transform(df["Visitante"])
-    
-    X = df[["Local_Num", "Visita_Num", "Racha_Local", "Racha_Visita"]]
-    y = df["Resultado"]
-    
-    modelo = RandomForestClassifier(n_estimators=100, random_state=42)
-    modelo.fit(X, y)
-    
-    return df, modelo, le, equipos
+# Cargar datos procesados con ttl=60 para que invalide la caché automáticamente cada 1 minuto
+@st.cache_data(ttl=60)
+def cargar_datos():
+    if os.path.exists("datos_procesados.csv"):
+        return pd.read_csv("datos_procesados.csv")
+    elif os.path.exists("tabla_anual.csv"):
+        return pd.read_csv("tabla_anual.csv")
+    return None
 
-def racha_equipo(df, equipo):
-    partidos = df[(df['Local'] == equipo) | (df['Visitante'] == equipo)].tail(5)
-    pts = 0
-    for _, f in partidos.iterrows():
-        if f['Local'] == equipo and f['Resultado'] == 'L': pts += 3
-        elif f['Visitante'] == equipo and f['Resultado'] == 'V': pts += 3
-        elif f['Resultado'] == 'E': pts += 1
-    return pts
+df = cargar_datos()
 
-try:
-    df, modelo, le, equipos = preparar_datos_y_modelo()
+if df is None or df.empty:
+    st.error("❌ No se encontraron datos actualizados. Ejecutá la actualización de datos primero.")
+else:
+    # EXTRAER EQUIPOS DINÁMICAMENTE DEL CSV (Adios listas viejas)
+    equipos = sorted(df["Equipo"].unique())
+
+    st.subheader("Predicción de Partido")
     
-    # --- PREDICCIÓN ---
     col1, col2 = st.columns(2)
     with col1:
-        local = st.selectbox("🏠 Local", sorted(equipos))
+        local = st.selectbox("Seleccionar Equipo Local", equipos, index=0)
     with col2:
-        visitante = st.selectbox("✈️ Visitante", sorted(equipos), index=1)
-        
-    if st.button("🔮 Predecir Partido"):
-        if local == visitante:
-            st.error("Seleccioná dos equipos diferentes.")
-        else:
-            r_l = racha_equipo(df, local)
-            r_v = racha_equipo(df, visitante)
-            
-            st.info(f"📊 **Puntos últimos 5 partidos:** {local} ({r_l} pts) | {visitante} ({r_v} pts)")
-            
-            l_num = le.transform([local])[0]
-            v_num = le.transform([visitante])[0]
-            
-            pred = modelo.predict([[l_num, v_num, r_l, r_v]])[0]
-            probs = modelo.predict_proba([[l_num, v_num, r_l, r_v]])[0]
-            clases = list(modelo.classes_)
-            
-            p_L = probs[clases.index('L')] * 100
-            p_E = probs[clases.index('E')] * 100
-            p_V = probs[clases.index('V')] * 100
-            
-            if pred == "L":
-                st.success(f"🏆 Pronóstico: Gana **{local}**")
-            elif pred == "V":
-                st.success(f"🏆 Pronóstico: Gana **{visitante}**")
-            else:
-                st.warning("🤝 Pronóstico: **Empate**")
-                
-            st.write(f"Probabilidades: **{local}** {p_L:.1f}% | **Empate** {p_E:.1f}% | **{visitante}** {p_V:.1f}%")
+        idx_vis = 1 if len(equipos) > 1 else 0
+        visitante = st.selectbox("Seleccionar Equipo Visitante", equipos, index=idx_vis)
 
-    # --- TABLA DE POSICIONES CALCULADA Y EXACTA ---
-    st.divider()
-    st.subheader("🏆 Tabla de Posiciones Torneo")
-    
-    stats = {}
-    for _, f in df.iterrows():
-        l, v, res = f["Local"], f["Visitante"], f["Resultado"]
-        
-        if l not in stats: stats[l] = {"PJ": 0, "G": 0, "E": 0, "P": 0, "Pts": 0}
-        if v not in stats: stats[v] = {"PJ": 0, "G": 0, "E": 0, "P": 0, "Pts": 0}
-        
-        stats[l]["PJ"] += 1
-        stats[v]["PJ"] += 1
-        
-        if res == "L":
-            stats[l]["G"] += 1
-            stats[l]["Pts"] += 3
-            stats[v]["P"] += 1
-        elif res == "V":
-            stats[v]["G"] += 1
-            stats[v]["Pts"] += 3
-            stats[l]["P"] += 1
-        else:
-            stats[l]["E"] += 1
-            stats[v]["E"] += 1
-            stats[l]["Pts"] += 1
-            stats[v]["Pts"] += 1
-            
-    df_tabla = pd.DataFrame.from_dict(stats, orient="index").sort_values(by=["Pts", "PJ"], ascending=[False, True]).reset_index()
-    df_tabla = df_tabla.rename(columns={"index": "Equipo"})
-    df_tabla.index = df_tabla.index + 1
-    
-    st.dataframe(df_tabla, use_container_width=True)
+    if local == visitante:
+        st.warning("⚠️ Seleccioná dos equipos diferentes.")
+    else:
+        row_local = df[df["Equipo"] == local].iloc[0]
+        row_vis = df[df["Equipo"] == visitante].iloc[0]
 
-except Exception as e:
-    st.error(f"❌ Cargando datos... (Si persiste, corré el robot en Actions). Detalle: {e}")
+        # Algoritmo de predicción basado en rendimiento actual
+        pts_loc = float(row_local.get("Puntos", 0))
+        pj_loc = max(float(row_local.get("PJ", 1)), 1.0)
+        rend_loc = pts_loc / (pj_loc * 3.0)
+
+        pts_vis = float(row_vis.get("Puntos", 0))
+        pj_vis = max(float(row_vis.get("PJ", 1)), 1.0)
+        rend_vis = pts_vis / (pj_vis * 3.0)
+
+        # Factor localía (+10%)
+        p_loc = rend_loc + 0.10
+        p_vis = rend_vis
+        total = p_loc + p_vis + 0.05
+
+        prob_local = round((p_loc / total) * 100, 1)
+        prob_vis = round((p_vis / total) * 100, 1)
+        prob_empate = round(100.0 - prob_local - prob_vis, 1)
+
+        st.markdown(f"### 📊 Probabilidades: **{local}** vs **{visitante}**")
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric(f"Gana {local}", f"{prob_local}%")
+        m2.metric("Empate", f"{prob_empate}%")
+        m3.metric(f"Gana {visitante}", f"{prob_vis}%")
+
+    st.markdown("---")
+    st.subheader("📋 Tabla Anual Actualizada")
+    
+    # Mostrar la tabla ordenada por Puntos
+    cols_mostrar = [c for c in ["Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"] if c in df.columns]
+    st.dataframe(df[cols_mostrar].sort_values(by="Puntos", ascending=False), use_container_width=True)
