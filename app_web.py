@@ -1,76 +1,94 @@
 import streamlit as st
 import pandas as pd
+import unicodedata
 import os
+import re
 from PIL import Image
 
 # 1. Configuración de la página
-st.set_page_config(page_title="Tabla Anual - LPF", layout="wide")
+st.set_page_config(page_title="Tabla Anual & Predictor - LPF", layout="wide")
 st.title("⚽ Tabla Anual & Predictor - Liga Profesional")
 st.markdown("---")
 
-# 2. RUTA DE LA CARPETA
-# Escribí la ruta de tu carpeta acá, asegurate de usar \\ en lugar de \
-# Ejemplo: "C:\\Users\\Usuario\\Desktop\\escudos"
-CARPETA_ESCUDOS = r"C:\TU\RUTA\ACA" 
-# Podés reemplazar la línea de arriba por la ruta que copiaste, dejando la 'r' al principio.
+# 2. LOCALIZACIÓN AUTOMÁTICA DE ARCHIVOS Y CARPETAS
+DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 
-# 3. EL DICCIONARIO INFALIBLE
-# Acá conectamos el nombre exacto del equipo (como aparece en el CSV) con el archivo.
-# Si tu foto se llama distinto, solo cambiá el lado derecho (ej: "boca_escudo.png")
-MAPEO_ARCHIVOS = {
-    "Boca Juniors": "boca.png",
-    "River Plate": "river.png",
-    "Racing Club": "racing.png",
-    "Independiente": "independiente.png",
-    "San Lorenzo": "sanlorenzo.png",
-    "Huracan": "huracan.png",
-    "Estudiantes (LP)": "estudiantes.png",
-    "Gimnasia (LP)": "gimnasia.png",
-    "Rosario Central": "rosario.png",
-    "Newells": "newells.png",
-    "Talleres (C)": "talleres.png",
-    "Belgrano": "belgrano.png",
-    "Instituto": "instituto.png",
-    "Argentinos Juniors": "argentinos.png",
-    "Velez": "velez.png",
-    "Lanus": "lanus.png",
-    "Banfield": "banfield.png",
-    "Defensa y Justicia": "defensa.png",
-    "Platense": "platense.png",
-    "Tigre": "tigre.png",
-    "Union": "union.png",
-    "Godoy Cruz": "godoycruz.png",
-    "Atl. Tucuman": "tucuman.png",
-    "Central Cordoba": "centralcordoba.png",
-    "Sarmiento (J)": "sarmiento.png",
-    "Barracas Central": "barracas.png",
-    "Ind. Rivadavia": "independienterivadavia.png",
-    "Dep. Riestra": "riestra.png"
-}
+# Busca el CSV donde sea que esté guardado
+RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
+if not os.path.exists(RUTA_CSV):
+    RUTA_CSV = os.path.join(os.getcwd(), "datos_procesados.csv")
 
-def obtener_ruta_imagen(nombre_equipo):
-    # Buscamos si el equipo tiene un archivo asignado en el diccionario
-    for clave, nombre_archivo in MAPEO_ARCHIVOS.items():
-        if clave.lower() in nombre_equipo.lower():
-            ruta_completa = os.path.join(CARPETA_ESCUDOS, nombre_archivo)
-            if os.path.exists(ruta_completa):
-                return ruta_completa
+# Busca la carpeta de escudos (revisa si está en la carpeta actual o en /escudos)
+CARPETAS_POSIBLES = [
+    os.path.join(DIRECTORIO_APP, "escudos"),
+    DIRECTORIO_APP,
+    os.path.join(os.getcwd(), "escudos"),
+    os.getcwd()
+]
+
+CARPETA_ESCUDOS = DIRECTORIO_APP
+for carpeta in CARPETAS_POSIBLES:
+    if os.path.exists(carpeta):
+        archivos_img = [f for f in os.listdir(carpeta) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        if len(archivos_img) > 0:
+            CARPETA_ESCUDOS = carpeta
+            break
+
+# Opción para cambiar la ruta manualmente desde la barra lateral si fuera necesario
+st.sidebar.header("⚙️ Configuración")
+ruta_custom = st.sidebar.text_input("Carpeta de imágenes:", value=CARPETA_ESCUDOS)
+if ruta_custom and os.path.exists(ruta_custom.strip()):
+    CARPETA_ESCUDOS = ruta_custom.strip()
+
+# 3. LÓGICA DE COINCIDENCIA (boca.png -> Boca Juniors)
+def normalizar(texto):
+    """Quita corchetes, paréntesis, tildes y símbolos para comparar fácil."""
+    txt = str(texto).lower()
+    txt = re.sub(r'\[.*?\]|\(.*?\)', '', txt)
+    txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode("utf-8")
+    return re.sub(r'[^a-z0-9]', '', txt).strip()
+
+def obtener_imagen_equipo(nombre_equipo):
+    if not os.path.exists(CARPETA_ESCUDOS):
+        return None
+    
+    equipo_norm = normalizar(nombre_equipo)
+    if not equipo_norm:
+        return None
+
+    try:
+        archivos = [f for f in os.listdir(CARPETA_ESCUDOS) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    except Exception:
+        return None
+
+    # Busca si "boca" está dentro de "bocajuniors" o viceversa
+    for archivo in archivos:
+        nombre_sin_ext = os.path.splitext(archivo)[0]
+        archivo_norm = normalizar(nombre_sin_ext)
+        if archivo_norm and (archivo_norm in equipo_norm or equipo_norm in archivo_norm):
+            return os.path.join(CARPETA_ESCUDOS, archivo)
+            
     return None
 
 # =====================================================================
-# 4. Predictor de Enfrentamientos
+# 4. TABLA DE POSICIONES
 # =====================================================================
-DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
-RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
-
-if not os.path.exists(RUTA_CSV):
-    st.error(f"⚠️ No se encontró 'datos_procesados.csv'.")
-else:
+if os.path.exists(RUTA_CSV):
     df = pd.read_csv(RUTA_CSV)
     
+    if "Equipo" in df.columns:
+        df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
+
+    st.subheader("📊 Tabla de Posiciones")
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.markdown("---")
+
+    # =====================================================================
+    # 5. PREDICTOR DE ENFRENTAMIENTOS
+    # =====================================================================
     st.subheader("🔮 Predictor de Enfrentamientos")
     
-    lista_equipos = sorted(df["Equipo"].unique())
+    lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
 
     if len(lista_equipos) >= 2:
         col1, col2 = st.columns(2)
@@ -82,29 +100,29 @@ else:
         if local == visitante:
             st.warning("Seleccioná dos equipos distintos.")
         else:
-            ruta_loc = obtener_ruta_imagen(local)
-            ruta_vis = obtener_ruta_imagen(visitante)
+            ruta_loc = obtener_imagen_equipo(local)
+            ruta_vis = obtener_imagen_equipo(visitante)
 
             c_loc, c_vs, c_vis = st.columns([2, 1, 2])
             
             with c_loc:
-                if ruta_loc:
-                    st.image(Image.open(ruta_loc), width=130)
+                if ruta_loc and os.path.exists(ruta_loc):
+                    st.image(Image.open(ruta_loc), width=120)
                 else:
-                    st.caption("🛡️ Revisá el nombre en el diccionario")
+                    st.caption("🛡️ (Sin escudo)")
                 st.markdown(f"### **{local}**")
                 
             with c_vs:
-                st.markdown("<h1 style='text-align: center; margin-top: 30px;'>VS</h1>", unsafe_allow_html=True)
+                st.markdown("<h1 style='text-align: center; margin-top: 20px;'>VS</h1>", unsafe_allow_html=True)
                 
             with c_vis:
-                if ruta_vis:
-                    st.image(Image.open(ruta_vis), width=130)
+                if ruta_vis and os.path.exists(ruta_vis):
+                    st.image(Image.open(ruta_vis), width=120)
                 else:
-                    st.caption("🛡️ Revisá el nombre en el diccionario")
+                    st.caption("🛡️ (Sin escudo)")
                 st.markdown(f"### **{visitante}**")
 
-            # Matemáticas
+            # Cálculo de Probabilidades
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -128,3 +146,5 @@ else:
             p1.metric(f"{local} (Local)", f"{prob_loc:.1f}%")
             p2.metric(f"{visitante} (Visitante)", f"{prob_vis:.1f}%")
             st.progress(int(prob_loc))
+else:
+    st.error("⚠️ No se encontró el archivo 'datos_procesados.csv'. Verificá que esté guardado en la misma carpeta del proyecto.")
