@@ -2,104 +2,65 @@ import streamlit as st
 import pandas as pd
 import os
 import re
-from PIL import Image
 
-# 1. Configuración de la página
-st.set_page_config(page_title="Tabla Anual & Predictor - LPF", layout="wide")
-st.title("⚽ Tabla Anual & Predictor - Liga Profesional")
+# =====================================================================
+# 1. CONFIGURACIÓN DE PÁGINA Y ENCABEZADO
+# =====================================================================
+st.set_page_config(page_title="Win Predictor - LPF Argentina", layout="wide")
+
+# Logo oficial de la LPF (vía Wikimedia URL oficial)
+URL_LOGO_LPF = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png/600px-Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png"
+
+col_logo, col_titulo = st.columns([1, 6])
+with col_logo:
+    st.image(URL_LOGO_LPF, width=95)
+with col_titulo:
+    st.title("⚽ Win Predictor - Liga Profesional")
+    st.markdown("**Tabla Anual & Predictor de Partidos (Local / Empate / Visitante)**")
+
 st.markdown("---")
 
-# 2. DIRECTORIO EXACTO (Busca en la carpeta "datos")
+# =====================================================================
+# 2. CARGA DE DATOS DESDE EL CSV
+# =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
-# Acá le decimos que la carpeta de las imágenes se llama "datos"
-CARPETA_DATOS = os.path.join(DIRECTORIO_APP, "datos") 
-
-# El CSV puede estar suelto o en datos, buscamos en los dos lados
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
+
 if not os.path.exists(RUTA_CSV):
-    RUTA_CSV = os.path.join(CARPETA_DATOS, "datos_procesados.csv")
+    # Revisa si el CSV está adentro de la carpeta 'datos'
+    RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos", "datos_procesados.csv")
 
-def encontrar_escudo(nombre_equipo):
-    """Busca automáticamente la imagen en la carpeta 'datos'."""
-    if not os.path.exists(CARPETA_DATOS):
-        return None
-        
-    # Limpiamos el nombre del equipo (Ej: "Boca Juniors" -> "bocajuniors")
-    eq_limpio = re.sub(r'[^a-z0-9]', '', str(nombre_equipo).lower())
-    
-    try:
-        archivos = os.listdir(CARPETA_DATOS)
-        for arch in archivos:
-            if arch.lower().endswith(('.png', '.jpg', '.jpeg')):
-                # Limpiamos el nombre del archivo (Ej: "boca.png" -> "boca")
-                arch_limpio = re.sub(r'[^a-z0-9]', '', os.path.splitext(arch)[0].lower())
-                
-                # Si coinciden (ej: "boca" está dentro de "bocajuniors"), devolvemos la ruta
-                if arch_limpio and (arch_limpio in eq_limpio or eq_limpio in arch_limpio):
-                    return os.path.join(CARPETA_DATOS, arch)
-    except Exception as e:
-        pass
-    
-    return None
-
-# =====================================================================
-# 3. CARGA DE DATOS (TABLA DE POSICIONES)
-# =====================================================================
 if os.path.exists(RUTA_CSV):
     df = pd.read_csv(RUTA_CSV)
     
     if "Equipo" in df.columns:
         df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
 
+    # -----------------------------------------------------------------
+    # 3. TABLA DE POSICIONES
+    # -----------------------------------------------------------------
     st.subheader("📊 Tabla de Posiciones")
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
-    # =====================================================================
-    # 4. PREDICTOR DE ENFRENTAMIENTOS
-    # =====================================================================
+    # -----------------------------------------------------------------
+    # 4. PREDICTOR DE ENFRENTAMIENTOS (LOCAL / EMPATE / VISITANTE)
+    # -----------------------------------------------------------------
     st.subheader("🔮 Predictor de Enfrentamientos")
-    
-    # Diagnóstico para ver si encuentra la carpeta datos
-    if not os.path.exists(CARPETA_DATOS):
-        st.warning(f"⚠️ No encuentro la carpeta 'datos' en: {DIRECTORIO_APP}. Asegurate de que se llame exactamente 'datos' en minúsculas.")
     
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
 
     if len(lista_equipos) >= 2:
         col1, col2 = st.columns(2)
         with col1:
-            local = st.selectbox("Equipo Local", lista_equipos, index=0)
+            local = st.selectbox("🏠 Equipo Local", lista_equipos, index=0)
         with col2:
-            visitante = st.selectbox("Equipo Visitante", lista_equipos, index=min(1, len(lista_equipos)-1))
+            visitante = st.selectbox("✈️ Equipo Visitante", lista_equipos, index=min(1, len(lista_equipos)-1))
 
         if local == visitante:
             st.warning("⚠️ Seleccioná dos equipos distintos.")
         else:
-            # Buscamos las imágenes locales en "datos"
-            ruta_loc = encontrar_escudo(local)
-            ruta_vis = encontrar_escudo(visitante)
-
-            c_loc, c_vs, c_vis = st.columns([2, 1, 2])
-            
-            with c_loc:
-                if ruta_loc:
-                    st.image(Image.open(ruta_loc), width=130)
-                else:
-                    st.caption(f"🛡️ (Falta {local}.png en datos/)")
-                st.markdown(f"### **{local}**")
-                
-            with c_vs:
-                st.markdown("<h1 style='text-align: center; margin-top: 35px;'>VS</h1>", unsafe_allow_html=True)
-                
-            with c_vis:
-                if ruta_vis:
-                    st.image(Image.open(ruta_vis), width=130)
-                else:
-                    st.caption(f"🛡️ (Falta {visitante}.png en datos/)")
-                st.markdown(f"### **{visitante}**")
-
-            # Cálculo de Probabilidades
+            # Datos del equipo local y visitante
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -108,20 +69,46 @@ if os.path.exists(RUTA_CSV):
             pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
             pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
 
-            prom_loc = (pts_loc / pj_loc) * 1.15
-            prom_vis = pts_vis / pj_vis
-            total = prom_loc + prom_vis
+            # Promedio de puntos por partido (+12% extra por localía)
+            prom_loc = (pts_loc / pj_loc) * 1.12
+            prom_vis = (pts_vis / pj_vis)
 
-            if total > 0:
-                prob_loc = (prom_loc / total) * 100
-                prob_vis = (prom_vis / total) * 100
+            # Diferencia de nivel entre equipos
+            diferencia = abs(prom_loc - prom_vis)
+
+            # Cuanto más parejos, mayor probabilidad de empate (rango típico en fútbol argentino ~22% a 32%)
+            prob_empate = max(18.0, min(33.0, 29.0 - (diferencia * 7.5)))
+
+            # El porcentaje restante se reparte entre victoria local y visitante
+            resto = 100.0 - prob_empate
+            total_prom = prom_loc + prom_vis
+
+            if total_prom > 0:
+                prob_loc = (prom_loc / total_prom) * resto
+                prob_vis = (prom_vis / total_prom) * resto
             else:
-                prob_loc, prob_vis = 50.0, 50.0
+                prob_loc = resto / 2
+                prob_vis = resto / 2
 
-            st.markdown("#### **Probabilidades de Victoria**")
-            p1, p2 = st.columns(2)
-            p1.metric(f"{local} (Local)", f"{prob_loc:.1f}%")
-            p2.metric(f"{visitante} (Visitante)", f"{prob_vis:.1f}%")
-            st.progress(int(prob_loc))
+            # Muestra de Enfrentamiento
+            st.markdown(f"### **{local}** &nbsp; vs &nbsp; **{visitante}**")
+            st.markdown("#### **Probabilidades del Partido**")
+
+            # Métrica en 3 columnas
+            m1, m2, m3 = st.columns(3)
+            m1.metric(f"Victoria {local}", f"{prob_loc:.1f}%")
+            m2.metric("Empate", f"{prob_empate:.1f}%")
+            m3.metric(f"Victoria {visitante}", f"{prob_vis:.1f}%")
+
+            # Barra visual acumulada
+            st.markdown("**Distribución visual:**")
+            col_bar1, col_bar2, col_bar3 = st.columns([int(prob_loc), int(prob_empate), int(prob_vis)])
+            with col_bar1:
+                st.info(f"Local: {prob_loc:.1f}%")
+            with col_bar2:
+                st.warning(f"Empate: {prob_empate:.1f}%")
+            with col_bar3:
+                st.error(f"Visitante: {prob_vis:.1f}%")
+
 else:
-    st.error("⚠️ No se encontró el archivo 'datos_procesados.csv'. Verificá que esté en la carpeta del programa o adentro de 'datos'.")
+    st.error("⚠️ No se encontró el archivo 'datos_procesados.csv'. Verificá que esté guardado en el mismo directorio.")
