@@ -1,22 +1,43 @@
 import requests
-from bs4 import BeautifulSoup
 import pandas as pd
 
-# 1. URL objetivo y headers de simulación de navegador
-URL = "https://canchallena.lanacion.com.ar/"  # Ajustá a la sección específica
+# URL de Cancha Llena
+URL = "https://canchallena.lanacion.com.ar/futbol/tabla-anual/"
+
+# Headers para simular una petición desde un navegador web
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-def obtener_datos_canchallena():
+def obtener_tabla_anual():
+    print("⏳ Conectando a Cancha Llena...")
+    
+    # Realizar la petición HTTP
     response = requests.get(URL, headers=HEADERS)
-    if response.status_code != 200:
-        raise Exception(f"Error al acceder a Cancha Llena: Status {response.status_code}")
+    response.raise_for_status()
     
-    soup = BeautifulSoup(response.text, 'html.parser')
+    # Parsear las tablas del HTML usando pandas y lxml
+    tablas = pd.read_html(response.text)
     
-    # Lógica de extracción según las etiquetas de Cancha Llena
-    print("Conexión exitosa a Cancha Llena.")
+    if not tablas:
+        raise ValueError("No se encontraron tablas HTML en la página.")
+    
+    # La primera tabla corresponde a la Tabla Anual
+    df = tablas[0]
+    
+    # Limpieza rápida del DataFrame
+    df.dropna(how='all', inplace=True)
+    
+    print("✅ Tabla procesada correctamente:")
+    print(df.head())
+    
+    # Guardar en CSV para que el predictor lea estos datos
+    df.to_csv("tabla_anual.csv", index=False, encoding="utf-8-sig")
+    print("💾 Datos guardados en 'tabla_anual.csv'")
 
 if __name__ == "__main__":
-    obtener_datos_canchallena()
+    try:
+        obtener_tabla_anual()
+    except Exception as e:
+        print(f"❌ Error al obtener los datos de Cancha Llena: {e}")
+        exit(1)
