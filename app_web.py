@@ -5,7 +5,17 @@ import re
 
 st.set_page_config(page_title="Win Predictor - LPF", page_icon="⚽", layout="centered")
 
-st.title("⚽ Win Predictor - Fútbol Argentino")
+# ---------------------------------------------------------
+# ENCABEZADO CON LOGO OFICIAL DE LA LIGA PROFESIONAL (LPF)
+# ---------------------------------------------------------
+col_logo, col_titulo = st.columns([0.15, 0.85])
+with col_logo:
+    st.image(
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg/300px-Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg.png",
+        width=55
+    )
+with col_titulo:
+    st.title("Win Predictor - LPF")
 
 @st.cache_data(ttl=60)
 def cargar_datos():
@@ -19,44 +29,44 @@ if df is None or df.empty:
     st.error("❌ No se encontraron datos procesados. Por favor ejecutá la actualización en GitHub.")
 else:
     # ---------------------------------------------------------
-    # DICCIONARIO DE ESCUDOS OFICIALES DE ESPN (CDN ultra rápida y sin bloqueos CORS)
+    # DICCIONARIO DE ESCUDOS OFICIALES Y EXACTOS (PNG Wikimedia Directo)
     # ---------------------------------------------------------
-    escudos_espn = {
-        "Independiente Rivadavia": "https://a.espncdn.com/i/teamlogos/soccer/500/18881.png",
-        "Argentinos Juniors": "https://a.espncdn.com/i/teamlogos/soccer/500/1.png",
-        "Estudiantes (LP)": "https://a.espncdn.com/i/teamlogos/soccer/500/8.png",
-        "Boca Juniors": "https://a.espncdn.com/i/teamlogos/soccer/500/3.png",
-        "River Plate": "https://a.espncdn.com/i/teamlogos/soccer/500/16.png",
-        "Belgrano": "https://a.espncdn.com/i/teamlogos/soccer/500/240.png",
-        "Vélez Sarsfield": "https://a.espncdn.com/i/teamlogos/soccer/500/21.png",
-        "Rosario Central": "https://a.espncdn.com/i/teamlogos/soccer/500/17.png",
-        "Talleres (C)": "https://a.espncdn.com/i/teamlogos/soccer/500/245.png",
-        "Gimnasia (LP)": "https://a.espncdn.com/i/teamlogos/soccer/500/9.png",
-        "Independiente": "https://a.espncdn.com/i/teamlogos/soccer/500/10.png",
-        "Lanús": "https://a.espncdn.com/i/teamlogos/soccer/500/12.png",
-        "Huracán": "https://a.espncdn.com/i/teamlogos/soccer/500/13.png",
-        "San Lorenzo": "https://a.espncdn.com/i/teamlogos/soccer/500/18.png",
-        "Unión": "https://a.espncdn.com/i/teamlogos/soccer/500/20.png",
-        "Racing Club": "https://a.espncdn.com/i/teamlogos/soccer/500/15.png",
-        "Instituto": "https://a.espncdn.com/i/teamlogos/soccer/500/242.png",
-        "Barracas Central": "https://a.espncdn.com/i/teamlogos/soccer/500/18873.png",
-        "Tigre": "https://a.espncdn.com/i/teamlogos/soccer/500/19.png",
-        "Defensa y Justicia": "https://a.espncdn.com/i/teamlogos/soccer/500/18874.png",
-        "Sarmiento (J)": "https://a.espncdn.com/i/teamlogos/soccer/500/18878.png",
-        "Gimnasia (Mendoza)": "https://a.espncdn.com/i/teamlogos/soccer/500/18880.png",
-        "Banfield": "https://a.espncdn.com/i/teamlogos/soccer/500/2.png",
-        "Platense": "https://a.espncdn.com/i/teamlogos/soccer/500/14.png",
-        "Central Córdoba (SdE)": "https://a.espncdn.com/i/teamlogos/soccer/500/18875.png",
-        "Newell's Old Boys": "https://a.espncdn.com/i/teamlogos/soccer/500/11.png",
-        "Atlético Tucumán": "https://a.espncdn.com/i/teamlogos/soccer/500/18872.png",
-        "Deportivo Riestra": "https://a.espncdn.com/i/teamlogos/soccer/500/19912.png",
-        "Aldosivi": "https://a.espncdn.com/i/teamlogos/soccer/500/18871.png",
-        "Estudiantes (RC)": "https://a.espncdn.com/i/teamlogos/soccer/500/18877.png"
+    escudos_oficiales = {
+        "Argentinos Juniors": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/AAAJ_logo.svg/200px-AAAJ_logo.svg.png",
+        "Atlético Tucumán": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg/200px-Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg.png",
+        "Banfield": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Escudo_del_Club_Atl%C3%A9tico_Banfield.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Banfield.svg.png",
+        "Barracas Central": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Escudo_de_Barracas_Central.svg/200px-Escudo_de_Barracas_Central.svg.png",
+        "Belgrano": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg/200px-Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg.png",
+        "Boca Juniors": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg.png",
+        "Central Córdoba (SdE)": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg/200px-Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg.png",
+        "Defensa y Justicia": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg/200px-Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg.png",
+        "Deportivo Riestra": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Deportivo_Riestra_logo.svg/200px-Deportivo_Riestra_logo.svg.png",
+        "Estudiantes (LP)": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Escudo_de_Estudiantes_de_La_Plata.svg/200px-Escudo_de_Estudiantes_de_La_Plata.svg.png",
+        "Gimnasia (LP)": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Gimnasia_y_Esgrima_de_La_Plata_logo.svg/200px-Gimnasia_y_Esgrima_de_La_Plata_logo.svg.png",
+        "Gimnasia (Mendoza)": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Escudo_del_Club_Gimnasia_y_Esgrima_de_Mendoza.svg/200px-Escudo_del_Club_Gimnasia_y_Esgrima_de_Mendoza.svg.png",
+        "Godoy Cruz": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg/200px-Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg.png",
+        "Huracán": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg.png",
+        "Independiente": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Escudo_del_Club_Atl%C3%A9tico_Independiente.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Independiente.svg.png",
+        "Independiente Rivadavia": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg/200px-Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg.png",
+        "Instituto": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Escudo_de_Instituto_ACC.svg/200px-Escudo_de_Instituto_ACC.svg.png",
+        "Lanús": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg.png",
+        "Newell's Old Boys": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg.png",
+        "Platense": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Escudo_del_Club_Atl%C3%A9tico_Platense.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Platense.svg.png",
+        "Racing Club": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Escudo_de_Racing_Club.svg/200px-Escudo_de_Racing_Club.svg.png",
+        "River Plate": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_C_A_River_Plate.svg/200px-Escudo_del_C_A_River_Plate.svg.png",
+        "Rosario Central": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg.png",
+        "San Lorenzo": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg/200px-Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg.png",
+        "Sarmiento (J)": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg.png",
+        "Talleres (C)": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg.png",
+        "Tigre": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Escudo_del_Club_Atl%C3%A9tico_Tigre.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Tigre.svg.png",
+        "Unión": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg.png",
+        "Vélez Sarsfield": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg/200px-Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg.png",
+        "Aldosivi": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg/200px-Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg.png",
+        "Estudiantes (RC)": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Escudo_del_Club_A%C3%A9reo_y_Deportivo_Estudiantes_de_R%C3%ADo_Cuarto.svg/200px-Escudo_del_Club_A%C3%A9reo_y_Deportivo_Estudiantes_de_R%C3%ADo_Cuarto.svg.png"
     }
 
-    escudo_defecto = "https://a.espncdn.com/i/teamlogos/soccer/500/default.png"
+    escudo_defecto = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg/200px-Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg.png"
 
-    # Función flexible que limpia las notas al pie de Wikipedia y vincula el escudo correcto
     def obtener_escudo(nombre_bruto):
         if not isinstance(nombre_bruto, str):
             return escudo_defecto
@@ -64,40 +74,44 @@ else:
         # Elimina notas entre corchetes como [n. 1], [1], etc.
         nombre = re.sub(r'\[.*?\]', '', nombre_bruto).strip()
         
-        if nombre in escudos_espn:
-            return escudos_espn[nombre]
+        if nombre in escudos_oficiales:
+            return escudos_oficiales[nombre]
             
         nom_lower = nombre.lower()
-        if "gimnasia" in nom_lower and ("lp" in nom_lower or "esgrima" in nom_lower):
-            return escudos_espn["Gimnasia (LP)"]
-        if "gimnasia" in nom_lower and "mendoza" in nom_lower:
-            return escudos_espn["Gimnasia (Mendoza)"]
-        if "estudiantes" in nom_lower and "lp" in nom_lower:
-            return escudos_espn["Estudiantes (LP)"]
-        if "estudiantes" in nom_lower and "rc" in nom_lower:
-            return escudos_espn["Estudiantes (RC)"]
+        if "argentinos" in nom_lower:
+            return escudos_oficiales["Argentinos Juniors"]
+        if "boca" in nom_lower:
+            return escudos_oficiales["Boca Juniors"]
         if "talleres" in nom_lower:
-            return escudos_espn["Talleres (C)"]
+            return escudos_oficiales["Talleres (C)"]
         if "belgrano" in nom_lower:
-            return escudos_espn["Belgrano"]
-        if "sarmiento" in nom_lower:
-            return escudos_espn["Sarmiento (J)"]
-        if "central c" in nom_lower or "cordoba" in nom_lower:
-            return escudos_espn["Central Córdoba (SdE)"]
-        if "newell" in nom_lower:
-            return escudos_espn["Newell's Old Boys"]
-        if "riestra" in nom_lower:
-            return escudos_espn["Deportivo Riestra"]
-        if "tucuman" in nom_lower or "tucumán" in nom_lower:
-            return escudos_espn["Atlético Tucumán"]
-        if "independiente riv" in nom_lower:
-            return escudos_espn["Independiente Rivadavia"]
+            return escudos_oficiales["Belgrano"]
+        if "independiente riv" in nom_lower or "rivadavia" in nom_lower:
+            return escudos_oficiales["Independiente Rivadavia"]
         if "independiente" in nom_lower:
-            return escudos_espn["Independiente"]
+            return escudos_oficiales["Independiente"]
+        if "gimnasia" in nom_lower and ("lp" in nom_lower or "esgrima" in nom_lower):
+            return escudos_oficiales["Gimnasia (LP)"]
+        if "gimnasia" in nom_lower and "mendoza" in nom_lower:
+            return escudos_oficiales["Gimnasia (Mendoza)"]
+        if "estudiantes" in nom_lower and "lp" in nom_lower:
+            return escudos_oficiales["Estudiantes (LP)"]
+        if "estudiantes" in nom_lower and "rc" in nom_lower:
+            return escudos_oficiales["Estudiantes (RC)"]
+        if "sarmiento" in nom_lower:
+            return escudos_oficiales["Sarmiento (J)"]
+        if "central c" in nom_lower or "cordoba" in nom_lower:
+            return escudos_oficiales["Central Córdoba (SdE)"]
+        if "newell" in nom_lower:
+            return escudos_oficiales["Newell's Old Boys"]
+        if "riestra" in nom_lower:
+            return escudos_oficiales["Deportivo Riestra"]
+        if "tucuman" in nom_lower or "tucumán" in nom_lower:
+            return escudos_oficiales["Atlético Tucumán"]
         if "barracas" in nom_lower:
-            return escudos_espn["Barracas Central"]
+            return escudos_oficiales["Barracas Central"]
             
-        for key, url in escudos_espn.items():
+        for key, url in escudos_oficiales.items():
             if key.lower() in nom_lower or nom_lower in key.lower():
                 return url
                 
@@ -157,20 +171,19 @@ else:
     cols_basicas = ["Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
     cols_existentes = [c for c in cols_basicas if c in df.columns]
     
-    # 1. Copiamos el DataFrame con las columnas existentes
     df_tabla = df[cols_existentes].copy()
     
-    # 2. Asignamos el escudo DIRECTAMENTE a la fila de cada equipo (Row-level mapping)
+    # Asignación segura del escudo por fila
     df_tabla["Escudo"] = df_tabla["Equipo"].apply(obtener_escudo)
     
-    # 3. Ordenamos por Puntos (el escudo se moverá automáticamente junto a su equipo)
+    # Ordenar por Puntos (el escudo se mueve junto con la fila)
     df_tabla = df_tabla.sort_values(by="Puntos", ascending=False).reset_index(drop=True)
     
-    # 4. Reordenamos para que 'Escudo' sea la primera columna
+    # Posicionar la columna Escudo al inicio
     columnas_ordenadas = ["Escudo"] + [c for c in df_tabla.columns if c != "Escudo"]
     df_tabla = df_tabla[columnas_ordenadas]
 
-    # 5. Renderizado seguro con ImageColumn
+    # Renderizado seguro en Streamlit
     st.dataframe(
         df_tabla,
         hide_index=True, 
