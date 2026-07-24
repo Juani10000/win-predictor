@@ -1,15 +1,14 @@
 import requests
 import pandas as pd
 
-# Pegá acá la clave que te llegó al mail
-API_TOKEN = 'c0bd172b59bf4d74b6fcc2158f75c56c'
+# Pegá tu clave entre las comillas
+API_TOKEN = 'TU_API_KEY_AQUI'
 
-def obtener_datos_en_vivo():
-    print("📡 Conectando a la API de fútbol en vivo...")
+def obtener_partidos_reales():
+    print("📡 Descargando datos oficiales de la Liga Argentina...")
     
-    # Código 2024 / LPF / Liga Argentina en la API
-    headers = { 'X-Auth-Token': API_TOKEN }
-    url = "https://api.football-data.org/v4/competitions/CLI/matches" # Copa Libertadores / Liga
+    url = "https://api.football-data.org/v4/competitions/ARG/matches"
+    headers = {'X-Auth-Token': API_TOKEN}
     
     try:
         response = requests.get(url, headers=headers)
@@ -28,10 +27,10 @@ def obtener_datos_en_vivo():
         
         df = pd.DataFrame(partidos)
         df.to_csv("datos/liga_argentina.csv", index=False)
-        print("✅ Partidos en vivo descargados con éxito.")
+        print(f"✅ ¡Se descargaron {len(df)} partidos reales y limpios!")
         
     except Exception as e:
-        print(f"❌ Error al conectar con la API: {e}")
+        print(f"❌ Error al consultar la API: {e}")
 
 if __name__ == "__main__":
-    obtener_datos_en_vivo()
+    obtener_partidos_reales()
