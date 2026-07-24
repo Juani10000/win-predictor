@@ -2,22 +2,28 @@ import streamlit as st
 import pandas as pd
 import os
 import re
+import requests
+from io import BytesIO
+from PIL import Image
 
 # =====================================================================
 # 1. CONFIGURACIÓN DE PÁGINA Y ENCABEZADO CON LOGO DE LA LPF
 # =====================================================================
 st.set_page_config(page_title="Win Predictor - LPF Argentina", layout="wide")
 
-# Logo oficial de la Liga Profesional de Fútbol
-URL_LOGO_LPF = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png/600px-Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png"
-
 col_logo, col_titulo = st.columns([1, 6])
+
 with col_logo:
-    # Usamos HTML directo para garantizar la carga del logo en el navegador
-    st.markdown(
-        f'<img src="{URL_LOGO_LPF}" width="110" style="margin-top: 10px;">',
-        unsafe_allow_html=True
-    )
+    # TRUCO DEFINITIVO: Python descarga la imagen en memoria y la muestra
+    try:
+        url_logo = "https://upload.wikimedia.org/wikipedia/commons/d/d4/Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png"
+        respuesta = requests.get(url_logo, timeout=5)
+        imagen_logo = Image.open(BytesIO(respuesta.content))
+        st.image(imagen_logo, width=110)
+    except Exception:
+        # Si algo falla (sin internet, antivirus, etc.), pone un emoji para no romper la app
+        st.markdown("<h1 style='font-size: 60px;'>⚽</h1>", unsafe_allow_html=True)
+
 with col_titulo:
     st.title("⚽ Win Predictor - Liga Profesional Argentina")
     st.markdown("**Tabla Anual & Predictor de Partidos (Local / Empate / Visitante)**")
