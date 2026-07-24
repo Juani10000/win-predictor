@@ -11,40 +11,42 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. CDN de Escudos Oficiales (FotMob CDN)
-LOGO_LPF = "https://images.fotmob.com/image_resources/logo/leaguelogo/112.png"
+# 2. Diccionario EXACTO de Escudos (Hecho a mano, sin fallas)
+LOGO_LPF = "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/1/15/Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg/200px-Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg.png"
 
 ESCUDOS_EQUIPOS = {
-    "argentinos": "https://images.fotmob.com/image_resources/logo/teamlogo/10236.png",
-    "atletico tucuman": "https://images.fotmob.com/image_resources/logo/teamlogo/10253.png",
-    "banfield": "https://images.fotmob.com/image_resources/logo/teamlogo/10249.png",
-    "barracas": "https://images.fotmob.com/image_resources/logo/teamlogo/10260.png",
-    "belgrano": "https://images.fotmob.com/image_resources/logo/teamlogo/10250.png",
-    "boca": "https://images.fotmob.com/image_resources/logo/teamlogo/10243.png",
-    "central cordoba": "https://images.fotmob.com/image_resources/logo/teamlogo/10258.png",
-    "defensa": "https://images.fotmob.com/image_resources/logo/teamlogo/10252.png",
-    "riestra": "https://images.fotmob.com/image_resources/logo/teamlogo/10262.png",
-    "estudiantes lp": "https://images.fotmob.com/image_resources/logo/teamlogo/10241.png",
-    "gimnasia lp": "https://images.fotmob.com/image_resources/logo/teamlogo/10240.png",
-    "godoy cruz": "https://images.fotmob.com/image_resources/logo/teamlogo/10254.png",
-    "huracan": "https://images.fotmob.com/image_resources/logo/teamlogo/10239.png",
-    "independiente rivadavia": "https://images.fotmob.com/image_resources/logo/teamlogo/10263.png",
-    "independiente": "https://images.fotmob.com/image_resources/logo/teamlogo/10242.png",
-    "instituto": "https://images.fotmob.com/image_resources/logo/teamlogo/10261.png",
-    "lanus": "https://images.fotmob.com/image_resources/logo/teamlogo/10248.png",
-    "newell": "https://images.fotmob.com/image_resources/logo/teamlogo/10237.png",
-    "platense": "https://images.fotmob.com/image_resources/logo/teamlogo/10257.png",
-    "racing": "https://images.fotmob.com/image_resources/logo/teamlogo/10245.png",
-    "river": "https://images.fotmob.com/image_resources/logo/teamlogo/10244.png",
-    "rosario central": "https://images.fotmob.com/image_resources/logo/teamlogo/10238.png",
-    "san lorenzo": "https://images.fotmob.com/image_resources/logo/teamlogo/10246.png",
-    "sarmiento": "https://images.fotmob.com/image_resources/logo/teamlogo/10259.png",
-    "talleres": "https://images.fotmob.com/image_resources/logo/teamlogo/10251.png",
-    "tigre": "https://images.fotmob.com/image_resources/logo/teamlogo/10256.png",
-    "union": "https://images.fotmob.com/image_resources/logo/teamlogo/10255.png",
-    "velez": "https://images.fotmob.com/image_resources/logo/teamlogo/10247.png",
-    "aldosivi": "https://images.fotmob.com/image_resources/logo/teamlogo/10265.png",
-    "san martin sj": "https://images.fotmob.com/image_resources/logo/teamlogo/10266.png"
+    "argentinos juniors": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/1/1b/AAAJ_logo.svg/100px-AAAJ_logo.svg.png",
+    "atletico tucuman": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg/100px-Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg.png",
+    "banfield": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Escudo_del_Club_Atl%C3%A9tico_Banfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Banfield.svg.png",
+    "barracas central": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/2/20/Escudo_de_Barracas_Central.svg/100px-Escudo_de_Barracas_Central.svg.png",
+    "belgrano": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg/100px-Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg.png",
+    "boca juniors": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg.png",
+    "central cordoba": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/8/87/Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg/100px-Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg.png",
+    "defensa y justicia": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg/100px-Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg.png",
+    "deportivo riestra": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Deportivo_Riestra_logo.svg/100px-Deportivo_Riestra_logo.svg.png",
+    "estudiantes lp": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Escudo_de_Estudiantes_de_La_Plata.svg/100px-Escudo_de_Estudiantes_de_La_Plata.svg.png",
+    "gimnasia lp": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/3/36/Gimnasia_y_Esgrima_de_La_Plata_logo.svg/100px-Gimnasia_y_Esgrima_de_La_Plata_logo.svg.png",
+    "gimnasia mendoza": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Escudo_del_Club_Gimnasia_y_Esgrima_de_Mendoza.svg/100px-Escudo_del_Club_Gimnasia_y_Esgrima_de_Mendoza.svg.png",
+    "godoy cruz": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg/100px-Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg.png",
+    "huracan": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg.png",
+    "independiente": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/d/db/Escudo_del_Club_Atl%C3%A9tico_Independiente.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Independiente.svg.png",
+    "independiente rivadavia": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/2/23/Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg/100px-Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg.png",
+    "instituto": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Escudo_de_Instituto_ACC.svg/100px-Escudo_de_Instituto_ACC.svg.png",
+    "lanus": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg.png",
+    "newell": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg.png",
+    "platense": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Escudo_del_Club_Atl%C3%A9tico_Platense.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Platense.svg.png",
+    "racing club": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/5/56/Escudo_de_Racing_Club.svg/100px-Escudo_de_Racing_Club.svg.png",
+    "river plate": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Escudo_del_C_A_River_Plate.svg/100px-Escudo_del_C_A_River_Plate.svg.png",
+    "rosario central": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg.png",
+    "san lorenzo": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/7/77/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg.png",
+    "sarmiento": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/2/23/Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg.png",
+    "talleres": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/0/07/Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg.png",
+    "tigre": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Escudo_del_Club_Atl%C3%A9tico_Tigre.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Tigre.svg.png",
+    "union": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/7/79/Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg.png",
+    "velez sarsfield": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/2/20/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg.png",
+    "aldosivi": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/8/80/Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg.png",
+    "estudiantes rc": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Escudo_del_Club_A%C3%A9reo_y_Deportivo_Estudiantes_de_R%C3%ADo_Cuarto.svg/100px-Escudo_del_Club_A%C3%A9reo_y_Deportivo_Estudiantes_de_R%C3%ADo_Cuarto.svg.png",
+    "san martin sj": "https://wsrv.nl/?url=upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg.png"
 }
 
 def normalizar_texto(texto):
@@ -66,21 +68,65 @@ def obtener_escudo(nombre_equipo):
     if "rosario central" in norm:
         return ESCUDOS_EQUIPOS["rosario central"]
     if "gimnasia" in norm and "mendoza" in norm:
-        return "https://images.fotmob.com/image_resources/logo/teamlogo/10264.png"
+        return ESCUDOS_EQUIPOS["gimnasia mendoza"]
     if "gimnasia" in norm:
         return ESCUDOS_EQUIPOS["gimnasia lp"]
     if "estudiantes" in norm and ("rc" in norm or "cuarto" in norm):
-        return "https://images.fotmob.com/image_resources/logo/teamlogo/10265.png"
+        return ESCUDOS_EQUIPOS["estudiantes rc"]
     if "estudiantes" in norm:
         return ESCUDOS_EQUIPOS["estudiantes lp"]
+    if "argentinos" in norm:
+        return ESCUDOS_EQUIPOS["argentinos juniors"]
+    if "atletico tucuman" in norm or "tucuman" in norm:
+        return ESCUDOS_EQUIPOS["atletico tucuman"]
+    if "barracas" in norm:
+        return ESCUDOS_EQUIPOS["barracas central"]
+    if "boca" in norm:
+        return ESCUDOS_EQUIPOS["boca juniors"]
+    if "defensa" in norm:
+        return ESCUDOS_EQUIPOS["defensa y justicia"]
+    if "riestra" in norm:
+        return ESCUDOS_EQUIPOS["deportivo riestra"]
+    if "godoy cruz" in norm:
+        return ESCUDOS_EQUIPOS["godoy cruz"]
+    if "huracan" in norm:
+        return ESCUDOS_EQUIPOS["huracan"]
+    if "instituto" in norm:
+        return ESCUDOS_EQUIPOS["instituto"]
+    if "lanus" in norm:
+        return ESCUDOS_EQUIPOS["lanus"]
+    if "newell" in norm:
+        return ESCUDOS_EQUIPOS["newell"]
+    if "platense" in norm:
+        return ESCUDOS_EQUIPOS["platense"]
+    if "racing" in norm:
+        return ESCUDOS_EQUIPOS["racing club"]
+    if "river" in norm:
+        return ESCUDOS_EQUIPOS["river plate"]
+    if "san lorenzo" in norm:
+        return ESCUDOS_EQUIPOS["san lorenzo"]
+    if "sarmiento" in norm:
+        return ESCUDOS_EQUIPOS["sarmiento"]
+    if "talleres" in norm:
+        return ESCUDOS_EQUIPOS["talleres"]
+    if "tigre" in norm:
+        return ESCUDOS_EQUIPOS["tigre"]
+    if "union" in norm:
+        return ESCUDOS_EQUIPOS["union"]
+    if "velez" in norm:
+        return ESCUDOS_EQUIPOS["velez sarsfield"]
+    if "belgrano" in norm:
+        return ESCUDOS_EQUIPOS["belgrano"]
+    if "banfield" in norm:
+        return ESCUDOS_EQUIPOS["banfield"]
+    if "aldosivi" in norm:
+        return ESCUDOS_EQUIPOS["aldosivi"]
+    if "san martin sj" in norm or "san juan" in norm:
+        return ESCUDOS_EQUIPOS["san martin sj"]
         
-    for clave, url in ESCUDOS_EQUIPOS.items():
-        if clave in norm:
-            return url
-            
     return LOGO_LPF
 
-# 3. Encabezado principal con el Logo Oficial de la LPF
+# 3. Encabezado principal
 col_lpf, col_title = st.columns([1, 6])
 with col_lpf:
     st.image(LOGO_LPF, width=80)
@@ -94,11 +140,9 @@ st.markdown("---")
 CSV_PATH = "datos_procesados.csv"
 
 if not os.path.exists(CSV_PATH):
-    st.error(f"No se encontró el archivo '{CSV_PATH}'. Asegúrate de ejecutar primero tu scraper/procesador de datos.")
+    st.error(f"No se encontró el archivo '{CSV_PATH}'.")
 else:
     df = pd.read_csv(CSV_PATH)
-    
-    # Limpieza de nombres de columna
     df.columns = df.columns.str.strip()
     
     if "Equipo" in df.columns:
@@ -133,7 +177,7 @@ else:
 
         st.markdown("---")
 
-        # 5. Sección del Predictor de Partidos
+        # 5. Predictor
         st.subheader("🔮 Predictor de Enfrentamientos")
         lista_equipos = sorted(df["Equipo"].unique())
 
@@ -145,7 +189,7 @@ else:
                 visitante = st.selectbox("Equipo Visitante", lista_equipos, index=min(1, len(lista_equipos)-1))
 
             if local == visitante:
-                st.warning("Selecciona dos equipos distintos para predecir el partido.")
+                st.warning("Selecciona dos equipos distintos.")
             else:
                 escudo_local = obtener_escudo(local)
                 escudo_vis = obtener_escudo(visitante)
