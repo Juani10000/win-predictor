@@ -2,12 +2,11 @@ import streamlit as st
 import pandas as pd
 import os
 import re
-import time
 
 # =====================================================================
-# 1. CONFIGURACIÓN Y CSS FACHERO (NEÓN, COLORES, ANIMACIONES)
+# 1. CONFIGURACIÓN Y CSS FACHERO (NEÓN Y COLORES SERIOS)
 # =====================================================================
-st.set_page_config(page_title="Win Predictor | LPF", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
 st.markdown("""
     <style>
@@ -21,15 +20,15 @@ st.markdown("""
         .neon-title {
             font-size: 48px;
             font-weight: 900;
-            text-align: center;
+            text-align: left;
             color: #ffffff;
-            text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 40px #00f3ff;
+            text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 30px #00f3ff;
             margin-bottom: 5px;
             text-transform: uppercase;
         }
         /* Subtítulo tecnológico */
         .tech-sub {
-            text-align: center;
+            text-align: left;
             color: #94a3b8;
             letter-spacing: 2px;
             font-size: 16px;
@@ -55,22 +54,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------
-# ENCABEZADO CON GIF Y LOGO
+# ENCABEZADO LIMPIO CON LOGO ESPN (SIN GIFS ROTOS)
 # ---------------------------------------------------------------------
-# Usamos un GIF de luces/datos para darle movimiento (sacado de Giphy)
-st.markdown(
-    """
-    <div style="width: 100%; height: 150px; background-image: url('https://media.giphy.com/media/l41JONXqO0EqiC5yw/giphy.gif'); background-size: cover; background-position: center; border-radius: 10px; opacity: 0.7; margin-bottom: 20px;">
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
-
-col_logo, col_vacia, col_titulo = st.columns([1, 1, 6])
+col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
-    # URL directa de ESPN que ya comprobamos que funciona joya
+    # URL directa de ESPN
     url_lpf = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
-    st.image(url_lpf, width=120)
+    st.image(url_lpf, width=110)
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
@@ -94,89 +84,73 @@ if os.path.exists(RUTA_CSV):
         df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
 
     # =================================================================
-    # 3. INTERFAZ EN PESTAÑAS (TABS) PARA QUE SE VEA MODERNO
+    # 3. TABLA DE POSICIONES SIEMPRE VISIBLE
     # =================================================================
-    tab_predictor, tab_tabla = st.tabs(["🎯 MOTOR DE PREDICCIÓN", "📊 BASE DE DATOS (TABLA)"])
+    st.markdown("<h3 style='color: #cbd5e1;'>📊 Estado Actual del Campeonato</h3>", unsafe_allow_html=True)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.markdown("---")
 
-    # -----------------------------------------------------------------
-    # PESTAÑA 1: PREDICTOR ANIMADO
-    # -----------------------------------------------------------------
-    with tab_predictor:
-        st.markdown("<h3 style='color: #cbd5e1;'>Configurar Encuentro</h3>", unsafe_allow_html=True)
-        
-        lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
+    # =================================================================
+    # 4. PREDICTOR 
+    # =================================================================
+    st.markdown("<h3 style='color: #cbd5e1;'>🎯 Motor de Predicción</h3>", unsafe_allow_html=True)
+    
+    lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
 
-        if len(lista_equipos) >= 2:
-            col1, col2 = st.columns(2)
-            with col1:
-                local = st.selectbox("Seleccionar Local", lista_equipos, index=0)
-            with col2:
-                visitante = st.selectbox("Seleccionar Visitante", lista_equipos, index=min(1, len(lista_equipos)-1))
+    if len(lista_equipos) >= 2:
+        col1, col2 = st.columns(2)
+        with col1:
+            local = st.selectbox("Seleccionar Local", lista_equipos, index=0)
+        with col2:
+            visitante = st.selectbox("Seleccionar Visitante", lista_equipos, index=min(1, len(lista_equipos)-1))
 
-            if local == visitante:
-                st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
+        if local == visitante:
+            st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
+        else:
+            # Cálculos automáticos sin botones para que sea más dinámico
+            row_loc = df[df["Equipo"] == local].iloc[0]
+            row_vis = df[df["Equipo"] == visitante].iloc[0]
+
+            pts_loc = float(row_loc.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
+            pts_vis = float(row_vis.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
+            pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
+            pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
+
+            prom_loc = (pts_loc / pj_loc) * 1.12
+            prom_vis = (pts_vis / pj_vis)
+
+            diferencia = abs(prom_loc - prom_vis)
+            prob_empate = max(18.0, min(33.0, 29.0 - (diferencia * 7.5)))
+
+            resto = 100.0 - prob_empate
+            total_prom = prom_loc + prom_vis
+
+            if total_prom > 0:
+                prob_loc = (prom_loc / total_prom) * resto
+                prob_vis = (prom_vis / total_prom) * resto
             else:
-                # Botón de cálculo
-                if st.button("⚡ EJECUTAR SIMULACIÓN", use_container_width=True, type="primary"):
-                    
-                    # Animación de carga artificial para darle suspenso
-                    with st.spinner('Procesando estadísticas e historial...'):
-                        time.sleep(1.5) # Simula tiempo de procesamiento
+                prob_loc = resto / 2
+                prob_vis = resto / 2
 
-                    # Cálculos de probabilidad
-                    row_loc = df[df["Equipo"] == local].iloc[0]
-                    row_vis = df[df["Equipo"] == visitante].iloc[0]
+            st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 30px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
+            m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
+            m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
 
-                    pts_loc = float(row_loc.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
-                    pts_vis = float(row_vis.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
-                    pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
-                    pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
-
-                    prom_loc = (pts_loc / pj_loc) * 1.12
-                    prom_vis = (pts_vis / pj_vis)
-
-                    diferencia = abs(prom_loc - prom_vis)
-                    prob_empate = max(18.0, min(33.0, 29.0 - (diferencia * 7.5)))
-
-                    resto = 100.0 - prob_empate
-                    total_prom = prom_loc + prom_vis
-
-                    if total_prom > 0:
-                        prob_loc = (prom_loc / total_prom) * resto
-                        prob_vis = (prom_vis / total_prom) * resto
-                    else:
-                        prob_loc = resto / 2
-                        prob_vis = resto / 2
-
-                    # Animación de éxito (tira globitos en la pantalla)
-                    st.balloons()
-
-                    # Presentación visual del análisis
-                    st.markdown("---")
-                    st.markdown(f"<h2 style='text-align: center; color: #fff;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
-                    
-                    # Métricas destacadas
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
-                    m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
-                    m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
-
-                    # Barras de progreso animadas nativas de Streamlit
-                    st.markdown("<br><p style='color: #94a3b8;'>Distribución de victoria local:</p>", unsafe_allow_html=True)
-                    st.progress(int(prob_loc) / 100)
-                    
-                    st.markdown("<p style='color: #94a3b8;'>Distribución de empate:</p>", unsafe_allow_html=True)
-                    st.progress(int(prob_empate) / 100)
-                    
-                    st.markdown("<p style='color: #94a3b8;'>Distribución de victoria visitante:</p>", unsafe_allow_html=True)
-                    st.progress(int(prob_vis) / 100)
-
-    # -----------------------------------------------------------------
-    # PESTAÑA 2: TABLA DE POSICIONES
-    # -----------------------------------------------------------------
-    with tab_tabla:
-        st.markdown("<h3 style='color: #cbd5e1;'>Estado Actual del Campeonato</h3>", unsafe_allow_html=True)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+            st.markdown("<br><p style='color: #94a3b8;'>Distribución visual de probabilidades:</p>", unsafe_allow_html=True)
+            
+            c_loc, c_emp, c_vis = st.columns(3)
+            with c_loc:
+                st.markdown(f"<p style='color: #00ffcc;'>Local</p>", unsafe_allow_html=True)
+                st.progress(int(prob_loc) / 100)
+            with c_emp:
+                st.markdown(f"<p style='color: #cbd5e1;'>Empate</p>", unsafe_allow_html=True)
+                st.progress(int(prob_empate) / 100)
+            with c_vis:
+                st.markdown(f"<p style='color: #ff3366;'>Visitante</p>", unsafe_allow_html=True)
+                st.progress(int(prob_vis) / 100)
 
 else:
     st.error("Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista.")
