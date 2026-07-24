@@ -6,130 +6,114 @@ from sklearn.preprocessing import LabelEncoder
 st.set_page_config(page_title="Win Predictor", page_icon="⚽")
 
 st.title("⚽ Win Predictor - Liga Argentina")
-st.write("Seleccioná los equipos para ver el pronóstico de la Inteligencia Artificial basado en sus rachas recientes.")
+st.write("Predicciones de Inteligencia Artificial basadas en rendimiento y rachas recientes.")
 
 @st.cache_data
-def preparar_modelo():
-    # Intenta buscar el archivo procesado con las rachas
+def preparar_datos_y_modelo():
     try:
         df = pd.read_csv("datos/datos_procesados.csv")
     except FileNotFoundError:
         df = pd.read_csv("datos_procesados.csv")
     
-    # Transformar nombres de equipos a números para la IA
+    # Limpieza básica
+    df = df.dropna(subset=["Local", "Visitante", "Resultado"])
+    
     le = LabelEncoder()
-    todos_los_equipos = pd.concat([df["Local"], df["Visitante"]]).unique()
-    le.fit(todos_los_equipos)
+    equipos = pd.concat([df["Local"], df["Visitante"]]).unique()
+    le.fit(equipos)
     
     df["Local_Num"] = le.transform(df["Local"])
     df["Visita_Num"] = le.transform(df["Visitante"])
     
-    # El Cerebro: Entrenar con Rachas Recientes
     X = df[["Local_Num", "Visita_Num", "Racha_Local", "Racha_Visita"]]
     y = df["Resultado"]
     
     modelo = RandomForestClassifier(n_estimators=100, random_state=42)
     modelo.fit(X, y)
     
-    return df, modelo, le, todos_los_equipos
+    return df, modelo, le, equipos
 
-# Función para calcular los puntos en los últimos 5 partidos de un equipo
-def puntos_ultimos_5(df, equipo):
+def racha_equipo(df, equipo):
     partidos = df[(df['Local'] == equipo) | (df['Visitante'] == equipo)].tail(5)
-    puntos = 0
-    for _, fila in partidos.iterrows():
-        if fila['Local'] == equipo and fila['Resultado'] == 'L': puntos += 3
-        elif fila['Visitante'] == equipo and fila['Resultado'] == 'V': puntos += 3
-        elif fila['Resultado'] == 'E': puntos += 1
-    return puntos
+    pts = 0
+    for _, f in partidos.iterrows():
+        if f['Local'] == equipo and f['Resultado'] == 'L': pts += 3
+        elif f['Visitante'] == equipo and f['Resultado'] == 'V': pts += 3
+        elif f['Resultado'] == 'E': pts += 1
+    return pts
 
 try:
-    df, modelo, le, equipos_unicos = preparar_modelo()
+    df, modelo, le, equipos = preparar_datos_y_modelo()
     
-    # --- INTERFAZ DE PREDICCIÓN ---
+    # --- PREDICCIÓN ---
     col1, col2 = st.columns(2)
     with col1:
-        local = st.selectbox("🏠 Equipo Local", sorted(equipos_unicos))
+        local = st.selectbox("🏠 Local", sorted(equipos))
     with col2:
-        visitante = st.selectbox("✈️ Equipo Visitante", sorted(equipos_unicos), index=1)
-
+        visitante = st.selectbox("✈️ Visitante", sorted(equipos), index=1)
+        
     if st.button("🔮 Predecir Partido"):
         if local == visitante:
-            st.error("¡Elegí dos equipos distintos!")
+            st.error("Seleccioná dos equipos diferentes.")
         else:
-            # Calcular cómo llegan al partido de hoy
-            racha_l = puntos_ultimos_5(df, local)
-            racha_v = puntos_ultimos_5(df, visitante)
+            r_l = racha_equipo(df, local)
+            r_v = racha_equipo(df, visitante)
             
-            st.info(f"📊 **El Momento:** {local} sacó **{racha_l} pts** en sus últimos 5 partidos. {visitante} sacó **{racha_v} pts**.")
+            st.info(f"📊 **Puntos últimos 5 partidos:** {local} ({r_l} pts) | {visitante} ({r_v} pts)")
             
-            loc_num = le.transform([local])[0]
-            vis_num = le.transform([visitante])[0]
+            l_num = le.transform([local])[0]
+            v_num = le.transform([visitante])[0]
             
-            datos_hoy = pd.DataFrame([[loc_num, vis_num, racha_l, racha_v]], 
-                                     columns=["Local_Num", "Visita_Num", "Racha_Local", "Racha_Visita"])
-            
-            prediccion = modelo.predict(datos_hoy)[0]
-            probabilidades = modelo.predict_proba(datos_hoy)[0]
+            pred = modelo.predict([[l_num, v_num, r_l, r_v]])[0]
+            probs = modelo.predict_proba([[l_num, v_num, r_l, r_v]])[0]
             clases = list(modelo.classes_)
             
-            prob_L = probabilidades[clases.index('L')] * 100
-            prob_E = probabilidades[clases.index('E')] * 100
-            prob_V = probabilidades[clases.index('V')] * 100
+            p_L = probs[clases.index('L')] * 100
+            p_E = probs[clases.index('E')] * 100
+            p_V = probs[clases.index('V')] * 100
             
-            st.subheader("📊 Resultados del Pronóstico")
-            
-            if prediccion == "L":
-                st.success(f"Resultado más probable: 🏆 **Gana {local}**")
-            elif prediccion == "V":
-                st.success(f"Resultado más probable: 🏆 **Gana {visitante}**")
+            if pred == "L":
+                st.success(f"🏆 Pronóstico: Gana **{local}**")
+            elif pred == "V":
+                st.success(f"🏆 Pronóstico: Gana **{visitante}**")
             else:
-                st.warning("Resultado más probable: 🤝 **Empate**")
+                st.warning("🤝 Pronóstico: **Empate**")
                 
-            st.write(f"**Probabilidades:** {local}: **{prob_L:.1f}%** | Empate: **{prob_E:.1f}%** | {visitante}: **{prob_V:.1f}%**")
+            st.write(f"Probabilidades: **{local}** {p_L:.1f}% | **Empate** {p_E:.1f}% | **{visitante}** {p_V:.1f}%")
 
-    # --- TABLA DE POSICIONES REAL ---
+    # --- TABLA DE POSICIONES CALCULADA Y EXACTA ---
     st.divider()
-    st.subheader("🏆 Tabla de Posiciones Real")
+    st.subheader("🏆 Tabla de Posiciones Torneo")
     
-    @st.cache_data(ttl=3600)  # Se actualiza sola cada 1 hora
-    def obtener_tabla_real():
-        try:
-            # Descarga la tabla de posiciones real desde Wikipedia / Promiedos
-            url = "https://es.wikipedia.org/wiki/Primera_Divisi%C3%B3n_de_Argentina"
-            tablas = pd.read_html(url)
-            # Busca la tabla que contenga Pos / Equipo / Pts
-            for t in tablas:
-                if any("Equipo" in col or "Club" in col for col in t.columns) and any("Pts" in col or "PTS" in col for col in t.columns):
-                    return t
-            return None
-        except Exception:
-            return None
-
-    tabla_real = obtener_tabla_real()
-    
-    if tabla_real is not None:
-        st.dataframe(tabla_real, use_container_width=True)
-    else:
-        # Si no puede conectarse a internet, muestra la tabla acumulada del CSV limpio
-        st.write("*(Mostrando tabla calculada del archivo local)*")
-        tabla = {}
-        for _, fila in df.iterrows():
-            loc, vis, res = fila["Local"], fila["Visitante"], fila["Resultado"]
-            if loc not in tabla: tabla[loc] = {"Pts": 0, "PJ": 0}
-            if vis not in tabla: tabla[vis] = {"Pts": 0, "PJ": 0}
-            tabla[loc]["PJ"] += 1
-            tabla[vis]["PJ"] += 1
-            if res == "L": tabla[loc]["Pts"] += 3
-            elif res == "V": tabla[vis]["Pts"] += 3
-            else:
-                tabla[loc]["Pts"] += 1
-                tabla[vis]["Pts"] += 1
+    stats = {}
+    for _, f in df.iterrows():
+        l, v, res = f["Local"], f["Visitante"], f["Resultado"]
         
-        df_tabla = pd.DataFrame.from_dict(tabla, orient="index").sort_values(by=["Pts"], ascending=False).reset_index()
-        df_tabla = df_tabla.rename(columns={"index": "Equipo"})
-        df_tabla.index = df_tabla.index + 1
-        st.dataframe(df_tabla, use_container_width=True)
+        if l not in stats: stats[l] = {"PJ": 0, "G": 0, "E": 0, "P": 0, "Pts": 0}
+        if v not in stats: stats[v] = {"PJ": 0, "G": 0, "E": 0, "P": 0, "Pts": 0}
+        
+        stats[l]["PJ"] += 1
+        stats[v]["PJ"] += 1
+        
+        if res == "L":
+            stats[l]["G"] += 1
+            stats[l]["Pts"] += 3
+            stats[v]["P"] += 1
+        elif res == "V":
+            stats[v]["G"] += 1
+            stats[v]["Pts"] += 3
+            stats[l]["P"] += 1
+        else:
+            stats[l]["E"] += 1
+            stats[v]["E"] += 1
+            stats[l]["Pts"] += 1
+            stats[v]["Pts"] += 1
+            
+    df_tabla = pd.DataFrame.from_dict(stats, orient="index").sort_values(by=["Pts", "PJ"], ascending=[False, True]).reset_index()
+    df_tabla = df_tabla.rename(columns={"index": "Equipo"})
+    df_tabla.index = df_tabla.index + 1
+    
+    st.dataframe(df_tabla, use_container_width=True)
 
-except FileNotFoundError:
-    st.error("❌ No se encontró el archivo de datos. Asegurate de correr el robot en GitHub Actions primero.")
+except Exception as e:
+    st.error(f"❌ Cargando datos... (Si persiste, corré el robot en Actions). Detalle: {e}")
