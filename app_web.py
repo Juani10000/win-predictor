@@ -10,9 +10,30 @@ st.set_page_config(page_title="Tabla Anual - LPF", layout="wide")
 st.title("⚽ Tabla Anual - Liga Profesional")
 st.markdown("---")
 
-# 2. Forzamos a buscar en la carpeta actual donde abriste la terminal
-DIRECTORIO_ACTUAL = os.getcwd()
-RUTA_CSV = os.path.join(DIRECTORIO_ACTUAL, "datos_procesados.csv")
+# 2. BÚSQUEDA INTELIGENTE DE CARPETAS
+DIRECTORIO_SCRIPT = os.path.dirname(os.path.abspath(__file__))
+DIRECTORIO_TERMINAL = os.getcwd()
+
+# Python va a buscar en todos estos lugares al mismo tiempo
+carpetas_posibles = [
+    DIRECTORIO_SCRIPT,
+    DIRECTORIO_TERMINAL,
+    os.path.join(DIRECTORIO_SCRIPT, "escudos"),
+    os.path.join(DIRECTORIO_SCRIPT, "Escudos"),
+    os.path.join(DIRECTORIO_TERMINAL, "escudos"),
+    os.path.join(DIRECTORIO_TERMINAL, "Escudos")
+]
+
+todas_las_imagenes = {}
+for carpeta in set(carpetas_posibles):
+    if os.path.exists(carpeta):
+        try:
+            for archivo in os.listdir(carpeta):
+                if archivo.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    if archivo not in todas_las_imagenes:
+                        todas_las_imagenes[archivo] = os.path.join(carpeta, archivo)
+        except Exception:
+            pass
 
 # Funciones de limpieza
 def limpiar_texto(texto):
@@ -21,24 +42,17 @@ def limpiar_texto(texto):
     txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode("utf-8")
     return re.sub(r'[^a-z0-9]', '', txt).strip()
 
-def buscar_imagen_local(nombre_equipo):
-    """Busca el PNG suelto en la carpeta donde estás ejecutando Streamlit"""
+def buscar_imagen(nombre_equipo):
+    """Busca en el diccionario de imágenes que armamos recién"""
     equipo_limpio = limpiar_texto(nombre_equipo)
     
-    try:
-        archivos = os.listdir(DIRECTORIO_ACTUAL)
-    except:
-        return None
-
-    for archivo in archivos:
-        if archivo.lower().endswith(('.png', '.jpg', '.jpeg')):
-            archivo_limpio = limpiar_texto(archivo)
-            if archivo_limpio in equipo_limpio or equipo_limpio in archivo_limpio:
-                return os.path.join(DIRECTORIO_ACTUAL, archivo)
+    for nombre_archivo, ruta_completa in todas_las_imagenes.items():
+        archivo_limpio = limpiar_texto(nombre_archivo)
+        if archivo_limpio in equipo_limpio or equipo_limpio in archivo_limpio:
+            return ruta_completa
     return None
 
 def codificar_imagen(ruta):
-    """Convierte la imagen a texto para que la tabla web no la rechace"""
     if ruta and os.path.exists(ruta):
         try:
             with open(ruta, "rb") as f:
@@ -52,14 +66,18 @@ def codificar_imagen(ruta):
     return None
 
 # 3. Carga de Datos y Tabla
-if not os.path.exists(RUTA_CSV):
-    st.error(f"⚠️ No se encontró '{RUTA_CSV}' en la carpeta actual ({DIRECTORIO_ACTUAL}).")
+ruta_csv = os.path.join(DIRECTORIO_SCRIPT, "datos_procesados.csv")
+if not os.path.exists(ruta_csv):
+    ruta_csv = os.path.join(DIRECTORIO_TERMINAL, "datos_procesados.csv")
+
+if not os.path.exists(ruta_csv):
+    st.error(f"⚠️ No se encontró 'datos_procesados.csv'.")
 else:
-    df = pd.read_csv(RUTA_CSV)
+    df = pd.read_csv(ruta_csv)
     df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
     
-    # Encontrar las rutas y convertirlas a Base64
-    df["Ruta_Local"] = df["Equipo"].apply(buscar_imagen_local)
+    # Asignar Escudos
+    df["Ruta_Local"] = df["Equipo"].apply(buscar_imagen)
     df["Escudo"] = df["Ruta_Local"].apply(codificar_imagen)
     
     # Ordenar columnas
@@ -70,12 +88,14 @@ else:
     else:
         df_mostrar = df
 
-    # Mostrar Diagnóstico oculto para ver qué encontró
-    imagenes_encontradas = df["Ruta_Local"].dropna().unique()
-    if len(imagenes_encontradas) > 0:
-        st.success(f"✅ ¡Éxito! Se detectaron {len(imagenes_encontradas)} escudos en: {DIRECTORIO_ACTUAL}")
+    # Diagnóstico (Te va a decir exactamente qué encontró)
+    if len(todas_las_imagenes) > 0:
+        st.success(f"✅ ¡Encontré {len(todas_las_imagenes)} imágenes en tu computadora!")
+        with st.expander("Ver lista de imágenes encontradas"):
+            for img in todas_las_imagenes.values():
+                st.code(img)
     else:
-        st.warning(f"⚠️ No se detectó ningún escudo. Revisá que los PNG estén sueltos en: {DIRECTORIO_ACTUAL}")
+        st.error("❌ No detecté ningún archivo PNG o JPG en las carpetas del proyecto.")
 
     st.subheader("📊 Tabla de Posiciones")
     st.dataframe(
@@ -102,8 +122,8 @@ else:
         if local == visitante:
             st.warning("Seleccioná dos equipos distintos.")
         else:
-            ruta_loc = buscar_imagen_local(local)
-            ruta_vis = buscar_imagen_local(visitante)
+            ruta_loc = buscar_imagen(local)
+            ruta_vis = buscar_imagen(visitante)
 
             c_loc, c_vs, c_vis = st.columns([2, 1, 2])
             
@@ -124,7 +144,7 @@ else:
                     st.caption("🛡️ Sin imagen")
                 st.markdown(f"### **{visitante}**")
 
-            # Cálculo Matemático
+            # Matemáticas
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
 
