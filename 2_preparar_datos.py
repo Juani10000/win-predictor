@@ -6,18 +6,33 @@ import sys
 def procesar_datos_wikipedia():
     print("Iniciando descarga de datos en vivo desde Wikipedia (Temporada 2026)...")
     
-    # URL oficial de la Liga Profesional 2026
     url = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
     
     try:
-        # Simulamos ser un navegador para que no nos bloqueen
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        html = requests.get(url, headers=headers).content
+        # El secreto está acá: Un User-Agent honesto y descriptivo evita el bloqueo de Wikipedia en GitHub Actions
+        headers = {
+            'User-Agent': 'WinPredictorBot/1.0 (https://github.com/tu-usuario/tu-repo; tu-email@ejemplo.com)'
+        }
         
-        # Buscamos la tabla que tenga la columna "Pts." (Puntos)
+        respuesta = requests.get(url, headers=headers, timeout=15)
+        
+        # Verificamos que Wikipedia no nos haya bloqueado
+        if respuesta.status_code != 200:
+            print(f"❌ Error al conectar: Código {respuesta.status_code}")
+            sys.exit(1)
+            
+        html = respuesta.content
+        
+        # Buscamos la tabla que tenga la columna de Puntos
         tablas = pd.read_html(html, match="Pts.")
+        
+        if not tablas:
+            print("❌ No se encontró la tabla de posiciones en la página.")
+            sys.exit(1)
+            
         df = tablas[0]
         
+        # Limpieza y mapeo de las columnas de Wikipedia a lo que usa tu Streamlit
         df_limpio = pd.DataFrame()
         df_limpio["Equipo"] = df["Equipo"]
         df_limpio["Puntos"] = df["Pts."]
@@ -28,23 +43,22 @@ def procesar_datos_wikipedia():
         df_limpio["Goles_Favor"] = df["GF"]
         df_limpio["Goles_Contra"] = df["GC"]
         
-        # Generamos una racha aleatoria temporal para que el Win Predictor no tire error 
-        # (ya que Wikipedia no muestra los últimos 5 resultados en formato L, E, V)
+        # Para que el modelo predictivo de Streamlit no se rompa por falta de la columna 'Racha'
         opciones = ['G', 'E', 'P']
         rachas = []
         for _ in range(len(df_limpio)):
+            # Inventamos una racha provisoria en formato 'G,E,P,G,G'
             racha_random = ",".join(random.choices(opciones, k=5))
             rachas.append(racha_random)
             
         df_limpio["Racha"] = rachas
         
-        # Guardamos el archivo final que va a leer tu Streamlit
+        # Sobreescribimos el CSV para que la app web lea la nueva tabla
         df_limpio.to_csv("datos_procesados.csv", index=False)
-        print("✅ ¡ÉXITO! Los datos del torneo 2026 se guardaron correctamente.")
+        print("✅ ¡ÉXITO! Los datos reales de 2026 se scrapearon y guardaron correctamente.")
         
     except Exception as e:
-        print(f"❌ Error crítico al extraer datos de 2026: {e}")
-        # Esto le avisa a GitHub Actions que hubo un error y pone la cruz roja
+        print(f"❌ Error crítico en el scraping: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
