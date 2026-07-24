@@ -10,10 +10,13 @@ st.write("Seleccioná los equipos para ver el pronóstico de la Inteligencia Art
 
 @st.cache_data
 def preparar_modelo():
-    # 1. Cargar los datos que preparó el robot en GitHub
-    df = pd.read_csv("datos/datos_procesados.csv")
+    # Intenta buscar el archivo en la carpeta 'datos/' o en la raíz
+    try:
+        df = pd.read_csv("datos/datos_procesados.csv")
+    except FileNotFoundError:
+        df = pd.read_csv("datos_procesados.csv")
     
-    # 2. Transformar nombres de equipos a números para la IA
+    # Transformar nombres de equipos a números para la IA
     le = LabelEncoder()
     todos_los_equipos = pd.concat([df["Local"], df["Visitante"]]).unique()
     le.fit(todos_los_equipos)
@@ -21,11 +24,11 @@ def preparar_modelo():
     df["Local_Num"] = le.transform(df["Local"])
     df["Visita_Num"] = le.transform(df["Visitante"])
     
-    # 3. El Cerebro: Le decimos a la IA que estudie a los equipos Y sus rachas
+    # El Cerebro: Le decimos a la IA que estudie a los equipos Y sus rachas
     X = df[["Local_Num", "Visita_Num", "Racha_Local", "Racha_Visita"]]
     y = df["Resultado"]
     
-    # 4. Entrenar el modelo
+    # Entrenar el modelo
     modelo = RandomForestClassifier(n_estimators=100, random_state=42)
     modelo.fit(X, y)
     
@@ -119,4 +122,4 @@ try:
     st.dataframe(df_tabla, use_container_width=True)
 
 except FileNotFoundError:
-    st.error("❌ No se encontró el archivo de datos. Esperá a que el robot de GitHub termine de procesar.")
+    st.error("❌ No se encontró el archivo de datos. Asegurate de correr el robot en GitHub Actions primero.")
