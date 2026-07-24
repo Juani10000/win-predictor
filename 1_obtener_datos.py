@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 
 # Pegá tu token exacto entre las comillas
-API_TOKEN = 'TU_API_KEY_AQUI'
+API_TOKEN = 'c0bd172b59bf4d74b6fcc2158f75c56c'
 
 def obtener_datos_oficiales():
     print("📡 Conectando a la API Oficial de Fútbol...")
