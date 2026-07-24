@@ -10,8 +10,9 @@ st.set_page_config(page_title="Win Predictor - LPF", layout="wide")
 
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
-    # Método infalible: Markdown nativo de Streamlit
-    st.markdown("![Logo LPF](https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png/120px-Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png)")
+    # URL directa de ESPN que no bloquea la imagen
+    url_lpf = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
+    st.image(url_lpf, width=120)
 
 with col_titulo:
     st.title("⚽ Win Predictor - Liga Profesional")
