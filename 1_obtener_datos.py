@@ -1,45 +1,37 @@
-import pandas as pd
 import requests
+import pandas as pd
 
-def obtener_partidos_actuales():
-    print("📡 Descargando partidos actualizados de la Liga Argentina...")
+# Pegá acá la clave que te llegó al mail
+API_TOKEN = 'c0bd172b59bf4d74b6fcc2158f75c56c'
+
+def obtener_datos_en_vivo():
+    print("📡 Conectando a la API de fútbol en vivo...")
     
-    # URL de datos abiertos de partidos
-    url = "https://raw.githubusercontent.com/openfootball/argentina-football/master/2024/1-liga.json"
+    # Código 2024 / LPF / Liga Argentina en la API
+    headers = { 'X-Auth-Token': API_TOKEN }
+    url = "https://api.football-data.org/v4/competitions/CLI/matches" # Copa Libertadores / Liga
     
     try:
-        r = requests.get(url)
-        data = r.json()
+        response = requests.get(url, headers=headers)
+        data = response.json()
         
-        filas = []
-        for fecha in data.get("matches", []):
-            equipo1 = fecha["team1"]
-            equipo2 = fecha["team2"]
-            score = fecha.get("score", {}).get("ft", None)
-            
-            if score:
-                goles1, goles2 = score[0], score[1]
-                if goles1 > goles2:
-                    res = "L"
-                elif goles2 > goles1:
-                    res = "V"
-                else:
-                    res = "E"
-                
-                filas.append({
-                    "Local": equipo1,
-                    "Visitante": equipo2,
-                    "Goles_Local": goles1,
-                    "Goles_Visita": goles2,
-                    "Resultado": res
+        partidos = []
+        for m in data.get('matches', []):
+            if m['status'] == 'FINISHED':
+                partidos.append({
+                    'Local': m['homeTeam']['name'],
+                    'Visitante': m['awayTeam']['name'],
+                    'Goles_Local': m['score']['fullTime']['home'],
+                    'Goles_Visita': m['score']['fullTime']['away'],
+                    'Resultado': 'L' if m['score']['fullTime']['home'] > m['score']['fullTime']['away'] else ('V' if m['score']['fullTime']['away'] > m['score']['fullTime']['home'] else 'E')
                 })
         
-        df = pd.DataFrame(filas)
+        df = pd.DataFrame(partidos)
         df.to_csv("datos/liga_argentina.csv", index=False)
-        print(f"✅ ¡Se guardaron {len(df)} partidos limpios en 'datos/liga_argentina.csv'!")
+        print("✅ Partidos en vivo descargados con éxito.")
         
     except Exception as e:
-        print(f"❌ Error al descargar partidos: {e}")
+        print(f"❌ Error al conectar con la API: {e}")
 
 if __name__ == "__main__":
-    obtener_partidos_actuales()
+    obtener_datos_en_vivo()
