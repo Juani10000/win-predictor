@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import re
 
 st.set_page_config(page_title="Win Predictor - LPF", page_icon="⚽", layout="centered")
 
@@ -20,7 +21,7 @@ else:
     st.markdown("### 🔮 Predicción de Partido")
     st.caption("Cálculo de probabilidades basado en el rendimiento actual.")
     
-    lista_equipos = sorted(df["Equipo"].unique())
+    lista_equipos = sorted(df["Equipo"].astype(str).unique())
     
     col1, col2 = st.columns(2)
     with col1:
@@ -60,15 +61,15 @@ else:
 
     st.markdown("---")
     
-    # Título con el Logo Oficial de la AFA / LPF usando un servidor estable
+    # Título con el Logo Oficial
     col_logo, col_titulo = st.columns([1, 6])
     with col_logo:
-        logo_lpf = "https://a.espncdn.com/i/leaguelogos/soccer/500/1.png" # Logo Liga Argentina en ESPN
+        logo_lpf = "https://images.weserv.nl/?url=upload.wikimedia.org/wikipedia/en/thumb/9/94/Liga_Profesional_de_F%C3%BAtbol_%28Argentina%29_logo.svg/200px-Liga_Profesional_de_F%C3%BAtbol_%28Argentina%29_logo.svg.png"
         st.image(logo_lpf, width=60)
     with col_titulo:
         st.subheader("Tabla Anual - Liga Profesional de Fútbol")
 
-    # DICCIONARIO COMPLETO CON LOS 30 EQUIPOS 
+    # DICCIONARIO COMPLETO DE ESCUDOS OFICIALES
     escudos = {
         "Independiente Rivadavia": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg/100px-Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg.png",
         "Argentinos Juniors": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Argentinos_Juniors.svg/100px-Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Argentinos_Juniors.svg.png",
@@ -102,18 +103,39 @@ else:
         "Estudiantes (RC)": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Estudiantes_de_R%C3%ADo_Cuarto.svg/100px-Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Estudiantes_de_R%C3%ADo_Cuarto.svg.png"
     }
     
-    # Imagen genérica (una pelota) por si falta agregar el escudo de algún equipo
-    escudo_generico = "https://a.espncdn.com/i/leaguelogos/soccer/500/default.png"
+    escudo_generico = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Soccerball.svg/100px-Soccerball.svg.png"
+
+    # Función para limpiar el nombre del equipo y devolver la URL con proxy
+    def obtener_url_escudo(nombre_bruto):
+        # 1. Quitar notas entre corchetes como [n. 1], [1], etc.
+        nombre = re.sub(r'\[.*?\]', '', str(nombre_bruto)).strip()
+        
+        # 2. Buscar en el diccionario o probar variaciones
+        url_original = escudos.get(nombre)
+        if not url_original:
+            if "Gimnasia" in nombre and "LP" in nombre:
+                url_original = escudos.get("Gimnasia (LP)")
+            elif "Belgrano" in nombre:
+                url_original = escudos.get("Belgrano")
+            elif "Talleres" in nombre:
+                url_original = escudos.get("Talleres (C)")
+            elif "Estudiantes" in nombre and "LP" in nombre:
+                url_original = escudos.get("Estudiantes (LP)")
+            else:
+                url_original = escudo_generico
+                
+        # 3. Aplicar proxy para evitar que Wikipedia bloquee la imagen en Streamlit
+        return f"https://images.weserv.nl/?url={url_original}"
 
     cols_basicas = ["Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
     cols_existentes = [c for c in cols_basicas if c in df.columns]
     
     df_mostrar = df[cols_existentes].sort_values(by="Puntos", ascending=False).copy()
     
-    # Inyectamos la URL del escudo
-    df_mostrar.insert(0, "🛡️", df_mostrar["Equipo"].apply(lambda eq: escudos.get(eq, escudo_generico)))
+    # Inyectamos la URL procesada
+    df_mostrar.insert(0, "🛡️", df_mostrar["Equipo"].apply(obtener_url_escudo))
 
-    # Mostramos la tabla (las URLs se renderizan como imágenes automáticamente)
+    # Renderizado de la tabla
     st.dataframe(
         df_mostrar,
         hide_index=True, 
