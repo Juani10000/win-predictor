@@ -1,24 +1,126 @@
-Fecha,Local,Visitante,Goles_Local,Goles_Visitante,Resultado
-2024-01-27,Boca Juniors,Platense,0,0,E
-2024-01-28,River Plate,Argentinos Juniors,1,1,E
-2024-01-27,Racing Club,Unión,0,1,V
-2024-01-26,Independiente,Independiente Rivadavia,1,0,L
-2024-01-27,San Lorenzo,Lanús,0,2,V
-2024-02-01,Boca Juniors,Sarmiento,1,1,E
-2024-01-31,River Plate,Barracas Central,2,0,L
-2024-01-31,Racing Club,Tigre,3,0,L
-2024-01-30,Independiente,Gimnasia LP,0,1,V
-2024-02-05,Boca Juniors,Tigre,2,0,L
-2024-02-04,River Plate,Vélez Sarsfield,5,0,L
-2024-02-05,Racing Club,Estudiantes LP,0,0,E
-2024-02-08,Independiente,Huracán,0,0,E
-2024-02-10,Boca Juniors,Defensa y Justicia,0,0,E
-2024-02-11,River Plate,Riestra,3,0,L
-2024-02-09,Racing Club,San Lorenzo,4,1,L
-2024-02-13,Independiente,Rosario Central,1,0,L
-2024-02-14,Boca Juniors,Central Córdoba,2,0,L
-2024-02-14,River Plate,Atlético Tucumán,0,0,E
-2024-02-18,Boca Juniors,Lanús,1,2,V
-2024-02-18,River Plate,Banfield,1,1,E
-2024-02-25,River Plate,Boca Juniors,1,1,E
-2024-02-24,Independiente,Racing Club,0,1,V
+Local,Visitante,Goles_Local,Goles_Visita,Resultado
+Club The Strongest,Deportivo Táchira FC,2,1,L
+2 de Mayo,Club Alianza Lima,1,0,L
+Juventud de Las Piedras,Universidad Catolica,0,1,V
+Deportivo Táchira FC,Club The Strongest,6,3,L
+Club Alianza Lima,2 de Mayo,1,1,E
+Universidad Catolica,Juventud de Las Piedras,6,8,V
+Carabobo FC,CD Huachipato,1,0,L
+Liverpool FC,CD Independiente Medellín,1,2,V
+2 de Mayo,CS Cristal,2,2,E
+O'Higgins FC,EC Bahia,1,0,L
+Barcelona SC,AA Argentinos Juniors,0,1,V
+Club Nacional Potosí,Botafogo FR,1,0,L
+Juventud de Las Piedras,Club Guaraní,0,0,E
+Deportivo Táchira FC,CD Tolima,0,1,V
+CD Huachipato,Carabobo FC,1,2,V
+CS Cristal,2 de Mayo,5,4,L
+CD Independiente Medellín,Liverpool FC,0,0,E
+EC Bahia,O'Higgins FC,5,5,E
+AA Argentinos Juniors,Barcelona SC,4,6,V
+Botafogo FR,Club Nacional Potosí,2,0,L
+Club Guaraní,Juventud de Las Piedras,1,2,V
+CD Tolima,Deportivo Táchira FC,3,1,L
+Barcelona SC,Botafogo FR,1,1,E
+Carabobo FC,CS Cristal,0,1,V
+O'Higgins FC,CD Tolima,1,0,L
+Juventud de Las Piedras,CD Independiente Medellín,1,1,E
+Botafogo FR,Barcelona SC,0,1,V
+CS Cristal,Carabobo FC,4,4,E
+CD Tolima,O'Higgins FC,2,0,L
+CD Independiente Medellín,Juventud de Las Piedras,2,1,L
+CS Independiente Rivadavia,Club Bolívar,1,0,L
+Deportivo La Guaira FC,Fluminense FC,0,0,E
+Barcelona SC,Cruzeiro EC,0,1,V
+Club Always Ready,LDU de Quito,0,1,V
+CD Universidad Católica,CA Boca Juniors,1,2,V
+CD Tolima,Club Universitario de Deportes,0,0,E
+CD Coquimbo Unido,Club Nacional de Football,1,1,E
+Mirassol FC,CA Lanús,1,0,L
+CD Independiente Medellín,Estudiantes de La Plata,1,1,E
+Cusco FC,CR Flamengo,0,2,V
+CDP Junior FC,SE Palmeiras,1,1,E
+CS Cristal,Club Cerro Porteño,1,0,L
+Universidad Central de Venezuela FC,Club Libertad Asuncion,3,1,L
+CA Rosario Central,CAR Independiente del Valle,0,0,E
+CA Platense,SC Corinthians Paulista,0,2,V
+Independiente Santa Fe,CA Peñarol,1,1,E
+Estudiantes de La Plata,Cusco FC,2,1,L
+Club Nacional de Football,CD Tolima,3,1,L
+Club Cerro Porteño,CDP Junior FC,1,0,L
+Club Bolívar,Deportivo La Guaira FC,1,1,E
+CA Boca Juniors,Barcelona SC,3,0,L
+Club Universitario de Deportes,CD Coquimbo Unido,0,2,V
+LDU de Quito,Mirassol FC,2,0,L
+Cruzeiro EC,CD Universidad Católica,1,2,V
+Club Libertad Asuncion,CA Rosario Central,0,1,V
+Fluminense FC,CS Independiente Rivadavia,1,2,V
+SC Corinthians Paulista,Independiente Santa Fe,2,0,L
+CAR Independiente del Valle,Universidad Central de Venezuela FC,3,1,L
+SE Palmeiras,CS Cristal,2,1,L
+CA Lanús,Club Always Ready,1,0,L
+CR Flamengo,CD Independiente Medellín,4,1,L
+CA Peñarol,CA Platense,1,2,V
+CA Lanús,LDU de Quito,1,0,L
+Club Libertad Asuncion,CAR Independiente del Valle,2,3,V
+Universidad Central de Venezuela FC,CA Rosario Central,0,3,V
+Cruzeiro EC,CA Boca Juniors,1,0,L
+CD Tolima,CD Coquimbo Unido,3,0,L
+CS Cristal,CDP Junior FC,2,0,L
+CA Platense,Independiente Santa Fe,2,1,L
+Mirassol FC,Club Always Ready,2,0,L
+Barcelona SC,CD Universidad Católica,1,2,V
+Estudiantes de La Plata,CR Flamengo,1,1,E
+Club Cerro Porteño,SE Palmeiras,1,1,E
+Club Universitario de Deportes,Club Nacional de Football,4,2,L
+Club Bolívar,Fluminense FC,2,0,L
+CS Independiente Rivadavia,Deportivo La Guaira FC,4,1,L
+SC Corinthians Paulista,CA Peñarol,2,0,L
+CD Independiente Medellín,Cusco FC,1,0,L
+CS Cristal,SE Palmeiras,0,2,V
+CA Rosario Central,Club Libertad Asuncion,1,0,L
+Barcelona SC,CA Boca Juniors,1,0,L
+Universidad Central de Venezuela FC,CAR Independiente del Valle,2,0,L
+Club Always Ready,CA Lanús,4,0,L
+Cusco FC,Estudiantes de La Plata,1,1,E
+Deportivo La Guaira FC,Club Bolívar,1,1,E
+CS Independiente Rivadavia,Fluminense FC,1,1,E
+Independiente Santa Fe,SC Corinthians Paulista,1,1,E
+CD Tolima,Club Nacional de Football,3,0,L
+CD Universidad Católica,Cruzeiro EC,0,0,E
+CA Platense,CA Peñarol,1,1,E
+Mirassol FC,LDU de Quito,2,0,L
+CD Coquimbo Unido,Club Universitario de Deportes,2,1,L
+CDP Junior FC,Club Cerro Porteño,0,1,V
+CD Coquimbo Unido,CD Tolima,3,0,L
+Fluminense FC,Club Bolívar,2,1,L
+CA Rosario Central,Universidad Central de Venezuela FC,4,1,L
+Independiente Santa Fe,CA Platense,2,1,L
+Club Always Ready,Mirassol FC,1,2,V
+CA Boca Juniors,Cruzeiro EC,1,1,E
+CAR Independiente del Valle,Club Libertad Asuncion,4,1,L
+Club Nacional de Football,Club Universitario de Deportes,0,0,E
+CR Flamengo,Estudiantes de La Plata,1,0,L
+SE Palmeiras,Club Cerro Porteño,0,1,V
+LDU de Quito,CA Lanús,2,0,L
+Cusco FC,CD Independiente Medellín,2,3,V
+CDP Junior FC,CS Cristal,3,2,L
+Deportivo La Guaira FC,CS Independiente Rivadavia,2,4,V
+CD Universidad Católica,Barcelona SC,2,0,L
+CA Peñarol,SC Corinthians Paulista,1,1,E
+CA Lanús,Mirassol FC,1,0,L
+LDU de Quito,Club Always Ready,3,2,L
+Estudiantes de La Plata,CD Independiente Medellín,1,0,L
+CR Flamengo,Cusco FC,3,0,L
+Club Universitario de Deportes,CD Tolima,0,0,E
+Club Nacional de Football,CD Coquimbo Unido,1,0,L
+Club Libertad Asuncion,Universidad Central de Venezuela FC,0,1,V
+CAR Independiente del Valle,CA Rosario Central,1,0,L
+Club Bolívar,CS Independiente Rivadavia,1,3,V
+Fluminense FC,Deportivo La Guaira FC,3,1,L
+SC Corinthians Paulista,CA Platense,0,2,V
+CA Peñarol,Independiente Santa Fe,0,1,V
+Club Cerro Porteño,CS Cristal,2,0,L
+SE Palmeiras,CDP Junior FC,4,1,L
+Cruzeiro EC,Barcelona SC,4,0,L
+CA Boca Juniors,CD Universidad Católica,0,1,V
