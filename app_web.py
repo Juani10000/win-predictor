@@ -10,27 +10,31 @@ st.set_page_config(page_title="Tabla Anual - LPF", layout="wide")
 st.title("⚽ Tabla Anual - Liga Profesional")
 st.markdown("---")
 
-# 2. Rutas directas (Todo en la misma carpeta)
-DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
-RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
+# 2. Forzamos a buscar en la carpeta actual donde abriste la terminal
+DIRECTORIO_ACTUAL = os.getcwd()
+RUTA_CSV = os.path.join(DIRECTORIO_ACTUAL, "datos_procesados.csv")
 
 # Funciones de limpieza
 def limpiar_texto(texto):
     txt = str(texto).lower()
-    txt = re.sub(r'\.(png|jpg|jpeg)', '', txt) # Le saca la extensión si la tiene
+    txt = re.sub(r'\.(png|jpg|jpeg)', '', txt) 
     txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode("utf-8")
     return re.sub(r'[^a-z0-9]', '', txt).strip()
 
 def buscar_imagen_local(nombre_equipo):
-    """Busca el PNG suelto en la misma carpeta que app.py"""
+    """Busca el PNG suelto en la carpeta donde estás ejecutando Streamlit"""
     equipo_limpio = limpiar_texto(nombre_equipo)
     
-    # Escanea todos los archivos de la carpeta actual
-    for archivo in os.listdir(DIRECTORIO_APP):
+    try:
+        archivos = os.listdir(DIRECTORIO_ACTUAL)
+    except:
+        return None
+
+    for archivo in archivos:
         if archivo.lower().endswith(('.png', '.jpg', '.jpeg')):
             archivo_limpio = limpiar_texto(archivo)
             if archivo_limpio in equipo_limpio or equipo_limpio in archivo_limpio:
-                return os.path.join(DIRECTORIO_APP, archivo)
+                return os.path.join(DIRECTORIO_ACTUAL, archivo)
     return None
 
 def codificar_imagen(ruta):
@@ -49,7 +53,7 @@ def codificar_imagen(ruta):
 
 # 3. Carga de Datos y Tabla
 if not os.path.exists(RUTA_CSV):
-    st.error(f"⚠️ No se encontró '{RUTA_CSV}'. Guardalo al lado de app.py.")
+    st.error(f"⚠️ No se encontró '{RUTA_CSV}' en la carpeta actual ({DIRECTORIO_ACTUAL}).")
 else:
     df = pd.read_csv(RUTA_CSV)
     df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
@@ -69,9 +73,9 @@ else:
     # Mostrar Diagnóstico oculto para ver qué encontró
     imagenes_encontradas = df["Ruta_Local"].dropna().unique()
     if len(imagenes_encontradas) > 0:
-        st.success(f"✅ Se cargaron {len(imagenes_encontradas)} escudos correctamente.")
+        st.success(f"✅ ¡Éxito! Se detectaron {len(imagenes_encontradas)} escudos en: {DIRECTORIO_ACTUAL}")
     else:
-        st.warning("⚠️ No se detectó ningún escudo. Revisá que los PNG estén en la misma carpeta que app.py.")
+        st.warning(f"⚠️ No se detectó ningún escudo. Revisá que los PNG estén sueltos en: {DIRECTORIO_ACTUAL}")
 
     st.subheader("📊 Tabla de Posiciones")
     st.dataframe(
