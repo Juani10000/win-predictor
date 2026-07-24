@@ -1,11 +1,7 @@
-import pandas as pd
 import os
+import pandas as pd
 
 def calcular_rachas(df, n_partidos=5):
-    if df.empty or "Local" not in df.columns:
-        print("⚠️ El archivo de datos está vacío o incompleto.")
-        return df
-
     df['Racha_Local'] = 0
     df['Racha_Visita'] = 0
 
@@ -14,7 +10,7 @@ def calcular_rachas(df, n_partidos=5):
     for i, fila in df.iterrows():
         local = fila['Local']
         visita = fila['Visitante']
-        res = fila.get('Resultado', 'E')
+        res = fila['Resultado']
 
         if local not in historial_puntos: historial_puntos[local] = []
         if visita not in historial_puntos: historial_puntos[visita] = []
@@ -35,13 +31,12 @@ def calcular_rachas(df, n_partidos=5):
     return df
 
 if __name__ == "__main__":
-    ruta_input = "datos/liga_argentina.csv"
-    
-    if os.path.exists(ruta_input) and os.path.getsize(ruta_input) > 10:
-        df = pd.read_csv(ruta_input)
-        print("⚡ Calculando rachas...")
+    ruta = "datos/liga_argentina.csv"
+    if os.path.exists(ruta) and os.path.getsize(ruta) > 10:
+        df = pd.read_csv(ruta)
         df_proc = calcular_rachas(df)
         df_proc.to_csv("datos/datos_procesados.csv", index=False)
-        print("✅ 'datos_procesados.csv' creado correctamente.")
+        print("✅ 'datos_procesados.csv' generado con éxito con datos reales.")
     else:
-        print("❌ Error: 'liga_argentina.csv' no existe o está vacío.")
+        print("❌ Error: No existe el archivo o está vacío.")
+        exit(1)
