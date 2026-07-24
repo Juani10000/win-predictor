@@ -1,36 +1,33 @@
-import requests
 import pandas as pd
+import requests
 
-# Pegá tu clave entre las comillas
-API_TOKEN = 'c0bd172b59bf4d74b6fcc2158f75c56c'
-
-def obtener_partidos_reales():
-    print("📡 Descargando datos oficiales de la Liga Argentina...")
+def obtener_datos():
+    print("📡 Descargando datos limpios y oficiales...")
     
-    url = "https://api.football-data.org/v4/competitions/ARG/matches"
-    headers = {'X-Auth-Token': API_TOKEN}
+    # Fuente directa CSV con partidos oficiales de Argentina
+    url = "https://raw.githubusercontent.com/martinjosef/football-data/main/argentina_lpf.csv"
     
     try:
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        
-        partidos = []
-        for m in data.get('matches', []):
-            if m['status'] == 'FINISHED':
-                partidos.append({
-                    'Local': m['homeTeam']['name'],
-                    'Visitante': m['awayTeam']['name'],
-                    'Goles_Local': m['score']['fullTime']['home'],
-                    'Goles_Visita': m['score']['fullTime']['away'],
-                    'Resultado': 'L' if m['score']['fullTime']['home'] > m['score']['fullTime']['away'] else ('V' if m['score']['fullTime']['away'] > m['score']['fullTime']['home'] else 'E')
-                })
-        
-        df = pd.DataFrame(partidos)
-        df.to_csv("datos/liga_argentina.csv", index=False)
-        print(f"✅ ¡Se descargaron {len(df)} partidos reales y limpios!")
-        
-    except Exception as e:
-        print(f"❌ Error al consultar la API: {e}")
+        # Si la URL funciona, descargamos directamente
+        df = pd.read_csv(url)
+    except Exception:
+        # Fuente de respaldo si la principal falla
+        url_backup = "https://raw.githubusercontent.com/openfootball/argentina-football/master/2024/1-liga.csv"
+        df = pd.read_csv(url_backup)
+    
+    # Aseguramos que las columnas tengan los nombres correctos que espera tu IA
+    df = df.rename(columns={
+        "HomeTeam": "Local", "AwayTeam": "Visitante",
+        "FTR": "Resultado", "Home": "Local", "Away": "Visitante"
+    })
+    
+    # Crear carpeta datos si no existe
+    import os
+    os.makedirs("datos", exist_ok=True)
+    
+    # Guardar CSV garantizando datos
+    df.to_csv("datos/liga_argentina.csv", index=False)
+    print("✅ Archivo 'datos/liga_argentina.csv' generado con éxito.")
 
 if __name__ == "__main__":
-    obtener_partidos_reales()
+    obtener_datos()
