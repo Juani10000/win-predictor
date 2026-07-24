@@ -1,78 +1,69 @@
 import streamlit as st
 import pandas as pd
-import unicodedata
 import os
 import re
-from PIL import Image
+import unicodedata
 
 # 1. Configuración de la página
 st.set_page_config(page_title="Tabla Anual & Predictor - LPF", layout="wide")
 st.title("⚽ Tabla Anual & Predictor - Liga Profesional")
 st.markdown("---")
 
-# 2. LOCALIZACIÓN AUTOMÁTICA DE ARCHIVOS Y CARPETAS
-DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
+# 2. DICCIONARIO DE ESCUDOS (URLs directas de Internet)
+ESCUDOS_WEB = {
+    "boca": "https://upload.wikimedia.org/wikipedia/commons/1/1b/Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.png",
+    "river": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Escudo_del_C_A_River_Plate.png",
+    "racing": "https://upload.wikimedia.org/wikipedia/commons/5/56/Escudo_de_Racing_Club_%282014%29.png",
+    "independiente": "https://upload.wikimedia.org/wikipedia/commons/d/db/Escudo_del_C._A._Independiente.png",
+    "san lorenzo": "https://upload.wikimedia.org/wikipedia/commons/7/77/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.png",
+    "huracan": "https://upload.wikimedia.org/wikipedia/commons/a/a2/Escudo_de_Hurac%C3%A1n.png",
+    "estudiantes": "https://upload.wikimedia.org/wikipedia/commons/a/a1/Escudo_de_Estudiantes_de_La_Plata.png",
+    "gimnasia": "https://upload.wikimedia.org/wikipedia/commons/0/04/Escudo_Gimnasia_y_Esgrima_La_Plata.png",
+    "rosario central": "https://upload.wikimedia.org/wikipedia/commons/b/b5/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.png",
+    "newell": "https://upload.wikimedia.org/wikipedia/commons/a/a8/Escudo_Newell%27s_Old_Boys.png",
+    "talleres": "https://upload.wikimedia.org/wikipedia/commons/c/c5/Escudo_de_Talleres.png",
+    "belgrano": "https://upload.wikimedia.org/wikipedia/commons/2/23/Escudo_del_Club_Atl%C3%A9tico_Belgrano.png",
+    "instituto": "https://upload.wikimedia.org/wikipedia/commons/7/78/Escudo_del_Instituto_Atl%C3%A9tico_Central_C%C3%B3rdoba.png",
+    "argentinos": "https://upload.wikimedia.org/wikipedia/commons/4/4b/Escudo_de_Argentinos_Juniors.png",
+    "velez": "https://upload.wikimedia.org/wikipedia/commons/2/21/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.png",
+    "lanus": "https://upload.wikimedia.org/wikipedia/commons/b/b8/Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.png",
+    "banfield": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Escudo_del_Club_Atl%C3%A9tico_Banfield.png",
+    "defensa": "https://upload.wikimedia.org/wikipedia/commons/8/87/Escudo_de_Defensa_y_Justicia.png",
+    "platense": "https://upload.wikimedia.org/wikipedia/commons/c/c8/Escudo_del_Club_Atl%C3%A9tico_Platense.png",
+    "tigre": "https://upload.wikimedia.org/wikipedia/commons/1/17/Escudo_del_Club_Atl%C3%A9tico_Tigre.png",
+    "union": "https://upload.wikimedia.org/wikipedia/commons/e/e0/Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.png",
+    "godoy cruz": "https://upload.wikimedia.org/wikipedia/commons/b/bc/Escudo_de_Godoy_Cruz.png",
+    "tucuman": "https://upload.wikimedia.org/wikipedia/commons/8/8e/Escudo_del_Club_Atl%C3%A9tico_Tucum%C3%A1n.png",
+    "central cordoba": "https://upload.wikimedia.org/wikipedia/commons/2/2a/Escudo_de_Central_C%C3%B3rdoba.png",
+    "sarmiento": "https://upload.wikimedia.org/wikipedia/commons/7/7e/Escudo_de_Sarmiento_de_Jun%C3%ADn.png",
+    "barracas": "https://upload.wikimedia.org/wikipedia/commons/b/be/Escudo_de_Barracas_Central.png",
+    "riestra": "https://upload.wikimedia.org/wikipedia/commons/3/36/Escudo_de_Deportivo_Riestra.png",
+    "independiente rivadavia": "https://upload.wikimedia.org/wikipedia/commons/5/52/Escudo_de_Independiente_Rivadavia.png"
+}
 
-# Busca el CSV donde sea que esté guardado
-RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
-if not os.path.exists(RUTA_CSV):
-    RUTA_CSV = os.path.join(os.getcwd(), "datos_procesados.csv")
-
-# Busca la carpeta de escudos (revisa si está en la carpeta actual o en /escudos)
-CARPETAS_POSIBLES = [
-    os.path.join(DIRECTORIO_APP, "escudos"),
-    DIRECTORIO_APP,
-    os.path.join(os.getcwd(), "escudos"),
-    os.getcwd()
-]
-
-CARPETA_ESCUDOS = DIRECTORIO_APP
-for carpeta in CARPETAS_POSIBLES:
-    if os.path.exists(carpeta):
-        archivos_img = [f for f in os.listdir(carpeta) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-        if len(archivos_img) > 0:
-            CARPETA_ESCUDOS = carpeta
-            break
-
-# Opción para cambiar la ruta manualmente desde la barra lateral si fuera necesario
-st.sidebar.header("⚙️ Configuración")
-ruta_custom = st.sidebar.text_input("Carpeta de imágenes:", value=CARPETA_ESCUDOS)
-if ruta_custom and os.path.exists(ruta_custom.strip()):
-    CARPETA_ESCUDOS = ruta_custom.strip()
-
-# 3. LÓGICA DE COINCIDENCIA (boca.png -> Boca Juniors)
-def normalizar(texto):
-    """Quita corchetes, paréntesis, tildes y símbolos para comparar fácil."""
-    txt = str(texto).lower()
+def normalizar_texto(txt):
+    """Limpia tildes y caracteres especiales."""
+    txt = str(txt).lower()
     txt = re.sub(r'\[.*?\]|\(.*?\)', '', txt)
     txt = unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode("utf-8")
-    return re.sub(r'[^a-z0-9]', '', txt).strip()
+    return txt.strip()
 
-def obtener_imagen_equipo(nombre_equipo):
-    if not os.path.exists(CARPETA_ESCUDOS):
-        return None
-    
-    equipo_norm = normalizar(nombre_equipo)
-    if not equipo_norm:
-        return None
-
-    try:
-        archivos = [f for f in os.listdir(CARPETA_ESCUDOS) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-    except Exception:
-        return None
-
-    # Busca si "boca" está dentro de "bocajuniors" o viceversa
-    for archivo in archivos:
-        nombre_sin_ext = os.path.splitext(archivo)[0]
-        archivo_norm = normalizar(nombre_sin_ext)
-        if archivo_norm and (archivo_norm in equipo_norm or equipo_norm in archivo_norm):
-            return os.path.join(CARPETA_ESCUDOS, archivo)
-            
+def buscar_url_escudo(nombre_equipo):
+    nombre_limpio = normalizar_texto(nombre_equipo)
+    for clave, url in ESCUDOS_WEB.items():
+        if clave in nombre_limpio:
+            return url
     return None
 
 # =====================================================================
-# 4. TABLA DE POSICIONES
+# 3. CARGA DE DATOS (TABLA DE POSICIONES)
 # =====================================================================
+DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
+RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
+
+if not os.path.exists(RUTA_CSV):
+    RUTA_CSV = os.path.join(os.getcwd(), "datos_procesados.csv")
+
 if os.path.exists(RUTA_CSV):
     df = pd.read_csv(RUTA_CSV)
     
@@ -84,7 +75,7 @@ if os.path.exists(RUTA_CSV):
     st.markdown("---")
 
     # =====================================================================
-    # 5. PREDICTOR DE ENFRENTAMIENTOS
+    # 4. PREDICTOR DE ENFRENTAMIENTOS
     # =====================================================================
     st.subheader("🔮 Predictor de Enfrentamientos")
     
@@ -100,24 +91,24 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.warning("Seleccioná dos equipos distintos.")
         else:
-            ruta_loc = obtener_imagen_equipo(local)
-            ruta_vis = obtener_imagen_equipo(visitante)
+            url_loc = buscar_url_escudo(local)
+            url_vis = buscar_url_escudo(visitante)
 
             c_loc, c_vs, c_vis = st.columns([2, 1, 2])
             
             with c_loc:
-                if ruta_loc and os.path.exists(ruta_loc):
-                    st.image(Image.open(ruta_loc), width=120)
+                if url_loc:
+                    st.image(url_loc, width=120)
                 else:
                     st.caption("🛡️ (Sin escudo)")
                 st.markdown(f"### **{local}**")
                 
             with c_vs:
-                st.markdown("<h1 style='text-align: center; margin-top: 20px;'>VS</h1>", unsafe_allow_html=True)
+                st.markdown("<h1 style='text-align: center; margin-top: 25px;'>VS</h1>", unsafe_allow_html=True)
                 
             with c_vis:
-                if ruta_vis and os.path.exists(ruta_vis):
-                    st.image(Image.open(ruta_vis), width=120)
+                if url_vis:
+                    st.image(url_vis, width=120)
                 else:
                     st.caption("🛡️ (Sin escudo)")
                 st.markdown(f"### **{visitante}**")
@@ -147,4 +138,4 @@ if os.path.exists(RUTA_CSV):
             p2.metric(f"{visitante} (Visitante)", f"{prob_vis:.1f}%")
             st.progress(int(prob_loc))
 else:
-    st.error("⚠️ No se encontró el archivo 'datos_procesados.csv'. Verificá que esté guardado en la misma carpeta del proyecto.")
+    st.error("⚠️ No se encontró el archivo 'datos_procesados.csv'. Verificá que esté en la misma carpeta.")
