@@ -68,23 +68,38 @@ else:
     with col_titulo:
         st.subheader("Tabla Anual - Liga Profesional de Fútbol")
 
-    # DICCIONARIO DE ESCUDOS USANDO CDN DE ESPN (No se bloquean)
+    # DICCIONARIO COMPLETO CON LOS 30 EQUIPOS 
     escudos = {
-        "Boca Juniors": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
-        "River Plate": "https://a.espncdn.com/i/teamlogos/soccer/500/16.png",
-        "Racing Club": "https://a.espncdn.com/i/teamlogos/soccer/500/15.png",
-        "Independiente": "https://a.espncdn.com/i/teamlogos/soccer/500/10.png",
-        "San Lorenzo": "https://a.espncdn.com/i/teamlogos/soccer/500/18.png",
-        "Vélez Sarsfield": "https://a.espncdn.com/i/teamlogos/soccer/500/21.png",
-        "Estudiantes (LP)": "https://a.espncdn.com/i/teamlogos/soccer/500/8.png",
-        "Rosario Central": "https://a.espncdn.com/i/teamlogos/soccer/500/17.png",
-        "Newell's Old Boys": "https://a.espncdn.com/i/teamlogos/soccer/500/14.png",
-        "Talleres (C)": "https://a.espncdn.com/i/teamlogos/soccer/500/3282.png",
-        "Belgrano": "https://a.espncdn.com/i/teamlogos/soccer/500/2464.png",
-        "Huracán": "https://a.espncdn.com/i/teamlogos/soccer/500/9.png",
-        "Argentinos Juniors": "https://a.espncdn.com/i/teamlogos/soccer/500/2.png",
-        "Lanús": "https://a.espncdn.com/i/teamlogos/soccer/500/12.png",
-        "Banfield": "https://a.espncdn.com/i/teamlogos/soccer/500/4.png"
+        "Independiente Rivadavia": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg/100px-Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg.png",
+        "Argentinos Juniors": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Argentinos_Juniors.svg/100px-Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Argentinos_Juniors.svg.png",
+        "Estudiantes (LP)": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Escudo_de_Estudiantes_de_La_Plata.svg/100px-Escudo_de_Estudiantes_de_La_Plata.svg.png",
+        "Boca Juniors": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Boca_Juniors_logo_2012.svg/100px-Boca_Juniors_logo_2012.svg.png",
+        "River Plate": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Logo_River_Plate_2022.png/100px-Logo_River_Plate_2022.png",
+        "Belgrano": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Club_Atl%C3%A9tico_Belgrano_logo.svg/100px-Club_Atl%C3%A9tico_Belgrano_logo.svg.png",
+        "Vélez Sarsfield": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg.png",
+        "Rosario Central": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg.png",
+        "Talleres (C)": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Club_Atl%C3%A9tico_Talleres_logo.svg/100px-Club_Atl%C3%A9tico_Talleres_logo.svg.png",
+        "Gimnasia (LP)": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Escudo_del_Club_de_Gimnasia_y_Esgrima_La_Plata.svg/100px-Escudo_del_Club_de_Gimnasia_y_Esgrima_La_Plata.svg.png",
+        "Independiente": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Club_Atl%C3%A9tico_Independiente_logo.svg/100px-Club_Atl%C3%A9tico_Independiente_logo.svg.png",
+        "Lanús": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Escudo_del_Club_Atl%C3%A9tico_Lan%C3%BAs.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Lan%C3%BAs.svg.png",
+        "Huracán": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg.png",
+        "San Lorenzo": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg/100px-Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg.png",
+        "Unión": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg.png",
+        "Racing Club": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Racing_Club_logo.svg/100px-Racing_Club_logo.svg.png",
+        "Instituto": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Escudo_del_Instituto_Atl%C3%A9tico_Central_C%C3%B3rdoba.svg/100px-Escudo_del_Instituto_Atl%C3%A9tico_Central_C%C3%B3rdoba.svg.png",
+        "Barracas Central": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Escudo_del_Club_Atl%C3%A9tico_Barracas_Central.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Barracas_Central.svg.png",
+        "Tigre": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/Escudo_del_Club_Atl%C3%A9tico_Tigre.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Tigre.svg.png",
+        "Defensa y Justicia": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg/100px-Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg.png",
+        "Sarmiento (J)": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Escudo_del_Club_Atl%C3%A9tico_Sarmiento_de_Jun%C3%ADn.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Sarmiento_de_Jun%C3%ADn.svg.png",
+        "Gimnasia (Mendoza)": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Escudo_del_Club_Atl%C3%A9tico_Gimnasia_y_Esgrima_de_Mendoza.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Gimnasia_y_Esgrima_de_Mendoza.svg.png",
+        "Banfield": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Escudo_del_Club_Atl%C3%A9tico_Banfield.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Banfield.svg.png",
+        "Platense": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Escudo_del_Club_Atl%C3%A9tico_Platense.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Platense.svg.png",
+        "Central Córdoba (SdE)": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Escudo_del_Club_Atl%C3%A9tico_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg.png",
+        "Newell's Old Boys": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg.png",
+        "Atlético Tucumán": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/Escudo_del_Club_Atl%C3%A9tico_Tucum%C3%A1n.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Tucum%C3%A1n.svg.png",
+        "Deportivo Riestra": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Escudo_del_Deportivo_Riestra_Asociaci%C3%B3n_de_Fomento_Barrio_Col%C3%B3n.svg/100px-Escudo_del_Deportivo_Riestra_Asociaci%C3%B3n_de_Fomento_Barrio_Col%C3%B3n.svg.png",
+        "Aldosivi": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg/100px-Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg.png",
+        "Estudiantes (RC)": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Estudiantes_de_R%C3%ADo_Cuarto.svg/100px-Escudo_de_la_Asociaci%C3%B3n_Atl%C3%A9tica_Estudiantes_de_R%C3%ADo_Cuarto.svg.png"
     }
     
     # Imagen genérica (una pelota) por si falta agregar el escudo de algún equipo
