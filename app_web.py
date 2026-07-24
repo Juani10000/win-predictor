@@ -10,23 +10,39 @@ st.set_page_config(page_title="Tabla Anual - LPF", layout="wide")
 st.title("⚽ Tabla Anual & Predictor - Liga Profesional")
 st.markdown("---")
 
-# 2. DEFINICIÓN MANUAL DE LA CARPETA
-# Como no pude ver tu foto, pegá acá la ruta exacta de tu carpeta de escudos.
-# Ejemplo: RUTA_MANUAL = r"C:\Users\TuNombre\Desktop\Proyecto\escudos"
-RUTA_MANUAL = r"" 
-
-st.sidebar.header("⚙️ Configuración de Escudos")
+# 2. CONFIGURACIÓN DE LA RUTA Y RAYOS X
+st.sidebar.header("⚙️ Configuración")
 ruta_ingresada = st.sidebar.text_input(
-    "Pegá acá la ruta de tu carpeta de escudos (si está vacía arriba):", 
-    value=RUTA_MANUAL,
+    "Pegá acá la ruta de los escudos:", 
     help="Ejemplo: C:\\Users\\Usuario\\Desktop\\escudos"
 )
 
-DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
-RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
+# Limpiamos la ruta por si se pegó con comillas (pasa mucho en Windows)
+if ruta_ingresada:
+    CARPETA_ESCUDOS = ruta_ingresada.replace('"', '').replace("'", "").strip()
+else:
+    CARPETA_ESCUDOS = os.path.dirname(os.path.abspath(__file__))
 
-# Usamos la ruta que ingreses, o la carpeta actual por defecto
-CARPETA_ESCUDOS = ruta_ingresada if ruta_ingresada else DIRECTORIO_APP
+# -----------------------------------------------------------------
+# 🔎 MODO RAYOS X (Para ver por qué falla)
+# -----------------------------------------------------------------
+with st.sidebar.expander("🔎 Ver Diagnóstico (Rayos X)", expanded=True):
+    st.write(f"**Buscando en:** `{CARPETA_ESCUDOS}`")
+    if os.path.exists(CARPETA_ESCUDOS):
+        st.success("✅ La carpeta existe.")
+        try:
+            archivos_detectados = [f for f in os.listdir(CARPETA_ESCUDOS) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            if archivos_detectados:
+                st.write(f"📁 Encontré {len(archivos_detectados)} imágenes:")
+                for arch in archivos_detectados:
+                    st.code(arch)
+            else:
+                st.error("❌ La carpeta existe pero NO veo ningún archivo .png o .jpg adentro.")
+        except Exception as e:
+            st.error(f"Error leyendo la carpeta: {e}")
+    else:
+        st.error("❌ La ruta pegada NO es válida o no existe. Revisá si no faltó una letra.")
+# -----------------------------------------------------------------
 
 def limpiar_texto(texto):
     txt = str(texto).lower()
@@ -49,6 +65,8 @@ def buscar_escudo_local(nombre_equipo):
     for archivo in archivos:
         if archivo.lower().endswith(('.png', '.jpg', '.jpeg')):
             archivo_limpio = limpiar_texto(archivo)
+            
+            # Chequeo más flexible: si una parte del nombre está en el otro
             if archivo_limpio in equipo_limpio or equipo_limpio in archivo_limpio:
                 return os.path.join(CARPETA_ESCUDOS, archivo)
     return None
@@ -56,8 +74,11 @@ def buscar_escudo_local(nombre_equipo):
 # =====================================================================
 # 3. Carga de Datos y Tabla de Posiciones
 # =====================================================================
+DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
+RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
+
 if not os.path.exists(RUTA_CSV):
-    st.error(f"⚠️ No se encontró 'datos_procesados.csv' en: {DIRECTORIO_APP}")
+    st.error(f"⚠️ No se encontró 'datos_procesados.csv'.")
 else:
     df = pd.read_csv(RUTA_CSV)
     df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
@@ -67,7 +88,7 @@ else:
     st.markdown("---")
 
     # =====================================================================
-    # 4. Predictor de Enfrentamientos (Win Predictor)
+    # 4. Predictor de Enfrentamientos
     # =====================================================================
     st.subheader("🔮 Predictor de Enfrentamientos")
     
@@ -91,14 +112,12 @@ else:
             with c_loc:
                 if ruta_loc and os.path.exists(ruta_loc):
                     try:
-                        # ESTO ES LA MAGIA: Forzamos a Python a abrir la foto físicamente
                         img_loc = Image.open(ruta_loc)
                         st.image(img_loc, width=130)
-                    except Exception as e:
-                        st.error("Error al abrir imagen")
+                    except Exception:
+                        st.error("Archivo dañado")
                 else:
-                    st.caption("🛡️ (Sin escudo)")
-                    st.write(f"Buscando en: {CARPETA_ESCUDOS}") # Para debug
+                    st.caption(f"🛡️ (Falta imagen para {local})")
                 st.markdown(f"### **{local}**")
                 
             with c_vs:
@@ -109,13 +128,13 @@ else:
                     try:
                         img_vis = Image.open(ruta_vis)
                         st.image(img_vis, width=130)
-                    except Exception as e:
-                        st.error("Error al abrir imagen")
+                    except Exception:
+                        st.error("Archivo dañado")
                 else:
-                    st.caption("🛡️ (Sin escudo)")
+                    st.caption(f"🛡️ (Falta imagen para {visitante})")
                 st.markdown(f"### **{visitante}**")
 
-            # Cálculo de Probabilidades
+            # Matemáticas
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
 
