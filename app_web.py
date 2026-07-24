@@ -4,18 +4,22 @@ import os
 import re
 
 # =====================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ENCABEZADO
+# 1. CONFIGURACIÓN DE PÁGINA Y ENCABEZADO CON LOGO DE LA LPF
 # =====================================================================
 st.set_page_config(page_title="Win Predictor - LPF Argentina", layout="wide")
 
-# Logo oficial de la LPF (vía Wikimedia URL oficial)
+# Logo oficial de la Liga Profesional de Fútbol
 URL_LOGO_LPF = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png/600px-Logo_de_la_Liga_Profesional_de_F%C3%BAtbol.png"
 
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
-    st.image(URL_LOGO_LPF, width=95)
+    # Usamos HTML directo para garantizar la carga del logo en el navegador
+    st.markdown(
+        f'<img src="{URL_LOGO_LPF}" width="110" style="margin-top: 10px;">',
+        unsafe_allow_html=True
+    )
 with col_titulo:
-    st.title("⚽ Win Predictor - Liga Profesional")
+    st.title("⚽ Win Predictor - Liga Profesional Argentina")
     st.markdown("**Tabla Anual & Predictor de Partidos (Local / Empate / Visitante)**")
 
 st.markdown("---")
@@ -26,8 +30,8 @@ st.markdown("---")
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
 
+# Si no está en la raíz, busca dentro de la carpeta 'datos'
 if not os.path.exists(RUTA_CSV):
-    # Revisa si el CSV está adentro de la carpeta 'datos'
     RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos", "datos_procesados.csv")
 
 if os.path.exists(RUTA_CSV):
@@ -60,7 +64,7 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.warning("⚠️ Seleccioná dos equipos distintos.")
         else:
-            # Datos del equipo local y visitante
+            # Obtención de datos por equipo
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -69,17 +73,15 @@ if os.path.exists(RUTA_CSV):
             pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
             pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
 
-            # Promedio de puntos por partido (+12% extra por localía)
+            # Promedio de puntos (+12% de ventaja por localía)
             prom_loc = (pts_loc / pj_loc) * 1.12
             prom_vis = (pts_vis / pj_vis)
 
-            # Diferencia de nivel entre equipos
+            # Cálculo de la probabilidad de empate según la paridad entre equipos
             diferencia = abs(prom_loc - prom_vis)
-
-            # Cuanto más parejos, mayor probabilidad de empate (rango típico en fútbol argentino ~22% a 32%)
             prob_empate = max(18.0, min(33.0, 29.0 - (diferencia * 7.5)))
 
-            # El porcentaje restante se reparte entre victoria local y visitante
+            # Distribución del porcentaje restante
             resto = 100.0 - prob_empate
             total_prom = prom_loc + prom_vis
 
@@ -90,25 +92,25 @@ if os.path.exists(RUTA_CSV):
                 prob_loc = resto / 2
                 prob_vis = resto / 2
 
-            # Muestra de Enfrentamiento
-            st.markdown(f"### **{local}** &nbsp; vs &nbsp; **{visitante}**")
+            # Presentación de resultados
+            st.markdown(f"### **{local}** vs **{visitante}**")
             st.markdown("#### **Probabilidades del Partido**")
 
-            # Métrica en 3 columnas
+            # Tarjetas numéricas
             m1, m2, m3 = st.columns(3)
             m1.metric(f"Victoria {local}", f"{prob_loc:.1f}%")
             m2.metric("Empate", f"{prob_empate:.1f}%")
             m3.metric(f"Victoria {visitante}", f"{prob_vis:.1f}%")
 
-            # Barra visual acumulada
+            # Barras comparativas
             st.markdown("**Distribución visual:**")
-            col_bar1, col_bar2, col_bar3 = st.columns([int(prob_loc), int(prob_empate), int(prob_vis)])
-            with col_bar1:
+            col_b1, col_b2, col_b3 = st.columns([max(1, int(prob_loc)), max(1, int(prob_empate)), max(1, int(prob_vis))])
+            with col_b1:
                 st.info(f"Local: {prob_loc:.1f}%")
-            with col_bar2:
+            with col_b2:
                 st.warning(f"Empate: {prob_empate:.1f}%")
-            with col_bar3:
+            with col_b3:
                 st.error(f"Visitante: {prob_vis:.1f}%")
 
 else:
-    st.error("⚠️ No se encontró el archivo 'datos_procesados.csv'. Verificá que esté guardado en el mismo directorio.")
+    st.error("⚠️ No se encontró el archivo 'datos_procesados.csv'. Verificá que esté guardado en la carpeta del programa o en la subcarpeta 'datos'.")
