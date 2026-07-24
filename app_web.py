@@ -4,148 +4,82 @@ import unicodedata
 import re
 import os
 
-# 1. Configuración de la página
-st.set_page_config(
-    page_title="Tabla Anual - LPF Argentina",
-    page_icon="⚽",
-    layout="wide"
-)
+# 1. Configuración básica
+st.set_page_config(page_title="Tabla Anual - LPF Argentina", page_icon="⚽", layout="wide")
 
-# 2. Enlaces DIRECTOS de ESPN (¡No fallan ni los bloquean!)
-LOGO_LPF = "https://a.espncdn.com/i/leaguelogos/soccer/500/1.png"
-
-ESCUDOS_ESPN = {
-    "argentinos": "https://a.espncdn.com/i/teamlogos/soccer/500/1.png",
-    "atletico tucuman": "https://a.espncdn.com/i/teamlogos/soccer/500/10232.png",
-    "banfield": "https://a.espncdn.com/i/teamlogos/soccer/500/2.png",
-    "barracas": "https://a.espncdn.com/i/teamlogos/soccer/500/19901.png",
-    "belgrano": "https://a.espncdn.com/i/teamlogos/soccer/500/3810.png",
-    "boca": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
-    "central cordoba": "https://a.espncdn.com/i/teamlogos/soccer/500/18848.png",
-    "defensa": "https://a.espncdn.com/i/teamlogos/soccer/500/10313.png",
-    "riestra": "https://a.espncdn.com/i/teamlogos/soccer/500/20141.png",
-    "estudiantes lp": "https://a.espncdn.com/i/teamlogos/soccer/500/8.png",
-    "gimnasia lp": "https://a.espncdn.com/i/teamlogos/soccer/500/9.png",
-    "godoy cruz": "https://a.espncdn.com/i/teamlogos/soccer/500/3812.png",
-    "huracan": "https://a.espncdn.com/i/teamlogos/soccer/500/11.png",
-    "independiente rivadavia": "https://a.espncdn.com/i/teamlogos/soccer/500/19899.png",
-    "independiente": "https://a.espncdn.com/i/teamlogos/soccer/500/10.png",
-    "instituto": "https://a.espncdn.com/i/teamlogos/soccer/500/10258.png",
-    "lanus": "https://a.espncdn.com/i/teamlogos/soccer/500/12.png",
-    "newell": "https://a.espncdn.com/i/teamlogos/soccer/500/13.png",
-    "platense": "https://a.espncdn.com/i/teamlogos/soccer/500/10260.png",
-    "racing": "https://a.espncdn.com/i/teamlogos/soccer/500/15.png",
-    "river": "https://a.espncdn.com/i/teamlogos/soccer/500/16.png",
-    "rosario central": "https://a.espncdn.com/i/teamlogos/soccer/500/17.png",
-    "san lorenzo": "https://a.espncdn.com/i/teamlogos/soccer/500/18.png",
-    "sarmiento": "https://a.espncdn.com/i/teamlogos/soccer/500/10233.png",
-    "talleres": "https://a.espncdn.com/i/teamlogos/soccer/500/3814.png",
-    "tigre": "https://a.espncdn.com/i/teamlogos/soccer/500/20.png",
-    "union": "https://a.espncdn.com/i/teamlogos/soccer/500/19.png",
-    "velez": "https://a.espncdn.com/i/teamlogos/soccer/500/21.png",
-    "aldosivi": "https://a.espncdn.com/i/teamlogos/soccer/500/10257.png",
-    "san martin": "https://a.espncdn.com/i/teamlogos/soccer/500/3811.png"
+# 2. Diccionario simplificado de escudos
+ESCUDOS = {
+    "argentinos": "https://upload.wikimedia.org/wikipedia/commons/1/1b/AAAJ_logo.svg",
+    "tucuman": "https://upload.wikimedia.org/wikipedia/commons/a/ae/Escudo_Atl%C3%A9tico_Tucum%C3%A1n_-_2020.svg",
+    "banfield": "https://upload.wikimedia.org/wikipedia/commons/c/c8/Escudo_del_Club_Atl%C3%A9tico_Banfield.svg",
+    "barracas": "https://upload.wikimedia.org/wikipedia/commons/2/20/Escudo_de_Barracas_Central.svg",
+    "belgrano": "https://upload.wikimedia.org/wikipedia/commons/c/c3/Escudo_oficial_del_Club_Atl%C3%A9tico_Belgrano.svg",
+    "boca": "https://upload.wikimedia.org/wikipedia/commons/1/1b/Escudo_del_Club_Atl%C3%A9tico_Boca_Juniors.svg",
+    "central cordoba": "https://upload.wikimedia.org/wikipedia/commons/8/87/Escudo_de_Central_C%C3%B3rdoba_de_Santiago_del_Estero.svg",
+    "defensa": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Escudo_del_Club_Social_y_Deportivo_Defensa_y_Justicia.svg",
+    "riestra": "https://upload.wikimedia.org/wikipedia/commons/b/b5/Deportivo_Riestra_logo.svg",
+    "estudiantes": "https://upload.wikimedia.org/wikipedia/commons/a/a1/Escudo_de_Estudiantes_de_La_Plata.svg",
+    "gimnasia": "https://upload.wikimedia.org/wikipedia/commons/3/36/Gimnasia_y_Esgrima_de_La_Plata_logo.svg",
+    "godoy": "https://upload.wikimedia.org/wikipedia/commons/c/c2/Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg",
+    "huracan": "https://upload.wikimedia.org/wikipedia/commons/a/a0/Escudo_del_Club_Atl%C3%A9tico_Hurac%C3%A1n.svg",
+    "rivadavia": "https://upload.wikimedia.org/wikipedia/commons/2/23/Escudo_del_Club_Sportivo_Independiente_Rivadavia.svg",
+    "independiente": "https://upload.wikimedia.org/wikipedia/commons/d/db/Escudo_del_Club_Atl%C3%A9tico_Independiente.svg",
+    "instituto": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Escudo_de_Instituto_ACC.svg",
+    "lanus": "https://upload.wikimedia.org/wikipedia/commons/c/c1/Escudo_del_Club_Atl%C3%A9tico_Lan%C3%Bas.svg",
+    "newell": "https://upload.wikimedia.org/wikipedia/commons/a/a2/Escudo_del_Club_Atl%C3%A9tico_Newell%27s_Old_Boys.svg",
+    "platense": "https://upload.wikimedia.org/wikipedia/commons/d/d4/Escudo_del_Club_Atl%C3%A9tico_Platense.svg",
+    "racing": "https://upload.wikimedia.org/wikipedia/commons/5/56/Escudo_de_Racing_Club.svg",
+    "river": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Escudo_del_C_A_River_Plate.svg",
+    "rosario": "https://upload.wikimedia.org/wikipedia/commons/f/f7/Escudo_del_Club_Atl%C3%A9tico_Rosario_Central.svg",
+    "san lorenzo": "https://upload.wikimedia.org/wikipedia/commons/7/77/Escudo_del_Club_Atl%C3%A9tico_San_Lorenzo_de_Almagro.svg",
+    "sarmiento": "https://upload.wikimedia.org/wikipedia/commons/2/23/Escudo_del_Club_Atl%C3%A9tico_Sarmiento_%28Jun%C3%ADn%29.svg",
+    "talleres": "https://upload.wikimedia.org/wikipedia/commons/0/07/Escudo_del_Club_Atl%C3%A9tico_Talleres_de_C%C3%B3rdoba.svg",
+    "tigre": "https://upload.wikimedia.org/wikipedia/commons/e/e0/Escudo_del_Club_Atl%C3%A9tico_Tigre.svg",
+    "union": "https://upload.wikimedia.org/wikipedia/commons/7/79/Escudo_del_Club_Atl%C3%A9tico_Uni%C3%B3n_de_Santa_Fe.svg",
+    "velez": "https://upload.wikimedia.org/wikipedia/commons/2/20/Escudo_del_Club_Atl%C3%A9tico_V%C3%A9lez_Sarsfield.svg",
+    "aldosivi": "https://upload.wikimedia.org/wikipedia/commons/8/80/Escudo_del_Club_Atl%C3%A9tico_Aldosivi.svg",
+    "san martin": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Escudo_del_Club_Atl%C3%A9tico_San_Mart%C3%ADn_de_San_Juan.svg"
 }
 
-def normalizar_texto(texto):
-    if not isinstance(texto, str): return ""
-    texto = re.sub(r'\[.*?\]', '', texto) 
-    texto = re.sub(r'\(.*?\)', '', texto) 
-    texto = unicodedata.normalize('NFD', texto).encode('ascii', 'ignore').decode("utf-8")
-    return texto.lower().strip()
+LOGO_LPF = "https://upload.wikimedia.org/wikipedia/commons/1/15/Liga_Profesional_de_F%C3%Batbol_%28Argentina%29_logo.svg"
 
-def obtener_url_escudo(nombre_equipo):
-    norm = normalizar_texto(nombre_equipo)
-    clave = "lpf_logo"
-    
-    if "independiente riv" in norm or "rivadavia" in norm: clave = "independiente rivadavia"
-    elif "independiente" in norm: clave = "independiente"
-    elif "central cordoba" in norm or "sde" in norm or "santiago" in norm: clave = "central cordoba"
-    elif "rosario central" in norm: clave = "rosario central"
-    elif "gimnasia" in norm: clave = "gimnasia lp"
-    elif "estudiantes" in norm: clave = "estudiantes lp"
-    elif "argentinos" in norm: clave = "argentinos"
-    elif "tucuman" in norm: clave = "atletico tucuman"
-    elif "barracas" in norm: clave = "barracas"
-    elif "boca" in norm: clave = "boca"
-    elif "defensa" in norm: clave = "defensa"
-    elif "riestra" in norm: clave = "riestra"
-    elif "godoy cruz" in norm: clave = "godoy cruz"
-    elif "huracan" in norm: clave = "huracan"
-    elif "instituto" in norm: clave = "instituto"
-    elif "lanus" in norm: clave = "lanus"
-    elif "newell" in norm: clave = "newell"
-    elif "platense" in norm: clave = "platense"
-    elif "racing" in norm: clave = "racing"
-    elif "river" in norm: clave = "river"
-    elif "san lorenzo" in norm: clave = "san lorenzo"
-    elif "sarmiento" in norm: clave = "sarmiento"
-    elif "talleres" in norm: clave = "talleres"
-    elif "tigre" in norm: clave = "tigre"
-    elif "union" in norm: clave = "union"
-    elif "velez" in norm: clave = "velez"
-    elif "belgrano" in norm: clave = "belgrano"
-    elif "banfield" in norm: clave = "banfield"
-    elif "aldosivi" in norm: clave = "aldosivi"
-    elif "san martin" in norm or "san juan" in norm: clave = "san martin"
-        
-    return ESCUDOS_ESPN.get(clave, LOGO_LPF)
+def obtener_escudo(nombre):
+    txt = unicodedata.normalize('NFD', str(nombre)).encode('ascii', 'ignore').decode("utf-8").lower()
+    for clave, url in ESCUDOS.items():
+        if clave in txt:
+            return url
+    return LOGO_LPF
 
-# 3. Encabezado principal
-col_lpf, col_title = st.columns([1, 6])
-with col_lpf:
-    st.image(LOGO_LPF, width=80)
-with col_title:
+# 3. Encabezado
+col_logo, col_titulo = st.columns([1, 6])
+with col_logo:
+    st.image(LOGO_LPF, width=75)
+with col_titulo:
     st.title("Tabla Anual - Liga Profesional de Fútbol")
-    st.caption("Estadísticas oficiales y predictor de partidos en tiempo real")
+    st.caption("Estadísticas en tiempo real y predictor de partidos")
 
 st.markdown("---")
 
-# 4. Carga de datos y Tabla
+# 4. Carga y despliegue de datos
 CSV_PATH = "datos_procesados.csv"
 
 if not os.path.exists(CSV_PATH):
-    st.error(f"No se encontró el archivo '{CSV_PATH}'.")
+    st.error(f"No se encontró el archivo '{CSV_PATH}'. Asegúrate de que el scraper esté generando el CSV correctamente.")
 else:
     df = pd.read_csv(CSV_PATH)
     df.columns = df.columns.str.strip()
-    
+
     if "Equipo" in df.columns:
-        # Limpiar nombres para visualizarlos bien
-        df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]', '', x).strip())
+        # Limpieza de nombres
+        df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
         
-        # Insertar URL del escudo como primera columna
-        df.insert(0, "Escudo", df["Equipo"].apply(obtener_url_escudo))
-        
-        columnas_deseadas = ["Escudo", "Equipo", "Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
-        cols_existentes = [c for c in columnas_deseadas if c in df.columns]
-        otras_cols = [c for c in df.columns if c not in cols_existentes]
-        df_mostrar = df[cols_existentes + otras_cols].copy()
-        
-        # Renderizamos la tabla nativa de Streamlit, configurando explícitamente "Escudo" como imagen
-        st.dataframe(
-            df_mostrar,
-            hide_index=True,
-            column_config={
-                "Escudo": st.column_config.ImageColumn(
-                    "🛡️", 
-                    help="Escudo oficial del equipo"
-                ),
-                "Equipo": st.column_config.TextColumn("Equipo", width="medium"),
-                "Puntos": st.column_config.NumberColumn("Puntos", format="%d"),
-                "PJ": st.column_config.NumberColumn("PJ", format="%d"),
-                "PG": st.column_config.NumberColumn("PG", format="%d"),
-                "PE": st.column_config.NumberColumn("PE", format="%d"),
-                "PP": st.column_config.NumberColumn("PP", format="%d"),
-                "GF": st.column_config.NumberColumn("GF", format="%d"),
-                "GC": st.column_config.NumberColumn("GC", format="%d"),
-            },
-            use_container_width=True
-        )
+        # Muestra la tabla de datos completa, rápida y legible
+        st.subheader("📊 Tabla de Posiciones")
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
         st.markdown("---")
 
-        # 5. Predictor
+        # 5. Predictor con escudos garantizados
         st.subheader("🔮 Predictor de Enfrentamientos")
         lista_equipos = sorted(df["Equipo"].unique())
 
@@ -159,44 +93,41 @@ else:
             if local == visitante:
                 st.warning("Selecciona dos equipos distintos.")
             else:
-                url_local = obtener_url_escudo(local)
-                url_vis = obtener_url_escudo(visitante)
+                escudo_local = obtener_escudo(local)
+                escudo_vis = obtener_escudo(visitante)
 
                 c_loc, c_vs, c_vis = st.columns([2, 1, 2])
                 with c_loc:
-                    st.image(url_local, width=90)
+                    st.image(escudo_local, width=100)
                     st.markdown(f"### **{local}**")
                 with c_vs:
-                    st.markdown("<h2 style='text-align: center; margin-top: 20px;'>VS</h2>", unsafe_allow_html=True)
+                    st.markdown("<h2 style='text-align: center; margin-top: 30px;'>VS</h2>", unsafe_allow_html=True)
                 with c_vis:
-                    st.image(url_vis, width=90)
+                    st.image(escudo_vis, width=100)
                     st.markdown(f"### **{visitante}**")
 
-                stats_loc = df[df["Equipo"] == local].iloc[0]
-                stats_vis = df[df["Equipo"] == visitante].iloc[0]
+                # Cálculo de probabilidades según estadísticas del CSV
+                row_loc = df[df["Equipo"] == local].iloc[0]
+                row_vis = df[df["Equipo"] == visitante].iloc[0]
 
-                pts_loc = stats_loc.get("Puntos", 0)
-                pts_vis = stats_vis.get("Puntos", 0)
-                pj_loc = max(stats_loc.get("PJ", 1), 1)
-                pj_vis = max(stats_vis.get("PJ", 1), 1)
+                pts_loc = float(row_loc.get("Puntos", 0))
+                pts_vis = float(row_vis.get("Puntos", 0))
+                pj_loc = max(float(row_loc.get("PJ", 1)), 1.0)
+                pj_vis = max(float(row_vis.get("PJ", 1)), 1.0)
 
-                prom_loc = pts_loc / pj_loc
+                prom_loc = (pts_loc / pj_loc) * 1.15  # Ventaja de localía
                 prom_vis = pts_vis / pj_vis
 
-                factor_localia = 1.15
-                score_loc = prom_loc * factor_localia
-                score_vis = prom_vis
-
-                total = score_loc + score_vis
+                total = prom_loc + prom_vis
                 if total > 0:
-                    prob_loc = (score_loc / total) * 100
-                    prob_vis = (score_vis / total) * 100
+                    prob_loc = (prom_loc / total) * 100
+                    prob_vis = (prom_vis / total) * 100
                 else:
                     prob_loc, prob_vis = 50.0, 50.0
 
-                st.markdown("#### **Probabilidades del Encuentro**")
+                st.markdown("#### **Probabilidades de Victoria**")
                 p1, p2 = st.columns(2)
-                p1.metric(f"Victoria {local} (Local)", f"{prob_loc:.1f}%")
-                p2.metric(f"Victoria {visitante} (Visitante)", f"{prob_vis:.1f}%")
+                p1.metric(f"{local} (Local)", f"{prob_loc:.1f}%")
+                p2.metric(f"{visitante} (Visitante)", f"{prob_vis:.1f}%")
 
                 st.progress(int(prob_loc))
