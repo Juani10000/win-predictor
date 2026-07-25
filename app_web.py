@@ -287,4 +287,17 @@ else:
       "Archivo de origen no encontrado. Verifique que 'datos_procesados.csv'"
       " exista."
   )
-    
+    # --- PRUEBA DE AGENDA DE HOY ---
+st.markdown("---")
+st.subheader("🛠️ Panel de Prueba: Partidos de Hoy")
+
+# Llamamos a la función que pegaste antes
+partidos_prueba = obtener_partidos_hoy_wiki()
+
+# Forzamos a Streamlit a que nos muestre qué datos trajo (aunque esté vacío)
+st.write("Datos crudos traídos de Wikipedia:", partidos_prueba)
+
+if len(partidos_prueba) == 0:
+    st.warning("La lista está vacía. Significa que el código funcionó, pero no encontró la fecha de hoy en la tabla de Wikipedia.")
+else:
+    st.success("¡Encontró datos! Falta armar las tarjetitas visuales.")
