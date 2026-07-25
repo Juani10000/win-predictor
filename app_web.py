@@ -82,48 +82,37 @@ def calcular_top_resultados(xg_loc, xg_vis):
 
     return top_5, prob_otro
 
-def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.10):
-    row_loc = df[df["Equipo"] == local].iloc[0]
-    row_vis = df[df["Equipo"] == visitante].iloc[0]
+def simular_1x2_poisson(xg_loc, xg_vis, max_goles=10):
+    """Reemplazo de realizar_prediccion: Usa Poisson puro para alinear xG con % de victoria."""
+    prob_loc = 0.0
+    prob_emp = 0.0
+    prob_vis = 0.0
 
-    pts_loc = float(row_loc.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
-    pts_vis = float(row_vis.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
-    pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
-    pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
+    for i in range(max_goles + 1):
+        for j in range(max_goles + 1):
+            p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
+            if i > j:
+                prob_loc += p
+            elif i == j:
+                prob_emp += p
+            else:
+                prob_vis += p
 
-    prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
-    prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
+    return prob_loc * 100, prob_emp * 100, prob_vis * 100
 
-    prom_loc_ajustado = prom_loc
-    prom_vis_ajustado = prom_vis
+def calcular_promedio_general_liga(stats_wiki):
+    """Calcula el promedio de goles de la liga usando los datos scrapeados de Wikipedia."""
+    if not stats_wiki:
+        return 2.5 # Valor de contingencia estándar
     
-    score_loc = (stats_loc['GF'] * 0.2) + (stats_loc['Pos'] * 0.05) + (stats_loc['VI'] * 1.2) + (stats_loc['TirosArco'] * 0.8) + (stats_loc['Fortaleza'] * 0.1)
-    score_vis = (stats_vis['GF'] * 0.2) + (stats_vis['Pos'] * 0.05) + (stats_vis['VI'] * 1.2) + (stats_vis['TirosArco'] * 0.8) + (stats_vis['Fortaleza'] * 0.1)
+    total_goles = sum(eq['GF'] for eq in stats_wiki.values())
+    # Se divide por 2 porque cada partido suma PJ a dos equipos distintos
+    total_partidos = sum(eq['PJ'] for eq in stats_wiki.values()) / 2 
     
-    if (score_loc + score_vis) > 0:
-        ventaja_relativa = (score_loc - score_vis) / (score_loc + score_vis)
-    else:
-        ventaja_relativa = 0.0
+    if total_partidos <= 0:
+        return 2.5
         
-    ajuste_h2h = ventaja_relativa * 0.10
-    
-    prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
-    prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
-
-    diferencia = abs(prom_loc_ajustado - prom_vis_ajustado)
-    prob_empate = max(18.0, min(33.0, 28.5 - (diferencia * 6.0)))
-
-    resto = 100.0 - prob_empate
-    total_prom = prom_loc_ajustado + prom_vis_ajustado
-
-    if total_prom > 0:
-        prob_loc = (prom_loc_ajustado / total_prom) * resto
-        prob_vis = (prom_vis_ajustado / total_prom) * resto
-    else:
-        prob_loc = resto / 2
-        prob_vis = resto / 2
-
-    return prob_loc, prob_empate, prob_vis
+    return total_goles / total_partidos
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
@@ -412,6 +401,11 @@ if os.path.exists(RUTA_CSV):
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     stats_wikipedia = obtener_estadisticas_wiki(lista_equipos)
+    
+    # -----------------------------------------------------------------
+    # NÚCLEO: Calcular el promedio de la liga para el xG Multiplicativo
+    # -----------------------------------------------------------------
+    promedio_liga = calcular_promedio_general_liga(stats_wikipedia)
 
     # -----------------------------------------------------------------
     # 3. AGENDA DEL DÍA AUTOMÁTICA
@@ -459,10 +453,10 @@ if os.path.exists(RUTA_CSV):
             prom_gf_vis = gf_vis / max(1, pj_vis)
             prom_gc_vis = gc_vis / max(1, pj_vis)
 
-            # 2. EL NUEVO CÁLCULO: SUMA PURA (LA FÓRMULA DEL USUARIO)
-            # Sumamos los goles a favor propios con los goles en contra del rival.
-            xg_loc_bruto = prom_gf_loc + prom_gc_vis
-            xg_vis_bruto = prom_gf_vis + prom_gc_loc
+            # 2. EL NUEVO CÁLCULO: MÉTODO MULTIPLICATIVO (xG REALISTA)
+            # (GF_Propio / Prom_Liga) * (GC_Rival / Prom_Liga) * Prom_Liga
+            xg_loc_bruto = (prom_gf_loc / promedio_liga) * (prom_gc_vis / promedio_liga) * promedio_liga
+            xg_vis_bruto = (prom_gf_vis / promedio_liga) * (prom_gc_loc / promedio_liga) * promedio_liga
 
             # 3. Impacto de la localía (+10% local, -5% visitante)
             xg_proyectado_local = round(xg_loc_bruto * 1.10, 2)
@@ -472,10 +466,8 @@ if os.path.exists(RUTA_CSV):
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
-            # 5. Ejecutar predicción probabilística final
-            prob_loc, prob_empate, prob_vis = realizar_prediccion(
-                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.10
-            )
+            # 5. Ejecutar predicción probabilística final basada 100% en Poisson
+            prob_loc, prob_empate, prob_vis = simular_1x2_poisson(xg_proyectado_local, xg_proyectado_visi)
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
 
