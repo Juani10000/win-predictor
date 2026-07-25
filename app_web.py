@@ -238,7 +238,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    fecha_hoy_str = me = ahora_arg.strftime("%Y-%m-%d")
+    fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
     fecha_espn_url = ahora_arg.strftime("%Y%m%d")
 
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_espn_url}"
@@ -348,7 +348,18 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     vi = int(tasa_invicta * 0.4)
     tiros_arco = round(xg_proyectado * 3.5 + (gf / pj * 1.5), 1)
     pases = min(92, max(60, int(pos * 1.15 + 8)))
-    corners = round((xg_proyectado * 2.5) + (pos * 0.06), 1)
+
+    # CÁLCULO DE CÓRNERS POR EQUIPO (Si existe columna la usa, sino aplica fórmula realista de LPF)
+    if "Corners" in df.columns:
+        corners = round(float(row.get("Corners", 4.2)), 1)
+    elif "Corners_Favor" in df.columns:
+        corners = round(float(row.get("Corners_Favor", 4.2)), 1)
+    else:
+        # Fórmula calibrada: Promedio real por equipo entre 3.2 y 5.5 córners por partido
+        corners = round(
+            max(3.0, min(5.8, 2.2 + (xg_proyectado * 1.1) + (pos * 0.02))), 1
+        )
+
     gc_pp = gc / pj
     fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
 
@@ -602,7 +613,6 @@ if os.path.exists(RUTA_CSV):
             xg_loc_base = float(row_loc.get("xG", 1.25))
             xg_vis_base = float(row_vis.get("xG", 1.10))
 
-            # Factor de localía fijo al 15%
             FACTOR_LOCALIA = 0.15
             xg_proyectado_local = round(
                 xg_loc_base * (1.0 + FACTOR_LOCALIA), 2
@@ -690,6 +700,9 @@ if os.path.exists(RUTA_CSV):
                 )
             )
 
+            # SUMA EXACTA DE PROMEDIOS INDIVIDUALES DE CÓRNERS
+            corners_est = round(stats_loc["Corners"] + stats_vis["Corners"], 1)
+
             c_m1, c_m2, c_m3, c_m4 = st.columns(4)
             with c_m1:
                 st.metric(
@@ -702,9 +715,6 @@ if os.path.exists(RUTA_CSV):
             with c_m3:
                 st.metric(label="Ambos Anotan (Sí)", value=f"{prob_btts:.1f}%")
             with c_m4:
-                corners_est = round(
-                    stats_loc["Corners"] + stats_vis["Corners"], 1
-                )
                 st.metric(
                     label="Córners Totales (Est.)", value=f"{corners_est}"
                 )
