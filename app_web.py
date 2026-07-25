@@ -85,7 +85,7 @@ def calcular_top_resultados(xg_loc, xg_vis):
     return top_5, prob_otro
 
 
-def realizar_prediccion(local, visitante, df, factor_localia=0.15):
+def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15):
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -94,17 +94,26 @@ def realizar_prediccion(local, visitante, df, factor_localia=0.15):
     pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
     pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
 
-    xg_loc_base = float(row_loc.get("xG", 1.25))
-    xg_vis_base = float(row_vis.get("xG", 1.10))
-
-    xg_proyectado_local = round(xg_loc_base * (1.0 + factor_localia), 2)
-    xg_proyectado_visi = round(xg_vis_base * (1.0 - (factor_localia * 0.5)), 2)
-
     prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
 
+    # Impulso base por localía
     prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     prom_vis_ajustado = prom_vis
+    
+    # NUEVO: IMPACTO DEL FRENTE A FRENTE EN LA PREDICCIÓN
+    score_loc = (stats_loc['GF'] * 0.4) + (stats_loc['Pos'] * 0.2) + (stats_loc['VI'] * 1.5)
+    score_vis = (stats_vis['GF'] * 0.4) + (stats_vis['Pos'] * 0.2) + (stats_vis['VI'] * 1.5)
+    
+    if (score_loc + score_vis) > 0:
+        ventaja_relativa = (score_loc - score_vis) / (score_loc + score_vis)
+    else:
+        ventaja_relativa = 0.0
+        
+    ajuste_h2h = ventaja_relativa * 0.10  # Hasta +/- 10% de impacto por stats
+    
+    prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
+    prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
 
     diferencia = abs(prom_loc_ajustado - prom_vis_ajustado)
     prob_empate = max(18.0, min(33.0, 28.5 - (diferencia * 6.0)))
@@ -119,7 +128,7 @@ def realizar_prediccion(local, visitante, df, factor_localia=0.15):
         prob_loc = resto / 2
         prob_vis = resto / 2
 
-    return prob_loc, prob_empate, prob_vis, xg_proyectado_local, xg_proyectado_visi
+    return prob_loc, prob_empate, prob_vis
 
 
 def buscar_equipo(nombre_buscado, lista_equipos):
@@ -169,7 +178,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 
 
 # ---------------------------------------------------------------------
-# SCRAPING AUTOMÁTICO - API ESPN Y WIKIPEDIA (ESTADÍSTICAS)
+# SCRAPING AUTOMÁTICO - API ESPN Y WIKIPEDIA
 # ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
@@ -320,15 +329,17 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         mode='lines+markers'
     ))
     
+    # AQUÍ ESTÁ LA MAGIA DEL FONDO OSCURO
     fig.update_layout(
         polar=dict(
+            bgcolor='#111827',  # Fondo interior oscuro del radar
             radialaxis=dict(visible=False, range=[0, 1]),
-            angularaxis=dict(color="#cbd5e1")
+            angularaxis=dict(color="#cbd5e1", gridcolor="#1e293b")
         ),
         showlegend=True,
         legend=dict(font=dict(color="#cbd5e1")),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='#070b14', # Fondo exterior igual al de la web
+        plot_bgcolor='#070b14',
         font=dict(color='#94a3b8'),
         margin=dict(t=40, b=40, l=40, r=40)
     )
@@ -445,8 +456,22 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            prob_loc, prob_empate, prob_vis, xg_proyectado_local, xg_proyectado_visi = realizar_prediccion(
-                local, visitante, df, factor_localia=0.15
+            
+            # 1. Calculamos primero el xG base ajustado por localía (15%)
+            row_loc = df[df["Equipo"] == local].iloc[0]
+            row_vis = df[df["Equipo"] == visitante].iloc[0]
+            xg_loc_base = float(row_loc.get("xG", 1.25))
+            xg_vis_base = float(row_vis.get("xG", 1.10))
+            xg_proyectado_local = round(xg_loc_base * (1.0 + 0.15), 2)
+            xg_proyectado_visi = round(xg_vis_base * (1.0 - (0.15 * 0.5)), 2)
+
+            # 2. Construimos las estadísticas del Frente a Frente
+            stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
+            stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
+            
+            # 3. Mandamos TODO a la función de predicción para que impacte el H2H
+            prob_loc, prob_empate, prob_vis = realizar_prediccion(
+                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15
             )
 
             st.markdown(
@@ -490,9 +515,6 @@ if os.path.exists(RUTA_CSV):
                 "<h4 style='color: #cbd5e1;'>Frente a Frente: Estadísticas Generales</h4>",
                 unsafe_allow_html=True,
             )
-            
-            stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
-            stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
             st.plotly_chart(fig_radar, use_container_width=True)
