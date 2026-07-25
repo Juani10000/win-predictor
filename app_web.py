@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 import requests
 import datetime
+import plotly.graph_objects as go
 
 # =====================================================================
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
@@ -35,16 +36,13 @@ st.markdown(
             font-size: 15px;
             margin-bottom: 25px;
         }
-        [data-testid="stMetricValue"] {
-            color: #00ffcc !important;
-            font-size: 36px !important;
-            font-weight: 900 !important;
-            text-shadow: 0 0 5px #00ffcc80;
-        }
-        [data-testid="stMetricLabel"] {
-            color: #94a3b8 !important;
-            font-size: 14px !important;
-            text-transform: uppercase;
+        .pred-box {
+            background-color: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 15px;
+            margin-bottom: 15px;
         }
         hr {
             border-top: 1px solid #1e293b;
@@ -134,8 +132,29 @@ def buscar_equipo(nombre_buscado, lista_equipos):
     return None
 
 
+def crear_grafico_circular(labels, values, colores, titulo):
+    """Genera un gráfico circular (Donut) con estilo oscuro."""
+    fig = go.Figure(data=[go.Pie(
+        labels=labels, 
+        values=values,
+        hole=0.4,
+        marker=dict(colors=colores),
+        textinfo='label+percent',
+        hoverinfo='label+percent'
+    )])
+    fig.update_layout(
+        title_text=titulo,
+        title_font=dict(color="#ffffff", size=18),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#94a3b8'),
+        margin=dict(t=40, b=0, l=0, r=0)
+    )
+    return fig
+
+
 # ---------------------------------------------------------------------
-# SCRAPING 100% AUTOMÁTICO - API ESPN (A prueba de balas)
+# SCRAPING 100% AUTOMÁTICO - API ESPN
 # ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
@@ -182,29 +201,21 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
 
 
 # ---------------------------------------------------------------------
-# ENCABEZADO CON LOGO
+# ENCABEZADO
 # ---------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
-    url_lpf = (
-        "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
-    )
-    st.image(url_lpf, width=110)
+    st.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=110)
 
 with col_titulo:
-    st.markdown(
-        '<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True
-    )
-    st.markdown(
-        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS EXACTOS</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS EXACTOS</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
 
 # =====================================================================
-# 2. CARGA Y PROCESAMIENTO DE DATOS CON xG
+# CARGA Y PROCESAMIENTO DE DATOS
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
@@ -214,15 +225,9 @@ if not os.path.exists(RUTA_CSV):
 
 if os.path.exists(RUTA_CSV):
     df = pd.read_csv(RUTA_CSV)
-
     if "Equipo" in df.columns:
-        df["Equipo"] = (
-            df["Equipo"]
-            .astype(str)
-            .apply(lambda x: re.sub(r"\[.*?\]|\(.*?\)", "", x).strip())
-        )
+        df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r"\[.*?\]|\(.*?\)", "", x).strip())
 
-    # Garantizar columna xG
     if "xG" not in df.columns and "xG_Favor" not in df.columns:
         if "GF" in df.columns and "PJ" in df.columns:
             df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
@@ -233,135 +238,109 @@ if os.path.exists(RUTA_CSV):
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
 
+    # Estado para manejar el panel de predicción de Hoy
+    if "partido_activo" not in st.session_state:
+        st.session_state.partido_activo = None
+
 
     # -----------------------------------------------------------------
-    # 3. AGENDA DEL DÍA AUTOMÁTICA
+    # AGENDA DEL DÍA Y BOTONES DE PREDICCIÓN (CON POP-UP)
     # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>📅 Partidos de Hoy</h3>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h3 style='color: #cbd5e1;'>📅 Partidos de Hoy</h3>", unsafe_allow_html=True)
     
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
 
-    # Renderizado de las tarjetas
     if partidos_del_dia:
         for idx, partido in enumerate(partidos_del_dia):
-            with st.container():
-                c_info, c_btn = st.columns([4, 1])
-                with c_info:
-                    st.markdown(f"🕒 **{partido['Hora']}** | **{partido['Local']}** vs **{partido['Visitante']}**")
-                with c_btn:
-                    if st.button("🔮 Predecir", key=f"btn_hoy_{idx}"):
-                        # INYECCIÓN DIRECTA EN LA MEMORIA DEL SELECTBOX Y RECARGA
-                        st.session_state["sb_local"] = partido['Local']
-                        st.session_state["sb_visit"] = partido['Visitante']
-                        st.rerun()  # Forzamos la actualización inmediata
+            c_info, c_btn = st.columns([4, 1])
+            with c_info:
+                st.markdown(f"🕒 **{partido['Hora']}** | **{partido['Local']}** vs **{partido['Visitante']}**")
+            with c_btn:
+                # Al hacer clic, guardamos el partido activo
+                if st.button("🔮 Predecir", key=f"btn_hoy_{idx}"):
+                    st.session_state.partido_activo = partido
             st.divider()
     else:
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
 
+    # =================================================================
+    # PANEL DESPLEGABLE: PREDICCIÓN ACTIVA (LOS GRÁFICOS)
+    # =================================================================
+    if st.session_state.partido_activo:
+        partido = st.session_state.partido_activo
+        loc_hoy = partido['Local']
+        vis_hoy = partido['Visitante']
+        
+        st.markdown(f"<div class='pred-box'>", unsafe_allow_html=True)
+        
+        col_tit, col_cerrar = st.columns([5, 1])
+        with col_tit:
+            st.markdown(f"<h2 style='color: #fff; margin-top: 0;'>{loc_hoy.upper()} vs {vis_hoy.upper()}</h2>", unsafe_allow_html=True)
+        with col_cerrar:
+            if st.button("❌ Cerrar"):
+                st.session_state.partido_activo = None
+                st.rerun()
+
+        if st.session_state.partido_activo: # Doble chequeo por si cerró
+            prob_loc, prob_empate, prob_vis, xg_loc, xg_vis = realizar_prediccion(loc_hoy, vis_hoy, df)
+            
+            # Gráficos Circulares
+            c_graf1, c_graf2 = st.columns(2)
+            
+            with c_graf1:
+                # Gráfico Probabilidades 1X2
+                fig_1x2 = crear_grafico_circular(
+                    labels=[loc_hoy, 'Empate', vis_hoy],
+                    values=[prob_loc, prob_empate, prob_vis],
+                    colores=['#00ffcc', '#94a3b8', '#ff3366'],
+                    titulo="Distribución 1X2"
+                )
+                st.plotly_chart(fig_1x2, use_container_width=True)
+            
+            with c_graf2:
+                # Gráfico xG Proyectado
+                fig_xg = crear_grafico_circular(
+                    labels=[loc_hoy, vis_hoy],
+                    values=[xg_loc, xg_vis],
+                    colores=['#00ffcc', '#ff3366'],
+                    titulo="Comparativa xG Proyectado"
+                )
+                st.plotly_chart(fig_xg, use_container_width=True)
+                
+            # Marcadores Exactos
+            top_5_marcadores, prob_otro = calcular_top_resultados(xg_loc, xg_vis)
+            st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos</h4>", unsafe_allow_html=True)
+            
+            tabla_marcadores = [{"Ranking": f"#{rank}", "Resultado": marcador, "Prob": f"{prob:.1f}%"} for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)]
+            tabla_marcadores.append({"Ranking": "Otros", "Resultado": "Cualquier otro", "Prob": f"{prob_otro:.1f}%"})
+            
+            st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
+            
+        st.markdown("</div>", unsafe_allow_html=True)
+
 
     # -----------------------------------------------------------------
-    # 4. TABLA DE POSICIONES SIEMPRE VISIBLE
+    # MOTOR DE PREDICCIÓN MANUAL LIBRE (SE MANTIENE ABAJO)
     # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>",
-        unsafe_allow_html=True,
-    )
-    st.dataframe(df, use_container_width=True, hide_index=True)
-    st.markdown("---")
-
-
-    # -----------------------------------------------------------------
-    # 5. MOTOR DE PREDICCIÓN MANUAL Y VISUALIZACIÓN
-    # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<br><h3 style='color: #cbd5e1;'>Motor de Predicción Manual</h3>", unsafe_allow_html=True)
 
     if len(lista_equipos) >= 2:
-        # Inicializar keys en session_state si es la primera vez que se carga la página
-        if "sb_local" not in st.session_state:
-            st.session_state["sb_local"] = lista_equipos[0]
-        if "sb_visit" not in st.session_state:
-            st.session_state["sb_visit"] = lista_equipos[min(1, len(lista_equipos) - 1)]
-
         col1, col2 = st.columns(2)
         with col1:
-            local = st.selectbox("Seleccionar Local", lista_equipos, key="sb_local")
+            local = st.selectbox("Seleccionar Local", lista_equipos, key="sb_manual_loc")
         with col2:
-            visitante = st.selectbox("Seleccionar Visitante", lista_equipos, key="sb_visit")
+            visitante = st.selectbox("Seleccionar Visitante", lista_equipos, key="sb_manual_vis", index=1)
 
         if local == visitante:
-            st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
+            st.error("Seleccione escuadras diferentes.")
         else:
-            prob_loc, prob_empate, prob_vis, xg_proyectado_local, xg_proyectado_visi = realizar_prediccion(local, visitante, df)
-
-            st.markdown(
-                f"<h2 style='text-align: center; color: #fff; margin-top:"
-                f" 25px;'>{local.upper()} vs {visitante.upper()}</h2>",
-                unsafe_allow_html=True,
-            )
-
-            col_xg1, col_xg2 = st.columns(2)
-            with col_xg1:
-                st.info(f"xG Proyectado {local}: **{xg_proyectado_local}**")
-            with col_xg2:
-                st.info(f"xG Proyectado {visitante}: **{xg_proyectado_visi}**")
-
+            prob_loc_m, prob_empate_m, prob_vis_m, xg_loc_m, xg_vis_m = realizar_prediccion(local, visitante, df)
+            
             m1, m2, m3 = st.columns(3)
-            m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
-            m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
-            m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
-
-            st.markdown(
-                "<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>",
-                unsafe_allow_html=True,
-            )
-            c_b1, c_b2, c_b3 = st.columns(3)
-            with c_b1:
-                st.markdown("<p style='color: #00ffcc;'>Local</p>", unsafe_allow_html=True)
-                st.progress(int(prob_loc) / 100)
-            with c_b2:
-                st.markdown("<p style='color: #cbd5e1;'>Empate</p>", unsafe_allow_html=True)
-                st.progress(int(prob_empate) / 100)
-            with c_b3:
-                st.markdown("<p style='color: #ff3366;'>Visitante</p>", unsafe_allow_html=True)
-                st.progress(int(prob_vis) / 100)
-
-            st.markdown("---")
-
-            # -----------------------------------------------------------------
-            # 6. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
-            # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>",
-                unsafe_allow_html=True,
-            )
-
-            top_5_marcadores, prob_otro = calcular_top_resultados(
-                xg_proyectado_local, xg_proyectado_visi
-            )
-
-            tabla_marcadores = []
-            for rank, (marcador, prob) in enumerate(top_5_marcadores, 1):
-                tabla_marcadores.append({
-                    "Ranking": f"#{rank}",
-                    "Resultado Exacto (Local - Visitante)": marcador,
-                    "Probabilidad": f"{prob:.1f}%",
-                })
-
-            tabla_marcadores.append({
-                "Ranking": "Otros",
-                "Resultado Exacto (Local - Visitante)": "Cualquier otro resultado",
-                "Probabilidad": f"{prob_otro:.1f}%",
-            })
-
-            df_marcadores = pd.DataFrame(tabla_marcadores)
-            st.dataframe(df_marcadores, use_container_width=True, hide_index=True)
+            m1.metric(label=f"Victoria {local}", value=f"{prob_loc_m:.1f}%")
+            m2.metric(label="Empate", value=f"{prob_empate_m:.1f}%")
+            m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis_m:.1f}%")
 
 else:
     st.error("Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista.")
