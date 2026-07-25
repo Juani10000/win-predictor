@@ -129,42 +129,51 @@ def realizar_prediccion(local, visitante, df):
 # ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_wiki(equipos_disponibles):
-    """Busca en Wikipedia los partidos de la fecha actual y normaliza los nombres."""
     url = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
     partidos_hoy = []
     
     meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", 
              "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
     hoy = datetime.date.today()
-    fecha_wiki = f"{hoy.day} de {meses[hoy.month - 1]}"
+    
+    # Buscamos dos formatos por las dudas: "25 de julio" y "25/07"
+    fecha_wiki_1 = f"{hoy.day} de {meses[hoy.month - 1]}"
+    fecha_wiki_2 = f"{hoy.day:02d}/{hoy.month:02d}"
     
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        filas = soup.find_all('tr')
+        tablas = soup.find_all('table')
+        fecha_activa = False
         
-        for fila in filas:
-            celdas = [td.get_text(strip=True) for td in fila.find_all(['td', 'th'])]
-            texto_fila = fila.get_text().lower()
-            
-            if len(celdas) >= 5 and fecha_wiki in texto_fila:
-                local_raw = celdas[0]
-                visitante_raw = celdas[2]
+        for tabla in tablas:
+            for fila in tabla.find_all('tr'):
+                texto_fila = fila.get_text(" ", strip=True).lower()
                 
-                # Intentamos hacer match exacto o parcial con los equipos de tu CSV
-                local_match = next((eq for eq in equipos_disponibles if eq.lower() in local_raw.lower() or local_raw.lower() in eq.lower()), None)
-                visitante_match = next((eq for eq in equipos_disponibles if eq.lower() in visitante_raw.lower() or visitante_raw.lower() in eq.lower()), None)
-                
-                if local_match and visitante_match:
-                    partidos_hoy.append({
-                        "Local": local_match,
-                        "Visitante": visitante_match,
-                        "Hora": celdas[-1] if len(celdas) >= 6 else "TBD"
-                    })
-    except Exception as e:
-        # Silenciamos el error para no arruinar la UI, devolvemos lista vacía
+                # Si detectamos la fecha de hoy, "activamos" la lectura de equipos
+                if fecha_wiki_1 in texto_fila or fecha_wiki_2 in texto_fila:
+                    fecha_activa = True
+                # Si vemos otra fecha distinta, apagamos la lectura
+                elif " de " in texto_fila and not (fecha_wiki_1 in texto_fila):
+                    fecha_activa = False
+
+                if fecha_activa or (fecha_wiki_1 in texto_fila) or (fecha_wiki_2 in texto_fila):
+                    celdas = [td.get_text(strip=True) for td in fila.find_all(['td', 'th'])]
+                    if len(celdas) >= 3:
+                        # Buscamos coincidencias con tus equipos en toda la fila
+                        for i in range(len(celdas)-1):
+                            for j in range(i+1, min(i+4, len(celdas))):
+                                loc_str, vis_str = celdas[i], celdas[j]
+                                
+                                local_match = next((eq for eq in equipos_disponibles if eq.lower() in loc_str.lower()), None)
+                                visitante_match = next((eq for eq in equipos_disponibles if eq.lower() in vis_str.lower()), None)
+                                
+                                if local_match and visitante_match and local_match != visitante_match:
+                                    if not any(p['Local'] == local_match for p in partidos_hoy):
+                                        partidos_hoy.append({"Local": local_match, "Visitante": visitante_match, "Hora": "TBD"})
+    except Exception:
         pass
 
     return partidos_hoy
