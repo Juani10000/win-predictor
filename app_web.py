@@ -56,7 +56,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # ---------------------------------------------------------------------
 # FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON Y PREDICCIÓN
 # ---------------------------------------------------------------------
@@ -64,7 +63,6 @@ def poisson_prob(lmbda, k):
     if lmbda <= 0:
         return 1.0 if k == 0 else 0.0
     return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
-
 
 def calcular_top_resultados(xg_loc, xg_vis):
     scores = {}
@@ -83,7 +81,6 @@ def calcular_top_resultados(xg_loc, xg_vis):
     prob_otro = max(0.0, 100.0 - prob_top_5)
 
     return top_5, prob_otro
-
 
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.10):
     row_loc = df[df["Equipo"] == local].iloc[0]
@@ -127,7 +124,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
         prob_vis = resto / 2
 
     return prob_loc, prob_empate, prob_vis
-
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
@@ -173,7 +169,6 @@ def buscar_equipo(nombre_buscado, lista_equipos):
                         continue
                 return eq
     return None
-
 
 # ---------------------------------------------------------------------
 # SCRAPING AUTOMÁTICO - API ESPN Y WIKIPEDIA
@@ -221,7 +216,6 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
 
     return partidos_hoy
 
-
 @st.cache_data(ttl=3600)
 def obtener_estadisticas_wiki(equipos_disponibles):
     url = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
@@ -254,7 +248,6 @@ def obtener_estadisticas_wiki(equipos_disponibles):
         pass
     return stats_wiki
 
-
 def obtener_stats_basicas(equipo, df, stats_wiki):
     row = df[df["Equipo"] == equipo].iloc[0]
     if equipo in stats_wiki:
@@ -267,7 +260,6 @@ def obtener_stats_basicas(equipo, df, stats_wiki):
         pj = int(row.get("PJ", 12))
         if pj == 0: pj = 1
     return gf, gc, pj
-
 
 def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     gf, gc, pj = obtener_stats_basicas(equipo, df, stats_wiki)
@@ -291,7 +283,6 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
         "Corners": corners,
         "Fortaleza": fortaleza
     }
-
 
 def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     categories = [
@@ -380,28 +371,19 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     )
     return fig
 
-
 # ---------------------------------------------------------------------
 # ENCABEZADO CON LOGO
 # ---------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
-    url_lpf = (
-        "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
-    )
+    url_lpf = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
     st.image(url_lpf, width=110)
 
 with col_titulo:
-    st.markdown(
-        '<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True
-    )
-    st.markdown(
-        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS EXACTOS</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS EXACTOS</div>', unsafe_allow_html=True)
 
 st.markdown("---")
-
 
 # =====================================================================
 # 2. CARGA Y PROCESAMIENTO DE DATOS CON xG
@@ -419,41 +401,24 @@ if os.path.exists(RUTA_CSV):
         def limpiar_nombre_equipo(x):
             s = str(x).strip()
             s_lower = s.lower()
-            
             if "estudiantes" in s_lower:
                 if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]):
                     return "Estudiantes RC"
                 if any(k in s_lower for k in ["la plata", "(lp)"]):
                     return "Estudiantes"
-                    
             return re.sub(r"\[.*?\]|\(.*?\)", "", s).strip()
 
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
 
-    # El xG Base se genera limpio y directo
-    if "xG" not in df.columns and "xG_Favor" not in df.columns:
-        if "GF" in df.columns and "PJ" in df.columns:
-            df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 1.0).round(2)
-        else:
-            df["xG"] = 1.15
-    elif "xG_Favor" in df.columns and "xG" not in df.columns:
-        df["xG"] = df["xG_Favor"]
-
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
-
     stats_wikipedia = obtener_estadisticas_wiki(lista_equipos)
-
 
     # -----------------------------------------------------------------
     # 3. AGENDA DEL DÍA AUTOMÁTICA
     # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>", unsafe_allow_html=True)
     
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
-
     if partidos_del_dia:
         for partido in partidos_del_dia:
             st.markdown(f"**{partido['Hora']} hs** | **{partido['Local']}** vs **{partido['Visitante']}**")
@@ -462,25 +427,17 @@ if os.path.exists(RUTA_CSV):
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
 
-
     # -----------------------------------------------------------------
     # 4. TABLA DE POSICIONES SIEMPRE VISIBLE
     # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones</h3>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
-
 
     # -----------------------------------------------------------------
     # 5. MOTOR DE PREDICCIÓN MANUAL Y VISUALIZACIÓN
     # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>", unsafe_allow_html=True)
 
     if len(lista_equipos) >= 2:
         col1, col2 = st.columns(2)
@@ -492,50 +449,39 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            
-            row_loc = df[df["Equipo"] == local].iloc[0]
-            row_vis = df[df["Equipo"] == visitante].iloc[0]
-
             # 1. Obtener stats duros reales
             gf_loc, gc_loc, pj_loc = obtener_stats_basicas(local, df, stats_wikipedia)
             gf_vis, gc_vis, pj_vis = obtener_stats_basicas(visitante, df, stats_wikipedia)
 
-            # 2. xG Base 
-            xg_loc_base = float(row_loc.get("xG", gf_loc / max(1, pj_loc)))
-            xg_vis_base = float(row_vis.get("xG", gf_vis / max(1, pj_vis)))
+            # Promedios de goles puros por partido
+            prom_gf_loc = gf_loc / max(1, pj_loc)
+            prom_gc_loc = gc_loc / max(1, pj_loc)
+            prom_gf_vis = gf_vis / max(1, pj_vis)
+            prom_gc_vis = gc_vis / max(1, pj_vis)
 
-            MEDIA_LIGA = 1.15
-            
-            # 3. Promedio de goles en contra (cuánto sufre la defensa)
-            gc_prom_vis = gc_vis / max(1, pj_vis)
-            gc_prom_loc = gc_loc / max(1, pj_loc)
+            # 2. EL NUEVO CÁLCULO: PROMEDIO PONDERADO 
+            # 60% peso a tu capacidad goleadora, 40% peso a lo que el rival concede.
+            xg_loc_bruto = (prom_gf_loc * 0.60) + (prom_gc_vis * 0.40)
+            xg_vis_bruto = (prom_gf_vis * 0.60) + (prom_gc_loc * 0.40)
 
-            # 4. Diferencia respecto al promedio (Positivo suma a tu ataque, negativo resta)
-            dif_defensa_vis = gc_prom_vis - MEDIA_LIGA
-            dif_defensa_loc = gc_prom_loc - MEDIA_LIGA
+            # 3. PISO MÍNIMO para que los números nunca sean ridículos
+            xg_loc_bruto = max(0.70, xg_loc_bruto)
+            xg_vis_bruto = max(0.70, xg_vis_bruto)
 
-            # 5. SISTEMA ADITIVO: Le sumamos al ataque propio la debilidad rival (con un piso de 0.5)
-            xg_loc_ajustado = max(0.5, xg_loc_base + dif_defensa_vis)
-            xg_vis_ajustado = max(0.5, xg_vis_base + dif_defensa_loc)
+            # 4. Impacto de la localía (+10% local, -5% visitante para balancear)
+            xg_proyectado_local = round(xg_loc_bruto * 1.10, 2)
+            xg_proyectado_visi = round(xg_vis_bruto * 0.95, 2)
 
-            # 6. Impacto de la localía (+10% local, -5% visitante para balancear)
-            xg_proyectado_local = round(xg_loc_ajustado * 1.10, 2)
-            xg_proyectado_visi = round(xg_vis_ajustado * 0.95, 2)
-
-            # 7. Calcular estadísticas secundarias para el Radar basadas en el nuevo xG
+            # 5. Calcular estadísticas secundarias para el Radar 
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
-            # 8. Ejecutar predicción probabilística final
+            # 6. Ejecutar predicción probabilística final
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
                 local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.10
             )
 
-            st.markdown(
-                f"<h2 style='text-align: center; color: #fff; margin-top:"
-                f" 25px;'>{local.upper()} vs {visitante.upper()}</h2>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
 
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
@@ -548,10 +494,7 @@ if os.path.exists(RUTA_CSV):
             m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
             m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
 
-            st.markdown(
-                "<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>", unsafe_allow_html=True)
             c_b1, c_b2, c_b3 = st.columns(3)
             with c_b1:
                 st.markdown("<p style='color: #00ffcc;'>Local</p>", unsafe_allow_html=True)
@@ -566,29 +509,18 @@ if os.path.exists(RUTA_CSV):
             st.markdown("---")
             
             # -----------------------------------------------------------------
-            # 6. GRÁFICO TIPO RADAR: FRENTE A FRENTE OCTAGONAL
+            # 7. GRÁFICO TIPO RADAR: FRENTE A FRENTE OCTAGONAL
             # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>",
-                unsafe_allow_html=True,
-            )
-            
+            st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>", unsafe_allow_html=True)
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
             st.plotly_chart(fig_radar, use_container_width=True)
-
             st.markdown("---")
 
             # -----------------------------------------------------------------
-            # 7. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
+            # 8. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
             # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>",
-                unsafe_allow_html=True,
-            )
-
-            top_5_marcadores, prob_otro = calcular_top_resultados(
-                xg_proyectado_local, xg_proyectado_visi
-            )
+            st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
+            top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi)
 
             tabla_marcadores = []
             for rank, (marcador, prob) in enumerate(top_5_marcadores, 1):
