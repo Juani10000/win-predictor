@@ -124,37 +124,49 @@ def buscar_equipo(nombre_buscado, lista_equipos):
     """Mapea un nombre común de equipo al nombre exacto en el DataFrame."""
     nombre_clean = nombre_buscado.lower().strip()
     
-    # Reglas específicas para diferenciar Estudiantes LP y Estudiantes RC
-    if "rio cuarto" in nombre_clean or "río cuarto" in nombre_clean or "rc" in nombre_clean.split():
-        for eq in lista_equipos:
-            if "rc" in eq.lower() or "rio cuarto" in eq.lower():
-                return eq
-    elif "la plata" in nombre_clean or "lp" in nombre_clean.split():
-        for eq in lista_equipos:
-            if "estudiantes" in eq.lower() and "rc" not in eq.lower():
-                return eq
+    # 1. Reglas específicas para diferenciar La Plata y Río Cuarto
+    if "estudiantes" in nombre_clean:
+        if "rio cuarto" in nombre_clean or "río cuarto" in nombre_clean or "rc" in nombre_clean.split():
+            for eq in lista_equipos:
+                if "rc" in eq.lower() or "rio cuarto" in eq.lower():
+                    return eq
+        elif "la plata" in nombre_clean or "lp" in nombre_clean.split():
+            for eq in lista_equipos:
+                if "estudiantes" in eq.lower() and "rc" not in eq.lower():
+                    return eq
+    elif "gimnasia" in nombre_clean:
+        if "la plata" in nombre_clean or "lp" in nombre_clean.split():
+            for eq in lista_equipos:
+                if "gimnasia" in eq.lower():
+                    return eq
 
-    # 1. Búsqueda exacta
+    # 2. Búsqueda exacta
     for eq in lista_equipos:
         if nombre_clean == eq.lower().strip():
             return eq
 
-    # 2. Búsqueda parcial
+    # 3. Búsqueda parcial
     for eq in lista_equipos:
         eq_clean = eq.lower().strip()
         if nombre_clean in eq_clean or eq_clean in nombre_clean:
-            if "estudiantes" in eq_clean and ("rio cuarto" in nombre_clean or "rc" in nombre_clean) and "rc" not in eq_clean:
-                continue
+            if "estudiantes" in eq_clean and "estudiantes" in nombre_clean:
+                es_buscado_rc = "rc" in nombre_clean.split() or "rio cuarto" in nombre_clean
+                es_equipo_rc = "rc" in eq_clean or "rio cuarto" in eq_clean
+                if es_buscado_rc != es_equipo_rc:
+                    continue
             return eq
             
-    # 3. Búsqueda por palabras clave
+    # 4. Búsqueda por palabras clave
     palabras = nombre_clean.split()
     if palabras:
         palabra_clave = palabras[0]
         for eq in lista_equipos:
             if palabra_clave in eq.lower():
-                if palabra_clave == "estudiantes" and ("rc" in nombre_clean or "rio cuarto" in nombre_clean) and "rc" not in eq.lower():
-                    continue
+                if palabra_clave == "estudiantes":
+                    es_buscado_rc = "rc" in nombre_clean.split() or "rio cuarto" in nombre_clean
+                    es_equipo_rc = "rc" in eq.lower() or "rio cuarto" in eq.lower()
+                    if es_buscado_rc != es_equipo_rc:
+                        continue
                 return eq
     return None
 
@@ -243,12 +255,15 @@ if os.path.exists(RUTA_CSV):
     if "Equipo" in df.columns:
         def limpiar_nombre_equipo(x):
             s = str(x).strip()
-            # Asignación explícita para Río Cuarto
-            if any(k in s.lower() for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]):
-                return "Estudiantes RC"
-            # Asignación para Estudiantes de La Plata
-            if any(k in s.lower() for k in ["la plata", "(lp)"]):
-                return "Estudiantes"
+            s_lower = s.lower()
+            
+            # Solo aplica la regla de "La Plata" si es efectivamente Estudiantes
+            if "estudiantes" in s_lower:
+                if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]):
+                    return "Estudiantes RC"
+                if any(k in s_lower for k in ["la plata", "(lp)"]):
+                    return "Estudiantes"
+                    
             return re.sub(r"\[.*?\]|\(.*?\)", "", s).strip()
 
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
