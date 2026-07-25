@@ -288,3 +288,82 @@ else:
       "Archivo de origen no encontrado. Verifique que 'datos_procesados.csv'"
       " exista."
   )
+    import streamlit as st
+import pandas as pd
+
+# 1. Función para calcular si fue Local (1), Empate (X) o Visitante (2)
+def calcular_tendencia(goles_loc, goles_vis):
+    if goles_loc > goles_vis:
+        return "1"  # Gana Local
+    elif goles_loc < goles_vis:
+        return "2"  # Gana Visitante
+    else:
+        return "X"  # Empate
+
+# 2. Cargar el historial de predicciones guardadas
+try:
+    df_historial = pd.read_csv("historial_predicciones.csv")
+    
+    # Calcular tendencias predichas y reales
+    df_historial['Tendencia_Pred'] = df_historial.apply(
+        lambda r: calcular_tendencia(r['Goles_Loc_Pred'], r['Goles_Vis_Pred']), axis=1
+    )
+    df_historial['Tendencia_Real'] = df_historial.apply(
+        lambda r: calcular_tendencia(r['Goles_Loc_Real'], r['Goles_Vis_Real']), axis=1
+    )
+
+    # 3. Evaluar Aciertos
+    # Acierto 1X2 (Ganador o Empate)
+    df_historial['Acierto_1X2'] = df_historial['Tendencia_Pred'] == df_historial['Tendencia_Real']
+    
+    # Acierto Marcador Exacto
+    df_historial['Acierto_Exacto'] = (
+        (df_historial['Goles_Loc_Pred'] == df_historial['Goles_Loc_Real']) & 
+        (df_historial['Goles_Vis_Pred'] == df_historial['Goles_Vis_Real'])
+    )
+
+    # 4. Métricas Totales
+    total_partidos = len(df_historial)
+    aciertos_1x2 = df_historial['Acierto_1X2'].sum()
+    aciertos_exactos = df_historial['Acierto_Exacto'].sum()
+
+    efectividad_1x2 = (aciertos_1x2 / total_partidos) * 100 if total_partidos > 0 else 0
+    efectividad_exacta = (aciertos_exactos / total_partidos) * 100 if total_partidos > 0 else 0
+
+    # 5. Renderizar en la Web
+    st.markdown("### 📊 Rendimiento del Win Predictor")
+    
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(label="Partidos Evaluados", value=total_partidos)
+
+    with col2:
+        st.metric(
+            label="Acierto Ganador / Empate", 
+            value=f"{efectividad_1x2:.1f}%", 
+            delta=f"{aciertos_1x2} aciertos"
+        )
+
+    with col3:
+        st.metric(
+            label="Resultado Exacto", 
+            value=f"{efectividad_exacta:.1f}%", 
+            delta=f"{aciertos_exactos} clavados"
+        )
+
+    with col4:
+        st.metric(
+            label="Efectividad Combinada", 
+            value="Alta" if efectividad_1x2 > 60 else "Media"
+        )
+
+    # Opcional: Mostrar la tabla de los últimos partidos evaluados
+    with st.expander("Ver detalle de predicciones pasadas"):
+        st.dataframe(df_historial[[
+            'Partido', 'Goles_Loc_Pred', 'Goles_Vis_Pred', 
+            'Goles_Loc_Real', 'Goles_Vis_Real', 'Acierto_1X2', 'Acierto_Exacto'
+        ]])
+
+except FileNotFoundError:
+    st.warning("Aún no se ha generado el archivo 'historial_predicciones.csv'.")
