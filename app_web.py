@@ -1,5 +1,3 @@
-Acá tenés el código definitivo:
-
 import math
 import os
 import re
