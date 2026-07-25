@@ -2,9 +2,10 @@ import streamlit as st
 import pandas as pd
 import os
 import re
+import math
 
 # =====================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILO SERIO (MODO OSCURO NEÓN)
+# 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
@@ -49,6 +50,35 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------
+# FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON (MARCADORES EXACTOS)
+# ---------------------------------------------------------------------
+def poisson_prob(lmbda, k):
+    """Calcula la probabilidad de anotar k goles dado un xG de lmbda."""
+    if lmbda <= 0:
+        return 1.0 if k == 0 else 0.0
+    return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
+
+def calcular_top_resultados(xg_loc, xg_vis):
+    """Calcula la matriz de probabilidades de marcadores exactos (0 a 5 goles)."""
+    scores = {}
+    total_prob_matriz = 0.0
+    
+    for i in range(6):      # Goles local (0 a 5)
+        for j in range(6):  # Goles visitante (0 a 5)
+            p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
+            scores[f"{i} - {j}"] = p * 100
+            total_prob_matriz += p * 100
+
+    # Ordenar marcadores de mayor a menor probabilidad
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    top_5 = sorted_scores[:5]
+    
+    prob_top_5 = sum(p for _, p in top_5)
+    prob_otro = max(0.0, 100.0 - prob_top_5)
+
+    return top_5, prob_otro
+
+# ---------------------------------------------------------------------
 # ENCABEZADO CON LOGO
 # ---------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 6])
@@ -58,86 +88,47 @@ with col_logo:
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">TABLA DE POSICIONES, FIXTURE POR JORNADA & PREDICCIÓN</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS EXACTOS</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
 # =====================================================================
-# 2. CARGA DE DATOS (POSICIONES Y FIXTURE DE JORNADAS)
+# 2. CARGA Y PROCESAMIENTO DE DATOS CON xG
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
-RUTA_FIXTURE_CSV = os.path.join(DIRECTORIO_APP, "fixture_jornadas.csv")
 
 if not os.path.exists(RUTA_CSV):
     RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos", "datos_procesados.csv")
 
 if os.path.exists(RUTA_CSV):
-    df_posiciones = pd.read_csv(RUTA_CSV)
+    df = pd.read_csv(RUTA_CSV)
     
-    if "Equipo" in df_posiciones.columns:
-        df_posiciones["Equipo"] = df_posiciones["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
+    if "Equipo" in df.columns:
+        df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
 
-    # Cargar o generar dataset de fixture por jornada
-    if os.path.exists(RUTA_FIXTURE_CSV):
-        df_fixture = pd.read_csv(RUTA_FIXTURE_CSV)
-    else:
-        # Estructura base de ejemplo con varias jornadas
-        partidos_demo = [
-            # Jornada 12
-            {"Jornada": "Jornada 12", "Local": "River Plate", "GL": 2, "GV": 0, "Visitante": "Boca Juniors", "Estado": "Finalizado"},
-            {"Jornada": "Jornada 12", "Local": "Racing Club", "GL": 1, "GV": 1, "Visitante": "Independiente", "Estado": "Finalizado"},
-            {"Jornada": "Jornada 12", "Local": "San Lorenzo", "GL": 0, "GV": 1, "Visitante": "Vélez Sarsfield", "Estado": "Finalizado"},
-            {"Jornada": "Jornada 12", "Local": "Estudiantes", "GL": 3, "GV": 1, "Visitante": "Gimnasia LP", "Estado": "Finalizado"},
-            {"Jornada": "Jornada 12", "Local": "Talleres", "GL": 2, "GV": 2, "Visitante": "Belgrano", "Estado": "Finalizado"},
-
-            # Jornada 13 (Jornada actual / en curso)
-            {"Jornada": "Jornada 13", "Local": "Boca Juniors", "GL": 1, "GV": 0, "Visitante": "San Lorenzo", "Estado": "Finalizado"},
-            {"Jornada": "Jornada 13", "Local": "Independiente", "GL": 2, "GV": 1, "Visitante": "Estudiantes", "Estado": "Finalizado"},
-            {"Jornada": "Jornada 13", "Local": "Vélez Sarsfield", "GL": 0, "GV": 0, "Visitante": "River Plate", "Estado": "Finalizado"},
-            {"Jornada": "Jornada 13", "Local": "Belgrano", "GL": 1, "GV": 2, "Visitante": "Racing Club", "Estado": "Finalizado"},
-            {"Jornada": "Jornada 13", "Local": "Gimnasia LP", "GL": 0, "GV": 1, "Visitante": "Talleres", "Estado": "Finalizado"},
-
-            # Jornada 14 (Próxima)
-            {"Jornada": "Jornada 14", "Local": "River Plate", "GL": "-", "GV": "-", "Visitante": "Independiente", "Estado": "Por Jugar"},
-            {"Jornada": "Jornada 14", "Local": "Racing Club", "GL": "-", "GV": "-", "Visitante": "Boca Juniors", "Estado": "Por Jugar"},
-            {"Jornada": "Jornada 14", "Local": "San Lorenzo", "GL": "-", "GV": "-", "Visitante": "Estudiantes", "Estado": "Por Jugar"},
-            {"Jornada": "Jornada 14", "Local": "Talleres", "GL": "-", "GV": "-", "Visitante": "Vélez Sarsfield", "Estado": "Por Jugar"},
-            {"Jornada": "Jornada 14", "Local": "Belgrano", "GL": "-", "GV": "-", "Visitante": "Gimnasia LP", "Estado": "Por Jugar"},
-        ]
-        df_fixture = pd.DataFrame(partidos_demo)
+    # Garantizar columna xG
+    if "xG" not in df.columns and "xG_Favor" not in df.columns:
+        if "GF" in df.columns and "PJ" in df.columns:
+            df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
+        else:
+            df["xG"] = 1.25
+    elif "xG_Favor" in df.columns and "xG" not in df.columns:
+        df["xG"] = df["xG_Favor"]
 
     # -----------------------------------------------------------------
-    # 3. TABLA GENERAL DE POSICIONES
+    # 3. TABLA DE POSICIONES SIEMPRE VISIBLE
     # -----------------------------------------------------------------
-    st.markdown("<h3 style='color: #cbd5e1;'>📊 Tabla General de Posiciones</h3>", unsafe_allow_html=True)
-    st.dataframe(df_posiciones, use_container_width=True, hide_index=True)
+    st.markdown("<h3 style='color: #cbd5e1;'>📊 Tabla General de Posiciones & xG</h3>", unsafe_allow_html=True)
+    st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
     # -----------------------------------------------------------------
-    # 4. RESULTADOS Y FIXTURE NAVEGABLE POR JORNADA
+    # 4. MOTOR DE PREDICCIÓN CON xG Y TOP 5 MARCADORES
     # -----------------------------------------------------------------
-    st.markdown("<h3 style='color: #cbd5e1;'>📅 Fixture & Resultados por Jornada</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #cbd5e1;'>🎯 Motor de Predicción de Partidos</h3>", unsafe_allow_html=True)
     
-    lista_jornadas = sorted(df_fixture["Jornada"].unique(), key=lambda x: int(re.search(r'\d+', x).group()) if re.search(r'\d+', x) else x)
-    
-    # Selector de Fecha / Jornada
-    jornada_seleccionada = st.selectbox("Seleccionar Jornada a consultar:", lista_jornadas, index=len(lista_jornadas) - 2)
-
-    # Filtrar el DataFrame según la fecha seleccionada
-    df_jornada = df_fixture[df_fixture["Jornada"] == jornada_seleccionada][["Local", "GL", "GV", "Visitante", "Estado"]]
-    df_jornada.columns = ["Equipo Local", "Goles Local", "Goles Visitante", "Equipo Visitante", "Estado del Partido"]
-
-    st.markdown(f"<h4 style='color: #00ffcc;'>Partidos de la {jornada_seleccionada}</h4>", unsafe_allow_html=True)
-    st.dataframe(df_jornada, use_container_width=True, hide_index=True)
-    st.markdown("---")
-
-    # -----------------------------------------------------------------
-    # 5. PREDICTOR DE MATCHUPS
-    # -----------------------------------------------------------------
-    st.markdown("<h3 style='color: #cbd5e1;'>🎯 Predictor de Enfrentamientos</h3>", unsafe_allow_html=True)
-    
-    lista_equipos = sorted(df_posiciones["Equipo"].unique()) if "Equipo" in df_posiciones.columns else []
+    lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
 
     if len(lista_equipos) >= 2:
         col1, col2 = st.columns(2)
@@ -149,16 +140,24 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            row_loc = df_posiciones[df_posiciones["Equipo"] == local].iloc[0]
-            row_vis = df_posiciones[df_posiciones["Equipo"] == visitante].iloc[0]
+            row_loc = df[df["Equipo"] == local].iloc[0]
+            row_vis = df[df["Equipo"] == visitante].iloc[0]
 
-            pts_loc = float(row_loc.get("Puntos", 0)) if "Puntos" in df_posiciones.columns else 0.0
-            pts_vis = float(row_vis.get("Puntos", 0)) if "Puntos" in df_posiciones.columns else 0.0
-            pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df_posiciones.columns else 1.0
-            pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df_posiciones.columns else 1.0
+            pts_loc = float(row_loc.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
+            pts_vis = float(row_vis.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
+            pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
+            pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
 
-            prom_loc = (pts_loc / pj_loc) * 1.12
-            prom_vis = (pts_vis / pj_vis)
+            xg_loc_base = float(row_loc.get("xG", 1.25))
+            xg_vis_base = float(row_vis.get("xG", 1.10))
+
+            # xG Proyectado para el partido (+10% ventaja de localia)
+            xg_proyectado_local = round(xg_loc_base * 1.10, 2)
+            xg_proyectado_visi = round(xg_vis_base * 0.95, 2)
+
+            # Promedio ponderado (Puntos + xG)
+            prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
+            prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
 
             diferencia = abs(prom_loc - prom_vis)
             prob_empate = max(18.0, min(33.0, 28.5 - (diferencia * 6.0)))
@@ -175,12 +174,21 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
             
+            # Bloque de xG Proyectado
+            col_xg1, col_xg2 = st.columns(2)
+            with col_xg1:
+                st.info(f"xG Proyectado {local}: **{xg_proyectado_local}**")
+            with col_xg2:
+                st.info(f"xG Proyectado {visitante}: **{xg_proyectado_visi}**")
+
+            # Métricas de 1X2
             m1, m2, m3 = st.columns(3)
             m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
             m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
             m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
 
-            st.markdown("<br>", unsafe_allow_html=True)
+            # Barras visuales
+            st.markdown("<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>", unsafe_allow_html=True)
             c_b1, c_b2, c_b3 = st.columns(3)
             with c_b1:
                 st.markdown("<p style='color: #00ffcc;'>Local</p>", unsafe_allow_html=True)
@@ -191,6 +199,33 @@ if os.path.exists(RUTA_CSV):
             with c_b3:
                 st.markdown("<p style='color: #ff3366;'>Visitante</p>", unsafe_allow_html=True)
                 st.progress(int(prob_vis) / 100)
+
+            st.markdown("---")
+
+            # -----------------------------------------------------------------
+            # 5. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
+            # -----------------------------------------------------------------
+            st.markdown("<h4 style='color: #cbd5e1;'>⚽ Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
+            
+            top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi)
+
+            # Formatear datos para la tabla de marcadores
+            tabla_marcadores = []
+            for rank, (marcador, prob) in enumerate(top_5_marcadores, 1):
+                tabla_marcadores.append({
+                    "Ranking": f"#{rank}",
+                    "Resultado Exacto (Local - Visitante)": marcador,
+                    "Probabilidad": f"{prob:.1f}%"
+                })
+
+            tabla_marcadores.append({
+                "Ranking": "Otros",
+                "Resultado Exacto (Local - Visitante)": "Cualquier otro resultado",
+                "Probabilidad": f"{prob_otro:.1f}%"
+            })
+
+            df_marcadores = pd.DataFrame(tabla_marcadores)
+            st.dataframe(df_marcadores, use_container_width=True, hide_index=True)
 
 else:
     st.error("Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista.")
