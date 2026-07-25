@@ -503,26 +503,30 @@ if os.path.exists(RUTA_CSV):
 
             MEDIA_LIGA = 1.15
             
-            # 2. Factores ofensivos y defensivos (limitados inferiormente para no matar equipos en 0)
-            f_ataque_loc = max(0.5, (gf_loc / pj_loc) / MEDIA_LIGA)
-            f_defensa_vis = max(0.5, (gc_vis / pj_vis) / MEDIA_LIGA)
+            # 2. Factores ofensivos y defensivos
+            f_ataque_loc = (gf_loc / pj_loc) / MEDIA_LIGA
+            f_defensa_vis = (gc_vis / pj_vis) / MEDIA_LIGA
             
-            f_ataque_vis = max(0.5, (gf_vis / pj_vis) / MEDIA_LIGA)
-            f_defensa_loc = max(0.5, (gc_loc / pj_loc) / MEDIA_LIGA)
+            f_ataque_vis = (gf_vis / pj_vis) / MEDIA_LIGA
+            f_defensa_loc = (gc_loc / pj_loc) / MEDIA_LIGA
 
-            # 3. Cruzar stats propias vs rival
-            xg_loc_ajustado = xg_loc_base * f_ataque_loc * f_defensa_vis
-            xg_vis_ajustado = xg_vis_base * f_ataque_vis * f_defensa_loc
+            # 3. Promedio del poder ofensivo propio con debilidad defensiva rival (Acá estaba el bug)
+            mult_loc = max(0.6, min(1.8, (f_ataque_loc + f_defensa_vis) / 2))
+            mult_vis = max(0.6, min(1.8, (f_ataque_vis + f_defensa_loc) / 2))
 
-            # 4. Impacto extra de la localía (15%)
+            # 4. Cruzar stats propias vs rival
+            xg_loc_ajustado = xg_loc_base * mult_loc
+            xg_vis_ajustado = xg_vis_base * mult_vis
+
+            # 5. Impacto extra de la localía (15%)
             xg_proyectado_local = round(xg_loc_ajustado * 1.15, 2)
             xg_proyectado_visi = round(xg_vis_ajustado * 0.925, 2) # Penalización por visita
 
-            # 5. Calcular estadísticas secundarias para el Radar basadas en el nuevo xG
+            # 6. Calcular estadísticas secundarias para el Radar basadas en el nuevo xG
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
-            # 6. Ejecutar predicción probabilística final
+            # 7. Ejecutar predicción probabilística final
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
                 local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15
             )
