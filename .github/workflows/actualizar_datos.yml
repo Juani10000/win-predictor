@@ -28,8 +28,7 @@ jobs:
 
       - name: Ejecutar script de recolección de datos
         run: |
-          # Reemplazá 'scraper.py' por el nombre exacto de tu script que genera el CSV
-          python scraper.py
+          python actualizar_datos.py
 
       - name: Guardar y subir cambios a GitHub
         run: |
