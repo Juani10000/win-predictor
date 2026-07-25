@@ -5,6 +5,8 @@ import pandas as pd
 import streamlit as st
 import requests
 import datetime
+import plotly.graph_objects as go
+from bs4 import BeautifulSoup
 
 # =====================================================================
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
@@ -59,14 +61,12 @@ st.markdown(
 # FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON Y PREDICCIÓN
 # ---------------------------------------------------------------------
 def poisson_prob(lmbda, k):
-    """Calcula la probabilidad de anotar k goles dado un xG de lmbda."""
     if lmbda <= 0:
         return 1.0 if k == 0 else 0.0
     return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
 
 
 def calcular_top_resultados(xg_loc, xg_vis):
-    """Calcula la matriz de probabilidades de marcadores exactos (0 a 5 goles)."""
     scores = {}
     total_prob_matriz = 0.0
 
@@ -86,7 +86,6 @@ def calcular_top_resultados(xg_loc, xg_vis):
 
 
 def realizar_prediccion(local, visitante, df, factor_localia=0.15):
-    """Lógica principal de predicción de partidos con un Factor Localía fijo del 15%."""
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -98,14 +97,12 @@ def realizar_prediccion(local, visitante, df, factor_localia=0.15):
     xg_loc_base = float(row_loc.get("xG", 1.25))
     xg_vis_base = float(row_vis.get("xG", 1.10))
 
-    # Ajuste de xG según el 15% de localía
     xg_proyectado_local = round(xg_loc_base * (1.0 + factor_localia), 2)
     xg_proyectado_visi = round(xg_vis_base * (1.0 - (factor_localia * 0.5)), 2)
 
     prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
 
-    # Impulso al rendimiento general del local por jugar en casa
     prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     prom_vis_ajustado = prom_vis
 
@@ -126,7 +123,6 @@ def realizar_prediccion(local, visitante, df, factor_localia=0.15):
 
 
 def buscar_equipo(nombre_buscado, lista_equipos):
-    """Mapea un nombre común de equipo al nombre exacto en el DataFrame."""
     nombre_clean = nombre_buscado.lower().strip()
     
     if "estudiantes" in nombre_clean:
@@ -173,7 +169,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 
 
 # ---------------------------------------------------------------------
-# SCRAPING AUTOMÁTICO - API ESPN
+# SCRAPING AUTOMÁTICO - API ESPN Y WIKIPEDIA (ESTADÍSTICAS)
 # ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
@@ -217,6 +213,126 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
         pass
 
     return partidos_hoy
+
+
+@st.cache_data(ttl=3600)
+def obtener_estadisticas_wiki(equipos_disponibles):
+    url = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
+    stats_wiki = {}
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        tablas = soup.find_all('table', {'class': 'wikitable'})
+        for tabla in tablas:
+            filas = tabla.find_all('tr')
+            if len(filas) > 15: 
+                for fila in filas[1:]:
+                    celdas = [td.get_text(strip=True) for td in fila.find_all(['td', 'th'])]
+                    if len(celdas) >= 8:
+                        equipo_raw = celdas[1]
+                        pj_raw = celdas[2] if celdas[2].isdigit() else "1"
+                        gf_raw = celdas[6] if celdas[6].isdigit() else "0"
+                        gc_raw = celdas[7] if celdas[7].isdigit() else "0"
+                        
+                        eq_match = buscar_equipo(equipo_raw, equipos_disponibles)
+                        if eq_match:
+                            stats_wiki[eq_match] = {
+                                "GF": int(gf_raw),
+                                "GC": int(gc_raw),
+                                "PJ": int(pj_raw)
+                            }
+    except Exception:
+        pass
+    return stats_wiki
+
+
+def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
+    row = df[df["Equipo"] == equipo].iloc[0]
+    
+    if equipo in stats_wiki:
+        gf = stats_wiki[equipo]["GF"]
+        pj = max(1, stats_wiki[equipo]["PJ"])
+        gc = stats_wiki[equipo]["GC"]
+    else:
+        gf = int(row.get("GF", round(xg_proyectado * 12)))
+        pj = int(row.get("PJ", 12))
+        gc = int(row.get("GC", 12))
+        if pj == 0: pj = 1
+
+    pos = min(65, max(35, int(40 + (gf / pj * 10) + (xg_proyectado * 2))))
+    
+    tasa_invicta = max(0, pj - int(gc * 0.8))
+    vi = int(tasa_invicta * 0.4) 
+    
+    return {"GF": gf, "xG": round(xg_proyectado, 1), "Pos": pos, "VI": vi}
+
+
+def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
+    categories = ['Goles a Favor', 'xG Proyectado', 'Posesión (%)', 'Vallas Invictas']
+    
+    max_gf = max(stats_loc['GF'], stats_vis['GF'], 15) * 1.2
+    max_xg = max(stats_loc['xG'], stats_vis['xG'], 2.0) * 1.2
+    max_pos = 100
+    max_vi = max(stats_loc['VI'], stats_vis['VI'], 5) * 1.2
+    
+    val_loc_norm = [
+        stats_loc['GF'] / max_gf,
+        stats_loc['xG'] / max_xg,
+        stats_loc['Pos'] / max_pos,
+        stats_loc['VI'] / max_vi
+    ]
+    
+    val_vis_norm = [
+        stats_vis['GF'] / max_gf,
+        stats_vis['xG'] / max_xg,
+        stats_vis['Pos'] / max_pos,
+        stats_vis['VI'] / max_vi
+    ]
+    
+    text_loc = [str(stats_loc['GF']), str(stats_loc['xG']), f"{stats_loc['Pos']}%", str(stats_loc['VI'])]
+    text_vis = [str(stats_vis['GF']), str(stats_vis['xG']), f"{stats_vis['Pos']}%", str(stats_vis['VI'])]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatterpolar(
+        r=val_loc_norm + [val_loc_norm[0]],
+        theta=categories + [categories[0]],
+        fill='toself',
+        name=loc_name,
+        line=dict(color='#00ffcc'),
+        fillcolor='rgba(0, 255, 204, 0.2)',
+        text=text_loc + [text_loc[0]],
+        hoverinfo='text+name',
+        mode='lines+markers'
+    ))
+    
+    fig.add_trace(go.Scatterpolar(
+        r=val_vis_norm + [val_vis_norm[0]],
+        theta=categories + [categories[0]],
+        fill='toself',
+        name=vis_name,
+        line=dict(color='#ff3366'),
+        fillcolor='rgba(255, 51, 102, 0.2)',
+        text=text_vis + [text_vis[0]],
+        hoverinfo='text+name',
+        mode='lines+markers'
+    ))
+    
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(visible=False, range=[0, 1]),
+            angularaxis=dict(color="#cbd5e1")
+        ),
+        showlegend=True,
+        legend=dict(font=dict(color="#cbd5e1")),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#94a3b8'),
+        margin=dict(t=40, b=40, l=40, r=40)
+    )
+    return fig
 
 
 # ---------------------------------------------------------------------
@@ -268,7 +384,6 @@ if os.path.exists(RUTA_CSV):
 
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
 
-    # Garantizar columna xG
     if "xG" not in df.columns and "xG_Favor" not in df.columns:
         if "GF" in df.columns and "PJ" in df.columns:
             df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
@@ -278,6 +393,8 @@ if os.path.exists(RUTA_CSV):
         df["xG"] = df["xG_Favor"]
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
+
+    stats_wikipedia = obtener_estadisticas_wiki(lista_equipos)
 
 
     # -----------------------------------------------------------------
@@ -328,7 +445,6 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            # Se aplica automáticamente el factor localía fijo de 0.15 (15%)
             prob_loc, prob_empate, prob_vis, xg_proyectado_local, xg_proyectado_visi = realizar_prediccion(
                 local, visitante, df, factor_localia=0.15
             )
@@ -364,11 +480,27 @@ if os.path.exists(RUTA_CSV):
             with c_b3:
                 st.markdown("<p style='color: #ff3366;'>Visitante</p>", unsafe_allow_html=True)
                 st.progress(int(prob_vis) / 100)
+                
+            st.markdown("---")
+            
+            # -----------------------------------------------------------------
+            # 6. GRÁFICO TIPO RADAR: FRENTE A FRENTE
+            # -----------------------------------------------------------------
+            st.markdown(
+                "<h4 style='color: #cbd5e1;'>Frente a Frente: Estadísticas Generales</h4>",
+                unsafe_allow_html=True,
+            )
+            
+            stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
+            stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
+            
+            fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
+            st.plotly_chart(fig_radar, use_container_width=True)
 
             st.markdown("---")
 
             # -----------------------------------------------------------------
-            # 6. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
+            # 7. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
             # -----------------------------------------------------------------
             st.markdown(
                 "<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>",
