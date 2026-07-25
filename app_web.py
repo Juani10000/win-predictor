@@ -233,32 +233,7 @@ if os.path.exists(RUTA_CSV):
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
 
 
-    # -----------------------------------------------------------------
-    # 3. AGENDA DEL DÍA (NUEVO MÓDULO)
-    # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>📅 Partidos de Hoy</h3>",
-        unsafe_allow_html=True,
-    )
-    
-    partidos_del_dia = obtener_partidos_hoy_wiki(lista_equipos)
-    
-    if partidos_del_dia:
-        for idx, partido in enumerate(partidos_del_dia):
-            with st.container():
-                c_info, c_btn = st.columns([4, 1])
-                with c_info:
-                    st.markdown(f"**{partido['Hora']}** | {partido['Local']} vs {partido['Visitante']}")
-                with c_btn:
-                    # Usamos un key único y session_state para forzar la selección abajo
-                    if st.button("🔮 Predecir", key=f"btn_hoy_{idx}"):
-                        st.session_state['sel_local'] = partido['Local']
-                        st.session_state['sel_visitante'] = partido['Visitante']
-            st.divider()
-    else:
-        st.info("No se encontraron partidos programados para el día de hoy.")
-        st.divider()
-
+   
 
     # -----------------------------------------------------------------
     # 4. TABLA DE POSICIONES SIEMPRE VISIBLE
@@ -277,7 +252,57 @@ if os.path.exists(RUTA_CSV):
     st.markdown(
         "<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>",
         unsafe_allow_html=True,
+    )# -----------------------------------------------------------------
+    # 3. AGENDA DEL DÍA (NUEVO MÓDULO)
+    # -----------------------------------------------------------------
+    st.markdown(
+        "<h3 style='color: #cbd5e1;'>📅 Partidos de Hoy</h3>",
+        unsafe_allow_html=True,
     )
+    
+    partidos_del_dia = obtener_partidos_hoy_wiki(lista_equipos)
+    
+    if partidos_del_dia:
+        for idx, partido in enumerate(partidos_del_dia):
+            with st.container():
+                c_info, c_btn = st.columns([4, 1])
+                with c_info:
+                    st.markdown(f"🕒 **{partido['Hora']}** | {partido['Local']} vs {partido['Visitante']}")
+                with c_btn:
+                    if st.button("🔮 Predecir", key=f"btn_hoy_{idx}"):
+                        st.session_state['sel_local'] = partido['Local']
+                        st.session_state['sel_visitante'] = partido['Visitante']
+            st.divider()
+    else:
+        st.warning("⚠️ Wikipedia no tiene actualizada la fecha de hoy o cambió su formato.")
+        
+        # PLAN B: Modo Manual de Rescate
+        st.info("Escribí los partidos de hoy (separados por coma) para armar la agenda rápido:")
+        input_manual = st.text_input("Ejemplo: Boca vs River, Racing vs Independiente", placeholder="Equipo vs Equipo, Equipo vs Equipo")
+        
+        if input_manual:
+            cruces = input_manual.split(",")
+            for idx, cruce in enumerate(cruces):
+                equipos_cruce = cruce.split("vs")
+                if len(equipos_cruce) == 2:
+                    loc_manual = equipos_cruce[0].strip()
+                    vis_manual = equipos_cruce[1].strip()
+                    
+                    # Buscar coincidencia más cercana en tu base de datos
+                    loc_db = next((eq for eq in lista_equipos if loc_manual.lower() in eq.lower()), None)
+                    vis_db = next((eq for eq in lista_equipos if vis_manual.lower() in eq.lower()), None)
+                    
+                    if loc_db and vis_db:
+                        with st.container():
+                            c_info, c_btn = st.columns([4, 1])
+                            with c_info:
+                                st.markdown(f"🕒 **Manual** | {loc_db} vs {vis_db}")
+                            with c_btn:
+                                if st.button("🔮 Predecir", key=f"btn_man_{idx}"):
+                                    st.session_state['sel_local'] = loc_db
+                                    st.session_state['sel_visitante'] = vis_db
+                        st.divider()
+        st.divider()
 
     if len(lista_equipos) >= 2:
         # Configurar índices iniciales basados en session_state (si se hizo clic en Agenda)
