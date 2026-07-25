@@ -48,6 +48,13 @@ st.markdown(
             font-size: 14px !important;
             text-transform: uppercase;
         }
+        .market-card {
+            background-color: #111827;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
         hr {
             border-top: 1px solid #1e293b;
         }
@@ -56,7 +63,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # ---------------------------------------------------------------------
 # FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON Y PREDICCIÓN
 # ---------------------------------------------------------------------
@@ -64,7 +70,6 @@ def poisson_prob(lmbda, k):
     if lmbda <= 0:
         return 1.0 if k == 0 else 0.0
     return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
-
 
 def calcular_top_resultados(xg_loc, xg_vis):
     scores = {}
@@ -84,6 +89,25 @@ def calcular_top_resultados(xg_loc, xg_vis):
 
     return top_5, prob_otro
 
+def calcular_mercados_adicionales(xg_loc, xg_vis):
+    """Calcula Over/Under 2.5 goles y Ambos Anotan (BTTS) usando Poisson."""
+    prob_under_2_5 = 0.0
+    prob_btts = 0.0
+    
+    # Matriz para Over/Under y BTTS
+    for i in range(7):
+        for j in range(7):
+            p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
+            if (i + j) < 2.5:
+                prob_under_2_5 += p
+            if i > 0 and j > 0:
+                prob_btts += p
+
+    prob_over_2_5 = (1.0 - prob_under_2_5) * 100
+    prob_under_2_5 *= 100
+    prob_btts *= 100
+    
+    return prob_over_2_5, prob_under_2_5, prob_btts
 
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15):
     row_loc = df[df["Equipo"] == local].iloc[0]
@@ -100,7 +124,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     prom_vis_ajustado = prom_vis
     
-    # NUEVO: IMPACTO DEL FRENTE A FRENTE CON LAS 8 ESTADÍSTICAS
     score_loc = (stats_loc['GF'] * 0.2) + (stats_loc['Pos'] * 0.05) + (stats_loc['VI'] * 1.2) + (stats_loc['TirosArco'] * 0.8) + (stats_loc['Fortaleza'] * 0.1)
     score_vis = (stats_vis['GF'] * 0.2) + (stats_vis['Pos'] * 0.05) + (stats_vis['VI'] * 1.2) + (stats_vis['TirosArco'] * 0.8) + (stats_vis['Fortaleza'] * 0.1)
     
@@ -128,7 +151,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
         prob_vis = resto / 2
 
     return prob_loc, prob_empate, prob_vis
-
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
@@ -175,7 +197,6 @@ def buscar_equipo(nombre_buscado, lista_equipos):
                 return eq
     return None
 
-
 # ---------------------------------------------------------------------
 # SCRAPING AUTOMÁTICO - API ESPN Y WIKIPEDIA
 # ---------------------------------------------------------------------
@@ -183,7 +204,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 def obtener_partidos_hoy_auto(equipos_disponibles):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
-    fecha_espn_url = ahora_arg.strftime("%Y%m%d")
+    fecha_espn_url = me = ahora_arg.strftime("%Y%m%d")
     
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_espn_url}"
     partidos_hoy = []
@@ -222,7 +243,6 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
 
     return partidos_hoy
 
-
 @st.cache_data(ttl=3600)
 def obtener_estadisticas_wiki(equipos_disponibles):
     url = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
@@ -255,7 +275,6 @@ def obtener_estadisticas_wiki(equipos_disponibles):
         pass
     return stats_wiki
 
-
 def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     row = df[df["Equipo"] == equipo].iloc[0]
     
@@ -269,18 +288,12 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
         gc = int(row.get("GC", 12))
         if pj == 0: pj = 1
 
-    # Cálculos y estimaciones avanzadas para las 8 variables del Radar
     pos = min(75, max(35, int(40 + (gf / pj * 8) + (xg_proyectado * 3))))
-    
     tasa_invicta = max(0, pj - int(gc * 0.8))
     vi = int(tasa_invicta * 0.4) 
-    
     tiros_arco = round(xg_proyectado * 3.5 + (gf / pj * 1.5), 1)
-    
     pases = min(92, max(60, int(pos * 1.15 + 8)))
-    
     corners = round((xg_proyectado * 2.5) + (pos * 0.06), 1)
-    
     gc_pp = gc / pj
     fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
     
@@ -295,14 +308,12 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
         "Fortaleza": fortaleza
     }
 
-
 def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     categories = [
         'Goles a Favor', 'xG Proyectado', 'Posesión (%)', 'Vallas Invictas',
         'Tiros al Arco (p/p)', 'Eficacia Pases (%)', 'Córners (p/p)', 'Fuerza Defensiva'
     ]
     
-    # Dinamización de los ejes máximos para que el gráfico no se deforme
     max_gf = max(stats_loc['GF'], stats_vis['GF'], 15) * 1.1
     max_xg = max(stats_loc['xG'], stats_vis['xG'], 2.0) * 1.2
     max_pos = 100
@@ -313,25 +324,15 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     max_fd = 100
     
     val_loc_norm = [
-        stats_loc['GF'] / max_gf,
-        stats_loc['xG'] / max_xg,
-        stats_loc['Pos'] / max_pos,
-        stats_loc['VI'] / max_vi,
-        stats_loc['TirosArco'] / max_ta,
-        stats_loc['Pases'] / max_pa,
-        stats_loc['Corners'] / max_co,
-        stats_loc['Fortaleza'] / max_fd
+        stats_loc['GF'] / max_gf, stats_loc['xG'] / max_xg, stats_loc['Pos'] / max_pos,
+        stats_loc['VI'] / max_vi, stats_loc['TirosArco'] / max_ta, stats_loc['Pases'] / max_pa,
+        stats_loc['Corners'] / max_co, stats_loc['Fortaleza'] / max_fd
     ]
     
     val_vis_norm = [
-        stats_vis['GF'] / max_gf,
-        stats_vis['xG'] / max_xg,
-        stats_vis['Pos'] / max_pos,
-        stats_vis['VI'] / max_vi,
-        stats_vis['TirosArco'] / max_ta,
-        stats_vis['Pases'] / max_pa,
-        stats_vis['Corners'] / max_co,
-        stats_vis['Fortaleza'] / max_fd
+        stats_vis['GF'] / max_gf, stats_vis['xG'] / max_xg, stats_vis['Pos'] / max_pos,
+        stats_vis['VI'] / max_vi, stats_vis['TirosArco'] / max_ta, stats_vis['Pases'] / max_pa,
+        stats_vis['Corners'] / max_co, stats_vis['Fortaleza'] / max_fd
     ]
     
     text_loc = [
@@ -346,69 +347,50 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     fig = go.Figure()
 
     fig.add_trace(go.Scatterpolar(
-        r=val_loc_norm + [val_loc_norm[0]],
-        theta=categories + [categories[0]],
-        fill='toself',
-        name=loc_name,
-        line=dict(color='#00ffcc'),
-        fillcolor='rgba(0, 255, 204, 0.2)',
-        text=text_loc + [text_loc[0]],
-        hoverinfo='text+name',
-        mode='lines+markers'
+        r=val_loc_norm + [val_loc_norm[0]], theta=categories + [categories[0]],
+        fill='toself', name=loc_name, line=dict(color='#00ffcc'), fillcolor='rgba(0, 255, 204, 0.2)',
+        text=text_loc + [text_loc[0]], hoverinfo='text+name', mode='lines+markers'
     ))
     
     fig.add_trace(go.Scatterpolar(
-        r=val_vis_norm + [val_vis_norm[0]],
-        theta=categories + [categories[0]],
-        fill='toself',
-        name=vis_name,
-        line=dict(color='#ff3366'),
-        fillcolor='rgba(255, 51, 102, 0.2)',
-        text=text_vis + [text_vis[0]],
-        hoverinfo='text+name',
-        mode='lines+markers'
+        r=val_vis_norm + [val_vis_norm[0]], theta=categories + [categories[0]],
+        fill='toself', name=vis_name, line=dict(color='#ff3366'), fillcolor='rgba(255, 51, 102, 0.2)',
+        text=text_vis + [text_vis[0]], hoverinfo='text+name', mode='lines+markers'
     ))
     
     fig.update_layout(
         polar=dict(
-            bgcolor='#111827',
-            radialaxis=dict(visible=False, range=[0, 1]),
+            bgcolor='#111827', radialaxis=dict(visible=False, range=[0, 1]),
             angularaxis=dict(color="#cbd5e1", gridcolor="#1e293b")
         ),
-        showlegend=True,
-        legend=dict(font=dict(color="#cbd5e1")),
-        paper_bgcolor='#070b14',
-        plot_bgcolor='#070b14',
-        font=dict(color='#94a3b8'),
-        margin=dict(t=50, b=50, l=60, r=60)
+        showlegend=True, legend=dict(font=dict(color="#cbd5e1")),
+        paper_bgcolor='#070b14', plot_bgcolor='#070b14',
+        font=dict(color='#94a3b8'), margin=dict(t=50, b=50, l=60, r=60)
     )
     return fig
 
+# ---------------------------------------------------------------------
+# CONFIGURACIÓN LATERAL (SIDEBAR)
+# ---------------------------------------------------------------------
+st.sidebar.header("⚙️ Ajustes del Modelo")
+factor_localia_input = st.sidebar.slider("Peso Factor Localía", min_value=0.0, max_value=0.30, value=0.15, step=0.05)
 
 # ---------------------------------------------------------------------
 # ENCABEZADO CON LOGO
 # ---------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
-    url_lpf = (
-        "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
-    )
+    url_lpf = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
     st.image(url_lpf, width=110)
 
 with col_titulo:
-    st.markdown(
-        '<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True
-    )
-    st.markdown(
-        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS EXACTOS</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS EXACTOS</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
-
 # =====================================================================
-# 2. CARGA Y PROCESAMIENTO DE DATOS CON xG
+# 2. CARGA Y PROCESAMIENTO DE DATOS
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
@@ -423,13 +405,11 @@ if os.path.exists(RUTA_CSV):
         def limpiar_nombre_equipo(x):
             s = str(x).strip()
             s_lower = s.lower()
-            
             if "estudiantes" in s_lower:
                 if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]):
                     return "Estudiantes RC"
                 if any(k in s_lower for k in ["la plata", "(lp)"]):
                     return "Estudiantes"
-                    
             return re.sub(r"\[.*?\]|\(.*?\)", "", s).strip()
 
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
@@ -443,18 +423,10 @@ if os.path.exists(RUTA_CSV):
         df["xG"] = df["xG_Favor"]
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
-
     stats_wikipedia = obtener_estadisticas_wiki(lista_equipos)
 
-
-    # -----------------------------------------------------------------
     # 3. AGENDA DEL DÍA AUTOMÁTICA
-    # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>",
-        unsafe_allow_html=True,
-    )
-    
+    st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>", unsafe_allow_html=True)
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
 
     if partidos_del_dia:
@@ -465,25 +437,13 @@ if os.path.exists(RUTA_CSV):
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
 
-
-    # -----------------------------------------------------------------
-    # 4. TABLA DE POSICIONES SIEMPRE VISIBLE
-    # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>",
-        unsafe_allow_html=True,
-    )
+    # 4. TABLA DE POSICIONES
+    st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
-
-    # -----------------------------------------------------------------
-    # 5. MOTOR DE PREDICCIÓN MANUAL Y VISUALIZACIÓN
-    # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>",
-        unsafe_allow_html=True,
-    )
+    # 5. MOTOR DE PREDICCIÓN MANUAL
+    st.markdown("<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>", unsafe_allow_html=True)
 
     if len(lista_equipos) >= 2:
         col1, col2 = st.columns(2)
@@ -495,26 +455,21 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
             xg_loc_base = float(row_loc.get("xG", 1.25))
             xg_vis_base = float(row_vis.get("xG", 1.10))
-            xg_proyectado_local = round(xg_loc_base * (1.0 + 0.15), 2)
-            xg_proyectado_visi = round(xg_vis_base * (1.0 - (0.15 * 0.5)), 2)
+            xg_proyectado_local = round(xg_loc_base * (1.0 + factor_localia_input), 2)
+            xg_proyectado_visi = round(xg_vis_base * (1.0 - (factor_localia_input * 0.5)), 2)
 
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
-                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15
+                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=factor_localia_input
             )
 
-            st.markdown(
-                f"<h2 style='text-align: center; color: #fff; margin-top:"
-                f" 25px;'>{local.upper()} vs {visitante.upper()}</h2>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
 
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
@@ -527,10 +482,7 @@ if os.path.exists(RUTA_CSV):
             m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
             m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
 
-            st.markdown(
-                "<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>",
-                unsafe_allow_html=True,
-            )
+            st.markdown("<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>", unsafe_allow_html=True)
             c_b1, c_b2, c_b3 = st.columns(3)
             with c_b1:
                 st.markdown("<p style='color: #00ffcc;'>Local</p>", unsafe_allow_html=True)
@@ -543,31 +495,34 @@ if os.path.exists(RUTA_CSV):
                 st.progress(int(prob_vis) / 100)
                 
             st.markdown("---")
+
+            # NUEVO: MERCADOS ADICIONALES (OVER/UNDER Y BTTS)
+            st.markdown("<h4 style='color: #cbd5e1;'>Mercados Complementarios (Proyección Poisson)</h4>", unsafe_allow_html=True)
+            prob_over_25, prob_under_25, prob_btts = calcular_mercados_adicionales(xg_proyectado_local, xg_proyectado_visi)
             
-            # -----------------------------------------------------------------
-            # 6. GRÁFICO TIPO RADAR: FRENTE A FRENTE OCTAGONAL
-            # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>",
-                unsafe_allow_html=True,
-            )
+            c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+            with c_m1:
+                st.metric(label="Más de 2.5 Goles", value=f"{prob_over_25:.1f}%")
+            with c_m2:
+                st.metric(label="Menos de 2.5 Goles", value=f"{prob_under_25:.1f}%")
+            with c_m3:
+                st.metric(label="Ambos Anotan (Sí)", value=f"{prob_btts:.1f}%")
+            with c_m4:
+                corners_est = round(stats_loc['Corners'] + stats_vis['Corners'], 1)
+                st.metric(label="Córners Totales (Est.)", value=f"{corners_est}")
+
+            st.markdown("---")
             
+            # 6. GRÁFICO TIPO RADAR
+            st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>", unsafe_allow_html=True)
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
             st.plotly_chart(fig_radar, use_container_width=True)
 
             st.markdown("---")
 
-            # -----------------------------------------------------------------
-            # 7. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
-            # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>",
-                unsafe_allow_html=True,
-            )
-
-            top_5_marcadores, prob_otro = calcular_top_resultados(
-                xg_proyectado_local, xg_proyectado_visi
-            )
+            # 7. TOP 5 RESULTADOS MÁS PROBABLES
+            st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
+            top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi)
 
             tabla_marcadores = []
             for rank, (marcador, prob) in enumerate(top_5_marcadores, 1):
