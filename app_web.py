@@ -97,20 +97,19 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
 
-    # Impulso base por localía
     prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     prom_vis_ajustado = prom_vis
     
-    # NUEVO: IMPACTO DEL FRENTE A FRENTE EN LA PREDICCIÓN
-    score_loc = (stats_loc['GF'] * 0.4) + (stats_loc['Pos'] * 0.2) + (stats_loc['VI'] * 1.5)
-    score_vis = (stats_vis['GF'] * 0.4) + (stats_vis['Pos'] * 0.2) + (stats_vis['VI'] * 1.5)
+    # NUEVO: IMPACTO DEL FRENTE A FRENTE CON LAS 8 ESTADÍSTICAS
+    score_loc = (stats_loc['GF'] * 0.2) + (stats_loc['Pos'] * 0.05) + (stats_loc['VI'] * 1.2) + (stats_loc['TirosArco'] * 0.8) + (stats_loc['Fortaleza'] * 0.1)
+    score_vis = (stats_vis['GF'] * 0.2) + (stats_vis['Pos'] * 0.05) + (stats_vis['VI'] * 1.2) + (stats_vis['TirosArco'] * 0.8) + (stats_vis['Fortaleza'] * 0.1)
     
     if (score_loc + score_vis) > 0:
         ventaja_relativa = (score_loc - score_vis) / (score_loc + score_vis)
     else:
         ventaja_relativa = 0.0
         
-    ajuste_h2h = ventaja_relativa * 0.10  # Hasta +/- 10% de impacto por stats
+    ajuste_h2h = ventaja_relativa * 0.10
     
     prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
     prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
@@ -270,38 +269,79 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
         gc = int(row.get("GC", 12))
         if pj == 0: pj = 1
 
-    pos = min(65, max(35, int(40 + (gf / pj * 10) + (xg_proyectado * 2))))
+    # Cálculos y estimaciones avanzadas para las 8 variables del Radar
+    pos = min(75, max(35, int(40 + (gf / pj * 8) + (xg_proyectado * 3))))
     
     tasa_invicta = max(0, pj - int(gc * 0.8))
     vi = int(tasa_invicta * 0.4) 
     
-    return {"GF": gf, "xG": round(xg_proyectado, 1), "Pos": pos, "VI": vi}
+    tiros_arco = round(xg_proyectado * 3.5 + (gf / pj * 1.5), 1)
+    
+    pases = min(92, max(60, int(pos * 1.15 + 8)))
+    
+    corners = round((xg_proyectado * 2.5) + (pos * 0.06), 1)
+    
+    gc_pp = gc / pj
+    fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
+    
+    return {
+        "GF": gf, 
+        "xG": round(xg_proyectado, 1), 
+        "Pos": pos, 
+        "VI": vi,
+        "TirosArco": tiros_arco,
+        "Pases": pases,
+        "Corners": corners,
+        "Fortaleza": fortaleza
+    }
 
 
 def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
-    categories = ['Goles a Favor', 'xG Proyectado', 'Posesión (%)', 'Vallas Invictas']
+    categories = [
+        'Goles a Favor', 'xG Proyectado', 'Posesión (%)', 'Vallas Invictas',
+        'Tiros al Arco (p/p)', 'Eficacia Pases (%)', 'Córners (p/p)', 'Fuerza Defensiva'
+    ]
     
-    max_gf = max(stats_loc['GF'], stats_vis['GF'], 15) * 1.2
+    # Dinamización de los ejes máximos para que el gráfico no se deforme
+    max_gf = max(stats_loc['GF'], stats_vis['GF'], 15) * 1.1
     max_xg = max(stats_loc['xG'], stats_vis['xG'], 2.0) * 1.2
     max_pos = 100
     max_vi = max(stats_loc['VI'], stats_vis['VI'], 5) * 1.2
+    max_ta = max(stats_loc['TirosArco'], stats_vis['TirosArco'], 5.0) * 1.2
+    max_pa = 100
+    max_co = max(stats_loc['Corners'], stats_vis['Corners'], 6.0) * 1.2
+    max_fd = 100
     
     val_loc_norm = [
         stats_loc['GF'] / max_gf,
         stats_loc['xG'] / max_xg,
         stats_loc['Pos'] / max_pos,
-        stats_loc['VI'] / max_vi
+        stats_loc['VI'] / max_vi,
+        stats_loc['TirosArco'] / max_ta,
+        stats_loc['Pases'] / max_pa,
+        stats_loc['Corners'] / max_co,
+        stats_loc['Fortaleza'] / max_fd
     ]
     
     val_vis_norm = [
         stats_vis['GF'] / max_gf,
         stats_vis['xG'] / max_xg,
         stats_vis['Pos'] / max_pos,
-        stats_vis['VI'] / max_vi
+        stats_vis['VI'] / max_vi,
+        stats_vis['TirosArco'] / max_ta,
+        stats_vis['Pases'] / max_pa,
+        stats_vis['Corners'] / max_co,
+        stats_vis['Fortaleza'] / max_fd
     ]
     
-    text_loc = [str(stats_loc['GF']), str(stats_loc['xG']), f"{stats_loc['Pos']}%", str(stats_loc['VI'])]
-    text_vis = [str(stats_vis['GF']), str(stats_vis['xG']), f"{stats_vis['Pos']}%", str(stats_vis['VI'])]
+    text_loc = [
+        str(stats_loc['GF']), str(stats_loc['xG']), f"{stats_loc['Pos']}%", str(stats_loc['VI']),
+        str(stats_loc['TirosArco']), f"{stats_loc['Pases']}%", str(stats_loc['Corners']), f"{stats_loc['Fortaleza']}/100"
+    ]
+    text_vis = [
+        str(stats_vis['GF']), str(stats_vis['xG']), f"{stats_vis['Pos']}%", str(stats_vis['VI']),
+        str(stats_vis['TirosArco']), f"{stats_vis['Pases']}%", str(stats_vis['Corners']), f"{stats_vis['Fortaleza']}/100"
+    ]
 
     fig = go.Figure()
 
@@ -329,19 +369,18 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         mode='lines+markers'
     ))
     
-    # AQUÍ ESTÁ LA MAGIA DEL FONDO OSCURO
     fig.update_layout(
         polar=dict(
-            bgcolor='#111827',  # Fondo interior oscuro del radar
+            bgcolor='#111827',
             radialaxis=dict(visible=False, range=[0, 1]),
             angularaxis=dict(color="#cbd5e1", gridcolor="#1e293b")
         ),
         showlegend=True,
         legend=dict(font=dict(color="#cbd5e1")),
-        paper_bgcolor='#070b14', # Fondo exterior igual al de la web
+        paper_bgcolor='#070b14',
         plot_bgcolor='#070b14',
         font=dict(color='#94a3b8'),
-        margin=dict(t=40, b=40, l=40, r=40)
+        margin=dict(t=50, b=50, l=60, r=60)
     )
     return fig
 
@@ -457,7 +496,6 @@ if os.path.exists(RUTA_CSV):
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
             
-            # 1. Calculamos primero el xG base ajustado por localía (15%)
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
             xg_loc_base = float(row_loc.get("xG", 1.25))
@@ -465,11 +503,9 @@ if os.path.exists(RUTA_CSV):
             xg_proyectado_local = round(xg_loc_base * (1.0 + 0.15), 2)
             xg_proyectado_visi = round(xg_vis_base * (1.0 - (0.15 * 0.5)), 2)
 
-            # 2. Construimos las estadísticas del Frente a Frente
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
-            # 3. Mandamos TODO a la función de predicción para que impacte el H2H
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
                 local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15
             )
@@ -509,10 +545,10 @@ if os.path.exists(RUTA_CSV):
             st.markdown("---")
             
             # -----------------------------------------------------------------
-            # 6. GRÁFICO TIPO RADAR: FRENTE A FRENTE
+            # 6. GRÁFICO TIPO RADAR: FRENTE A FRENTE OCTAGONAL
             # -----------------------------------------------------------------
             st.markdown(
-                "<h4 style='color: #cbd5e1;'>Frente a Frente: Estadísticas Generales</h4>",
+                "<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>",
                 unsafe_allow_html=True,
             )
             
