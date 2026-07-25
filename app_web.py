@@ -127,8 +127,9 @@ def realizar_prediccion(
         max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
     )
 
-    prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
-    prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
+    # 1. Fuerza ofensiva/defensiva base
+    prom_loc = ((pts_loc / pj_loc) * 0.5) + (xg_proyectado_local * 0.5)
+    prom_vis = ((pts_vis / pj_vis) * 0.5) + (xg_proyectado_visi * 0.5)
 
     prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     prom_vis_ajustado = prom_vis
@@ -153,14 +154,28 @@ def realizar_prediccion(
     else:
         ventaja_relativa = 0.0
 
-    ajuste_h2h = ventaja_relativa * 0.10
+    ajuste_h2h = ventaja_relativa * 0.08
 
     prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
     prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
 
-    diferencia = abs(prom_loc_ajustado - prom_vis_ajustado)
-    prob_empate = max(18.0, min(33.0, 28.5 - (diferencia * 6.0)))
+    # 2. CÁLCULO PRECISO DEL EMPATE MEDIANTE POISSON (0-0, 1-1, 2-2, 3-3)
+    prob_empate_poisson = sum(
+        poisson_prob(xg_proyectado_local, k)
+        * poisson_prob(xg_proyectado_visi, k)
+        for k in range(5)
+    )
 
+    # Calibración para Liga Argentina (fútbol de pocos goles y alta paridad)
+    # Si la diferencia entre equipos es corta, el empate sube naturalmente
+    diferencia_xg = abs(xg_proyectado_local - xg_proyectado_visi)
+    factor_paridad = max(0.85, 1.25 - (diferencia_xg * 0.4))
+
+    prob_empate = (prob_empate_poisson * 100) * factor_paridad
+    # Límites realistas para la LPF (entre 22% y 38%)
+    prob_empate = max(22.0, min(38.0, prob_empate))
+
+    # 3. Distribución del porcentaje restante entre Local y Visitante
     resto = 100.0 - prob_empate
     total_prom = prom_loc_ajustado + prom_vis_ajustado
 
@@ -172,7 +187,6 @@ def realizar_prediccion(
         prob_vis = resto / 2
 
     return prob_loc, prob_empate, prob_vis
-
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
