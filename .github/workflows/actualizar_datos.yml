@@ -1,36 +1,40 @@
-name: Actualizar Datos de Fútbol
+name: Actualizar Datos Win Predictor
 
 on:
   schedule:
-    # Se ejecuta todos los días a las 09:00 UTC (06:00 AM hora de Argentina)
-    - cron: '0 9 * * *'
-  workflow_dispatch: # Mantiene el botón para ejecutar el script manualmente
+    # Se ejecuta a las 3:00 AM, 3:00 PM, 7:00 PM y 11:00 PM (Hora Argentina / UTC-3)
+    - cron: '0 2,6,18,22 * * *'
+  
+  # Permite ejecutarlo manualmente desde GitHub cuando quieras
+  workflow_dispatch:
 
 jobs:
-  actualizar-datos:
+  actualizar:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar el repositorio
-        uses: actions/checkout@v3
+      - name: Descargar el código del repositorio
+        uses: actions/checkout@v4
 
       - name: Configurar Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Instalar librerías
+      - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install pandas requests lxml html5lib
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Ejecutar el script para obtener la Tabla Anual
-        run: python 1_obtener_datos.py
-
-      - name: Guardar los nuevos datos en GitHub
+      - name: Ejecutar script de recolección de datos
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add *.csv
-          git commit -m "🤖 Actualización automática diaria de la Tabla Anual" || echo "No hay datos nuevos para actualizar"
+          # Reemplazá 'scraper.py' por el nombre exacto de tu script que genera el CSV
+          python scraper.py
+
+      - name: Guardar y subir cambios a GitHub
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add datos_procesados.csv
+          git commit -m "Auto-update datos_procesados.csv" || exit 0
           git push
