@@ -3,60 +3,7 @@ import os
 import re
 import pandas as pd
 import streamlit as st
-import streamlit as st
-import pandas as pd
-import requests
-from bs4 import BeautifulSoup
-import datetime
-import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import datetime
 
-@st.cache_data(ttl=3600)
-def obtener_partidos_hoy_wiki():
-    url = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
-    partidos_hoy = []
-    
-    # 1. Armamos la fecha de hoy con el formato de Wikipedia (ej: "25 de julio")
-    meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", 
-             "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
-    hoy = datetime.date.today()
-    fecha_wiki = f"{hoy.day} de {meses[hoy.month - 1]}"
-    
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # 2. Buscamos todas las filas de las tablas en la página
-        filas = soup.find_all('tr')
-        
-        for fila in filas:
-            # Extraemos el texto de cada celda de la fila
-            celdas = [td.get_text(strip=True) for td in fila.find_all(['td', 'th'])]
-            texto_fila = fila.get_text().lower()
-            
-            # 3. Si la fila tiene formato de partido (varias columnas) y menciona la fecha de hoy
-            if len(celdas) >= 5 and fecha_wiki in texto_fila:
-                
-                # En Wikipedia el formato suele ser: [0]Local, [1]Resultado, [2]Visitante, [3]Estadio, [4]Fecha, [5]Hora
-                local = celdas[0]
-                visitante = celdas[2]
-                
-                # Filtro rápido para asegurarnos de que sean nombres de equipos y no texto basura
-                if local and visitante and len(local) > 2:
-                    partidos_hoy.append({
-                        "Local": local,
-                        "Visitante": visitante,
-                        "Hora": celdas[-1] if len(celdas) >= 6 else "A conf."
-                    })
-                    
-    except Exception as e:
-        st.error(f"Error al intentar leer Wikipedia: {e}")
-
-    # Si por algún motivo no hay partidos o no los encuentra, avisamos
-    return partidos_hoy
 # =====================================================================
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
 # =====================================================================
