@@ -5,7 +5,6 @@ import pandas as pd
 import streamlit as st
 import requests
 import datetime
-import plotly.graph_objects as go
 
 # =====================================================================
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
@@ -43,6 +42,17 @@ st.markdown(
             padding: 20px;
             margin-top: 15px;
             margin-bottom: 15px;
+        }
+        [data-testid="stMetricValue"] {
+            color: #00ffcc !important;
+            font-size: 36px !important;
+            font-weight: 900 !important;
+            text-shadow: 0 0 5px #00ffcc80;
+        }
+        [data-testid="stMetricLabel"] {
+            color: #94a3b8 !important;
+            font-size: 14px !important;
+            text-transform: uppercase;
         }
         hr {
             border-top: 1px solid #1e293b;
@@ -130,27 +140,6 @@ def buscar_equipo(nombre_buscado, lista_equipos):
             if palabra_clave in eq.lower():
                 return eq
     return None
-
-
-def crear_grafico_circular(labels, values, colores, titulo):
-    """Genera un gráfico circular (Donut) con estilo oscuro."""
-    fig = go.Figure(data=[go.Pie(
-        labels=labels, 
-        values=values,
-        hole=0.4,
-        marker=dict(colors=colores),
-        textinfo='label+percent',
-        hoverinfo='label+percent'
-    )])
-    fig.update_layout(
-        title_text=titulo,
-        title_font=dict(color="#ffffff", size=18),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#94a3b8'),
-        margin=dict(t=40, b=0, l=0, r=0)
-    )
-    return fig
 
 
 # ---------------------------------------------------------------------
@@ -244,7 +233,7 @@ if os.path.exists(RUTA_CSV):
 
 
     # -----------------------------------------------------------------
-    # AGENDA DEL DÍA Y BOTONES DE PREDICCIÓN (CON POP-UP)
+    # AGENDA DEL DÍA Y BOTONES DE PREDICCIÓN
     # -----------------------------------------------------------------
     st.markdown("<h3 style='color: #cbd5e1;'>📅 Partidos de Hoy</h3>", unsafe_allow_html=True)
     
@@ -265,7 +254,7 @@ if os.path.exists(RUTA_CSV):
         st.divider()
 
     # =================================================================
-    # PANEL DESPLEGABLE: PREDICCIÓN ACTIVA (LOS GRÁFICOS)
+    # PANEL DESPLEGABLE: PREDICCIÓN ACTIVA (CON BARRAS)
     # =================================================================
     if st.session_state.partido_activo:
         partido = st.session_state.partido_activo
@@ -282,38 +271,43 @@ if os.path.exists(RUTA_CSV):
                 st.session_state.partido_activo = None
                 st.rerun()
 
-        if st.session_state.partido_activo: # Doble chequeo por si cerró
+        if st.session_state.partido_activo: # Doble chequeo
             prob_loc, prob_empate, prob_vis, xg_loc, xg_vis = realizar_prediccion(loc_hoy, vis_hoy, df)
             
-            # Gráficos Circulares
-            c_graf1, c_graf2 = st.columns(2)
-            
-            with c_graf1:
-                # Gráfico Probabilidades 1X2
-                fig_1x2 = crear_grafico_circular(
-                    labels=[loc_hoy, 'Empate', vis_hoy],
-                    values=[prob_loc, prob_empate, prob_vis],
-                    colores=['#00ffcc', '#94a3b8', '#ff3366'],
-                    titulo="Distribución 1X2"
-                )
-                st.plotly_chart(fig_1x2, use_container_width=True)
-            
-            with c_graf2:
-                # Gráfico xG Proyectado
-                fig_xg = crear_grafico_circular(
-                    labels=[loc_hoy, vis_hoy],
-                    values=[xg_loc, xg_vis],
-                    colores=['#00ffcc', '#ff3366'],
-                    titulo="Comparativa xG Proyectado"
-                )
-                st.plotly_chart(fig_xg, use_container_width=True)
+            # Bloque de xG Proyectado
+            col_xg1, col_xg2 = st.columns(2)
+            with col_xg1:
+                st.info(f"xG Proyectado {loc_hoy}: **{xg_loc}**")
+            with col_xg2:
+                st.info(f"xG Proyectado {vis_hoy}: **{xg_vis}**")
+
+            # Métricas de 1X2
+            m1, m2, m3 = st.columns(3)
+            m1.metric(label=f"Victoria {loc_hoy}", value=f"{prob_loc:.1f}%")
+            m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
+            m3.metric(label=f"Victoria {vis_hoy}", value=f"{prob_vis:.1f}%")
+
+            # Barras visuales
+            st.markdown("<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>", unsafe_allow_html=True)
+            c_b1, c_b2, c_b3 = st.columns(3)
+            with c_b1:
+                st.markdown(f"<p style='color: #00ffcc;'>{loc_hoy}</p>", unsafe_allow_html=True)
+                st.progress(int(prob_loc) / 100)
+            with c_b2:
+                st.markdown("<p style='color: #cbd5e1;'>Empate</p>", unsafe_allow_html=True)
+                st.progress(int(prob_empate) / 100)
+            with c_b3:
+                st.markdown(f"<p style='color: #ff3366;'>{vis_hoy}</p>", unsafe_allow_html=True)
+                st.progress(int(prob_vis) / 100)
                 
+            st.markdown("---")
+
             # Marcadores Exactos
             top_5_marcadores, prob_otro = calcular_top_resultados(xg_loc, xg_vis)
-            st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
             
-            tabla_marcadores = [{"Ranking": f"#{rank}", "Resultado": marcador, "Prob": f"{prob:.1f}%"} for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)]
-            tabla_marcadores.append({"Ranking": "Otros", "Resultado": "Cualquier otro", "Prob": f"{prob_otro:.1f}%"})
+            tabla_marcadores = [{"Ranking": f"#{rank}", "Resultado Exacto (L-V)": marcador, "Probabilidad": f"{prob:.1f}%"} for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)]
+            tabla_marcadores.append({"Ranking": "Otros", "Resultado Exacto (L-V)": "Cualquier otro", "Probabilidad": f"{prob_otro:.1f}%"})
             
             st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
             
@@ -321,7 +315,7 @@ if os.path.exists(RUTA_CSV):
 
 
     # -----------------------------------------------------------------
-    # MOTOR DE PREDICCIÓN MANUAL LIBRE (SE MANTIENE ABAJO)
+    # MOTOR DE PREDICCIÓN MANUAL LIBRE
     # -----------------------------------------------------------------
     st.markdown("<br><h3 style='color: #cbd5e1;'>Motor de Predicción Manual</h3>", unsafe_allow_html=True)
 
@@ -333,13 +327,13 @@ if os.path.exists(RUTA_CSV):
             visitante = st.selectbox("Seleccionar Visitante", lista_equipos, key="sb_manual_vis", index=1)
 
         if local == visitante:
-            st.error("Seleccione escuadras diferentes.")
+            st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
             prob_loc_m, prob_empate_m, prob_vis_m, xg_loc_m, xg_vis_m = realizar_prediccion(local, visitante, df)
             
             m1, m2, m3 = st.columns(3)
             m1.metric(label=f"Victoria {local}", value=f"{prob_loc_m:.1f}%")
-            m2.metric(label="Empate", value=f"{prob_empate_m:.1f}%")
+            m2.metric(label="Probabilidad Empate", value=f"{prob_empate_m:.1f}%")
             m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis_m:.1f}%")
 
 else:
