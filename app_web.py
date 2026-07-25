@@ -8,54 +8,6 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import datetime
-
-# =====================================================================
-# 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
-# =====================================================================
-st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
-
-st.markdown(
-    """
-    <style>
-        .stApp {
-            background-color: #070b14;
-            color: #e2e8f0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .neon-title {
-            font-size: 44px;
-            font-weight: 900;
-            text-align: left;
-            color: #ffffff;
-            text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 30px #00f3ff;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-        .tech-sub {
-            text-align: left;
-            color: #94a3b8;
-            letter-spacing: 2px;
-            font-size: 15px;
-            margin-bottom: 25px;
-        }
-        [data-testid="stMetricValue"] {
-            color: #00ffcc !important;
-            font-size: 36px !important;
-            font-weight: 900 !important;
-            text-shadow: 0 0 5px #00ffcc80;
-        }
-        [data-testid="stMetricLabel"] {
-            color: #94a3b8 !important;
-            font-size: 14px !important;
-            text-transform: uppercase;
-        }
-        hr {
-            border-top: 1px solid #1e293b;
-        }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -105,6 +57,53 @@ def obtener_partidos_hoy_wiki():
 
     # Si por algún motivo no hay partidos o no los encuentra, avisamos
     return partidos_hoy
+# =====================================================================
+# 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
+# =====================================================================
+st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
+
+st.markdown(
+    """
+    <style>
+        .stApp {
+            background-color: #070b14;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .neon-title {
+            font-size: 44px;
+            font-weight: 900;
+            text-align: left;
+            color: #ffffff;
+            text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 30px #00f3ff;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .tech-sub {
+            text-align: left;
+            color: #94a3b8;
+            letter-spacing: 2px;
+            font-size: 15px;
+            margin-bottom: 25px;
+        }
+        [data-testid="stMetricValue"] {
+            color: #00ffcc !important;
+            font-size: 36px !important;
+            font-weight: 900 !important;
+            text-shadow: 0 0 5px #00ffcc80;
+        }
+        [data-testid="stMetricLabel"] {
+            color: #94a3b8 !important;
+            font-size: 14px !important;
+            text-transform: uppercase;
+        }
+        hr {
+            border-top: 1px solid #1e293b;
+        }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
 
 # ---------------------------------------------------------------------
 # FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON (MARCADORES EXACTOS)
