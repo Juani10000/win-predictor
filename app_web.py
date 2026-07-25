@@ -141,7 +141,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 
 
 # ---------------------------------------------------------------------
-# SCRAPING 100% AUTOMÁTICO - API ESPN (A prueba de balas)
+# SCRAPING AUTOMÁTICO - API ESPN
 # ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
@@ -241,29 +241,18 @@ if os.path.exists(RUTA_CSV):
 
 
     # -----------------------------------------------------------------
-    # 3. AGENDA DEL DÍA AUTOMÁTICA
+    # 3. AGENDA DEL DÍA AUTOMÁTICA (SIN BOTÓN)
     # -----------------------------------------------------------------
     st.markdown(
-        "<h3 style='color: #cbd5e1;'>📅 Partidos de Hoy</h3>",
+        "<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>",
         unsafe_allow_html=True,
     )
     
-    # Llama a la API inteligente de ESPN
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
 
-    # Renderizado de las tarjetas
     if partidos_del_dia:
-        for idx, partido in enumerate(partidos_del_dia):
-            with st.container():
-                c_info, c_btn = st.columns([4, 1])
-                with c_info:
-                    st.markdown(f"🕒 **{partido['Hora']}** | **{partido['Local']}** vs **{partido['Visitante']}**")
-                with c_btn:
-                    # ACÁ ESTÁ LA MAGIA: inyectamos directo en los keys de los selectboxes y forzamos recarga
-                    if st.button("🔮 Predecir", key=f"btn_hoy_{idx}"):
-                        st.session_state['sb_local'] = partido['Local']
-                        st.session_state['sb_visit'] = partido['Visitante']
-                        st.rerun() 
+        for partido in partidos_del_dia:
+            st.markdown(f"**{partido['Hora']} hs** | **{partido['Local']}** vs **{partido['Visitante']}**")
             st.divider()
     else:
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
@@ -290,18 +279,11 @@ if os.path.exists(RUTA_CSV):
     )
 
     if len(lista_equipos) >= 2:
-        # Inicializamos los selectores en memoria si no existen
-        if "sb_local" not in st.session_state:
-            st.session_state["sb_local"] = lista_equipos[0]
-        if "sb_visit" not in st.session_state:
-            st.session_state["sb_visit"] = lista_equipos[min(1, len(lista_equipos) - 1)]
-
-        # Desplegables limpios atados directamente a las keys de memoria
         col1, col2 = st.columns(2)
         with col1:
-            local = st.selectbox("Seleccionar Local", lista_equipos, key="sb_local")
+            local = st.selectbox("Seleccionar Local", lista_equipos, index=0, key="sb_local")
         with col2:
-            visitante = st.selectbox("Seleccionar Visitante", lista_equipos, key="sb_visit")
+            visitante = st.selectbox("Seleccionar Visitante", lista_equipos, index=min(1, len(lista_equipos) - 1), key="sb_visit")
 
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
