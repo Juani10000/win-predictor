@@ -85,8 +85,8 @@ def calcular_top_resultados(xg_loc, xg_vis):
     return top_5, prob_otro
 
 
-def realizar_prediccion(local, visitante, df):
-    """Lógica principal de predicción de partidos."""
+def realizar_prediccion(local, visitante, df, factor_localia=0.15):
+    """Lógica principal de predicción de partidos incorporando Factor Localía."""
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -98,21 +98,26 @@ def realizar_prediccion(local, visitante, df):
     xg_loc_base = float(row_loc.get("xG", 1.25))
     xg_vis_base = float(row_vis.get("xG", 1.10))
 
-    xg_proyectado_local = round(xg_loc_base * 1.10, 2)
-    xg_proyectado_visi = round(xg_vis_base * 0.95, 2)
+    # Modificación del xG según el Factor Localía
+    xg_proyectado_local = round(xg_loc_base * (1.0 + factor_localia), 2)
+    xg_proyectado_visi = round(xg_vis_base * (1.0 - (factor_localia * 0.67)), 2)
 
     prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
 
-    diferencia = abs(prom_loc - prom_vis)
+    # Impulso al rendimiento general del local por localía
+    prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
+    prom_vis_ajustado = prom_vis
+
+    diferencia = abs(prom_loc_ajustado - prom_vis_ajustado)
     prob_empate = max(18.0, min(33.0, 28.5 - (diferencia * 6.0)))
 
     resto = 100.0 - prob_empate
-    total_prom = prom_loc + prom_vis
+    total_prom = prom_loc_ajustado + prom_vis_ajustado
 
     if total_prom > 0:
-        prob_loc = (prom_loc / total_prom) * resto
-        prob_vis = (prom_vis / total_prom) * resto
+        prob_loc = (prom_loc_ajustado / total_prom) * resto
+        prob_vis = (prom_vis_ajustado / total_prom) * resto
     else:
         prob_loc = resto / 2
         prob_vis = resto / 2
@@ -124,7 +129,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
     """Mapea un nombre común de equipo al nombre exacto en el DataFrame."""
     nombre_clean = nombre_buscado.lower().strip()
     
-    # 1. Reglas específicas para diferenciar La Plata y Río Cuarto
+    # Reglas específicas para diferenciar La Plata y Río Cuarto
     if "estudiantes" in nombre_clean:
         if "rio cuarto" in nombre_clean or "río cuarto" in nombre_clean or "rc" in nombre_clean.split():
             for eq in lista_equipos:
@@ -140,12 +145,12 @@ def buscar_equipo(nombre_buscado, lista_equipos):
                 if "gimnasia" in eq.lower():
                     return eq
 
-    # 2. Búsqueda exacta
+    # Búsqueda exacta
     for eq in lista_equipos:
         if nombre_clean == eq.lower().strip():
             return eq
 
-    # 3. Búsqueda parcial
+    # Búsqueda parcial
     for eq in lista_equipos:
         eq_clean = eq.lower().strip()
         if nombre_clean in eq_clean or eq_clean in nombre_clean:
@@ -156,7 +161,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
                     continue
             return eq
             
-    # 4. Búsqueda por palabras clave
+    # Búsqueda por palabras clave
     palabras = nombre_clean.split()
     if palabras:
         palabra_clave = palabras[0]
@@ -257,7 +262,6 @@ if os.path.exists(RUTA_CSV):
             s = str(x).strip()
             s_lower = s.lower()
             
-            # Solo aplica la regla de "La Plata" si es efectivamente Estudiantes
             if "estudiantes" in s_lower:
                 if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]):
                     return "Estudiantes RC"
@@ -325,10 +329,23 @@ if os.path.exists(RUTA_CSV):
         with col2:
             visitante = st.selectbox("Seleccionar Visitante", lista_equipos, index=min(1, len(lista_equipos) - 1), key="sb_visit")
 
+        # Control deslizable para ajustar el Factor Localía
+        factor_localia_pct = st.slider(
+            "Ventaja por Factor Localía (%)",
+            min_value=0,
+            max_value=30,
+            value=15,
+            step=1,
+            help="Aumenta el rendimiento y el xG del equipo local."
+        )
+        factor_localia_val = factor_localia_pct / 100.0
+
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            prob_loc, prob_empate, prob_vis, xg_proyectado_local, xg_proyectado_visi = realizar_prediccion(local, visitante, df)
+            prob_loc, prob_empate, prob_vis, xg_proyectado_local, xg_proyectado_visi = realizar_prediccion(
+                local, visitante, df, factor_localia=factor_localia_val
+            )
 
             st.markdown(
                 f"<h2 style='text-align: center; color: #fff; margin-top:"
@@ -338,9 +355,9 @@ if os.path.exists(RUTA_CSV):
 
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
-                st.info(f"xG Proyectado {local}: **{xg_proyectado_local}**")
+                st.info(f"xG Proyectado {local}: **{xg_proyectado_local}** (Local)")
             with col_xg2:
-                st.info(f"xG Proyectado {visitante}: **{xg_proyectado_visi}**")
+                st.info(f"xG Proyectado {visitante}: **{xg_proyectado_visi}** (Visitante)")
 
             m1, m2, m3 = st.columns(3)
             m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
