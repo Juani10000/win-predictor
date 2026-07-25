@@ -5,7 +5,31 @@ import re
 import math
 
 # =====================================================================
-# 1. CONFIGURACIÓN Y CSS PROFESIONAL FUTURISTA (SIN EMOJIS)
+# 1. FUNCIONES AUXILIARES DE CÁLCULO (DEBEN IR AL INICIO)
+# =====================================================================
+def poisson_prob(lmbda, k):
+    """Calcula la probabilidad de anotar k goles dado un xG de lmbda."""
+    if lmbda <= 0:
+        return 1.0 if k == 0 else 0.0
+    return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
+
+def calcular_top_resultados(xg_loc, xg_vis):
+    """Calcula la matriz de probabilidades de marcadores exactos (0 a 5 goles)."""
+    scores = {}
+    for i in range(6):
+        for j in range(6):
+            p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
+            scores[f"{i} - {j}"] = p * 100
+
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    top_5 = sorted_scores[:5]
+    prob_top_5 = sum(p for _, p in top_5)
+    prob_otro = max(0.0, 100.0 - prob_top_5)
+
+    return top_5, prob_otro
+
+# =====================================================================
+# 2. CONFIGURACIÓN Y CSS PROFESIONAL FUTURISTA (SIN EMOJIS)
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
@@ -151,30 +175,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------
-# FUNCIONES MATEMÁTICAS (POISSON)
-# ---------------------------------------------------------------------
-def poisson_prob(lmbda, k):
-    """Calcula la probabilidad de anotar k goles dado un xG de lmbda."""
-    if lmbda <= 0:
-        return 1.0 if k == 0 else 0.0
-    return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
-
-def calcular_top_resultados(xg_loc, xg_vis):
-    """Calcula la matriz de probabilidades de marcadores exactos (0 a 5 goles)."""
-    scores = {}
-    for i in range(6):
-        for j in range(6):
-            p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
-            scores[f"{i} - {j}"] = p * 100
-
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    top_5 = sorted_scores[:5]
-    prob_top_5 = sum(p for _, p in top_5)
-    prob_otro = max(0.0, 100.0 - prob_top_5)
-
-    return top_5, prob_otro
-
-# ---------------------------------------------------------------------
 # ENCABEZADO PRINCIPAL
 # ---------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 7])
@@ -189,7 +189,7 @@ with col_titulo:
 st.markdown("<hr>", unsafe_allow_html=True)
 
 # =====================================================================
-# 2. CARGA DE DATOS
+# 3. CARGA DE DATOS
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
@@ -213,7 +213,7 @@ if os.path.exists(RUTA_CSV):
         df["xG"] = df["xG_Favor"]
 
     # -----------------------------------------------------------------
-    # 3. TABLA DE POSICIONES
+    # 4. TABLA DE POSICIONES
     # -----------------------------------------------------------------
     st.markdown('<div class="section-header">TABLA GENERAL DE POSICIONES Y METRICAS DE XG</div>', unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=True)
@@ -221,7 +221,7 @@ if os.path.exists(RUTA_CSV):
     st.markdown("<hr>", unsafe_allow_html=True)
 
     # -----------------------------------------------------------------
-    # 4. PREDICTOR DE PARTIDO
+    # 5. PREDICTOR DE PARTIDO
     # -----------------------------------------------------------------
     st.markdown('<div class="section-header">CONFIGURACIÓN DEL ENFRENTAMIENTO</div>', unsafe_allow_html=True)
     
@@ -332,7 +332,7 @@ if os.path.exists(RUTA_CSV):
             st.markdown("<hr>", unsafe_allow_html=True)
 
             # -----------------------------------------------------------------
-            # 5. TOP 5 MARCADORES EXACTOS
+            # 6. TOP 5 MARCADORES EXACTOS
             # -----------------------------------------------------------------
             st.markdown('<div class="section-header">TOP 5 MARCADORES EXACTOS MÁS PROBABLES</div>', unsafe_allow_html=True)
             
