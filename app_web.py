@@ -85,7 +85,7 @@ def calcular_top_resultados(xg_loc, xg_vis):
     return top_5, prob_otro
 
 
-def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15):
+def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.10):
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -300,7 +300,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     ]
     
     max_gf = max(stats_loc['GF'], stats_vis['GF'], 15) * 1.1
-    max_xg = max(stats_loc['xG'], stats_vis['xG'], 2.0) * 1.2
+    max_xg = max(stats_loc['xG'], stats_vis['xG'], 2.5) * 1.2
     max_pos = 100
     max_vi = max(stats_loc['VI'], stats_vis['VI'], 5) * 1.2
     max_ta = max(stats_loc['TirosArco'], stats_vis['TirosArco'], 5.0) * 1.2
@@ -430,11 +430,12 @@ if os.path.exists(RUTA_CSV):
 
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
 
+    # CORRECCIÓN DE LA CREACIÓN DEL XG BASE PARA QUE NO SEA CASTIGADO
     if "xG" not in df.columns and "xG_Favor" not in df.columns:
         if "GF" in df.columns and "PJ" in df.columns:
-            df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
+            df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 1.0).round(2)
         else:
-            df["xG"] = 1.25
+            df["xG"] = 1.15
     elif "xG_Favor" in df.columns and "xG" not in df.columns:
         df["xG"] = df["xG_Favor"]
 
@@ -494,33 +495,28 @@ if os.path.exists(RUTA_CSV):
             
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
-            xg_loc_base = float(row_loc.get("xG", 1.25))
-            xg_vis_base = float(row_vis.get("xG", 1.10))
 
-            # 1. Obtener stats duros reales primero
+            # 1. Obtener stats duros reales
             gf_loc, gc_loc, pj_loc = obtener_stats_basicas(local, df, stats_wikipedia)
             gf_vis, gc_vis, pj_vis = obtener_stats_basicas(visitante, df, stats_wikipedia)
 
+            # 2. xG Base (sin castigar por segunda vez el ataque)
+            xg_loc_base = float(row_loc.get("xG", gf_loc / max(1, pj_loc)))
+            xg_vis_base = float(row_vis.get("xG", gf_vis / max(1, pj_vis)))
+
             MEDIA_LIGA = 1.15
             
-            # 2. Factores ofensivos y defensivos
-            f_ataque_loc = (gf_loc / pj_loc) / MEDIA_LIGA
-            f_defensa_vis = (gc_vis / pj_vis) / MEDIA_LIGA
-            
-            f_ataque_vis = (gf_vis / pj_vis) / MEDIA_LIGA
-            f_defensa_loc = (gc_loc / pj_loc) / MEDIA_LIGA
+            # 3. Factor de debilidad defensiva del rival (Topes para no romper todo)
+            f_defensa_vis = max(0.5, min(2.0, (gc_vis / max(1, pj_vis)) / MEDIA_LIGA))
+            f_defensa_loc = max(0.5, min(2.0, (gc_loc / max(1, pj_loc)) / MEDIA_LIGA))
 
-            # 3. Promedio del poder ofensivo propio con debilidad defensiva rival (Acá estaba el bug)
-            mult_loc = max(0.6, min(1.8, (f_ataque_loc + f_defensa_vis) / 2))
-            mult_vis = max(0.6, min(1.8, (f_ataque_vis + f_defensa_loc) / 2))
+            # 4. Ajuste directo: Mi xG Base multiplicado por cuán mala es la defensa del rival
+            xg_loc_ajustado = xg_loc_base * f_defensa_vis
+            xg_vis_ajustado = xg_vis_base * f_defensa_loc
 
-            # 4. Cruzar stats propias vs rival
-            xg_loc_ajustado = xg_loc_base * mult_loc
-            xg_vis_ajustado = xg_vis_base * mult_vis
-
-            # 5. Impacto extra de la localía (15%)
-            xg_proyectado_local = round(xg_loc_ajustado * 1.15, 2)
-            xg_proyectado_visi = round(xg_vis_ajustado * 0.925, 2) # Penalización por visita
+            # 5. Impacto de la localía (+10% local, -5% visitante para mayor realismo)
+            xg_proyectado_local = round(xg_loc_ajustado * 1.10, 2)
+            xg_proyectado_visi = round(xg_vis_ajustado * 0.95, 2)
 
             # 6. Calcular estadísticas secundarias para el Radar basadas en el nuevo xG
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
@@ -528,7 +524,7 @@ if os.path.exists(RUTA_CSV):
             
             # 7. Ejecutar predicción probabilística final
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
-                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15
+                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.10
             )
 
             st.markdown(
