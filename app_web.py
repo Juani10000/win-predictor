@@ -1,12 +1,13 @@
+import datetime
 import math
 import os
 import re
-import pandas as pd
-import streamlit as st
-import requests
-import datetime
-import plotly.graph_objects as go
 from bs4 import BeautifulSoup
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import requests
+import streamlit as st
 
 # =====================================================================
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
@@ -58,12 +59,36 @@ st.markdown(
 
 
 # ---------------------------------------------------------------------
-# FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON Y PREDICCIÓN
+# FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON, MONTE CARLO Y PREDICCIÓN
 # ---------------------------------------------------------------------
 def poisson_prob(lmbda, k):
     if lmbda <= 0:
         return 1.0 if k == 0 else 0.0
     return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
+
+
+def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
+    """Simula el partido N veces usando distribuciones estocásticas de Poisson."""
+    xg_loc_sim = np.random.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
+    xg_vis_sim = np.random.normal(xg_vis, xg_vis * 0.10, num_simulaciones)
+
+    xg_loc_sim = np.maximum(0.05, xg_loc_sim)
+    xg_vis_sim = np.maximum(0.05, xg_vis_sim)
+
+    goles_loc = np.random.poisson(xg_loc_sim)
+    goles_vis = np.random.poisson(xg_vis_sim)
+
+    victorias_loc = np.sum(goles_loc > goles_vis)
+    empates = np.sum(goles_loc == goles_vis)
+    victorias_vis = np.sum(goles_vis > goles_loc)
+
+    prob_loc_mc = (victorias_loc / num_simulaciones) * 100
+    prob_emp_mc = (empates / num_simulaciones) * 100
+    prob_vis_mc = (victorias_vis / num_simulaciones) * 100
+
+    goles_totales = goles_loc + goles_vis
+
+    return prob_loc_mc, prob_emp_mc, prob_vis_mc, goles_totales
 
 
 def calcular_top_resultados(xg_loc, xg_vis):
@@ -127,7 +152,6 @@ def realizar_prediccion(
         max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
     )
 
-    # 1. Fuerza ofensiva/defensiva base
     prom_loc = ((pts_loc / pj_loc) * 0.5) + (xg_proyectado_local * 0.5)
     prom_vis = ((pts_vis / pj_vis) * 0.5) + (xg_proyectado_visi * 0.5)
 
@@ -159,23 +183,20 @@ def realizar_prediccion(
     prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
     prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
 
-    # 2. CÁLCULO PRECISO DEL EMPATE MEDIANTE POISSON (0-0, 1-1, 2-2, 3-3)
+    # Cálculo del Empate mediante probabilidad conjunta de Poisson
     prob_empate_poisson = sum(
         poisson_prob(xg_proyectado_local, k)
         * poisson_prob(xg_proyectado_visi, k)
         for k in range(5)
     )
 
-    # Calibración para Liga Argentina (fútbol de pocos goles y alta paridad)
-    # Si la diferencia entre equipos es corta, el empate sube naturalmente
+    # Factor de paridad para la LPF
     diferencia_xg = abs(xg_proyectado_local - xg_proyectado_visi)
     factor_paridad = max(0.85, 1.25 - (diferencia_xg * 0.4))
 
     prob_empate = (prob_empate_poisson * 100) * factor_paridad
-    # Límites realistas para la LPF (entre 22% y 38%)
     prob_empate = max(22.0, min(38.0, prob_empate))
 
-    # 3. Distribución del porcentaje restante entre Local y Visitante
     resto = 100.0 - prob_empate
     total_prom = prom_loc_ajustado + prom_vis_ajustado
 
@@ -187,6 +208,7 @@ def realizar_prediccion(
         prob_vis = resto / 2
 
     return prob_loc, prob_empate, prob_vis
+
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
@@ -253,7 +275,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 def obtener_partidos_hoy_auto(equipos_disponibles):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     fecha_hoy_str = me = ahora_arg.strftime("%Y-%m-%d")
-    fecha_espn_url = ahora_arg.strftime("%Y%m%d")
+    fecha_espn_url = me = me = me = me = me = ahora_arg.strftime("%Y%m%d")
 
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_espn_url}"
     partidos_hoy = []
@@ -362,7 +384,16 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     vi = int(tasa_invicta * 0.4)
     tiros_arco = round(xg_proyectado * 3.5 + (gf / pj * 1.5), 1)
     pases = min(92, max(60, int(pos * 1.15 + 8)))
-    corners = round((xg_proyectado * 2.5) + (pos * 0.06), 1)
+
+    if "Corners" in df.columns:
+        corners = round(float(row.get("Corners", 4.2)), 1)
+    elif "Corners_Favor" in df.columns:
+        corners = round(float(row.get("Corners_Favor", 4.2)), 1)
+    else:
+        corners = round(
+            max(3.0, min(5.8, 2.2 + (xg_proyectado * 1.1) + (pos * 0.02))), 1
+        )
+
     gc_pp = gc / pj
     fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
 
@@ -616,7 +647,6 @@ if os.path.exists(RUTA_CSV):
             xg_loc_base = float(row_loc.get("xG", 1.25))
             xg_vis_base = float(row_vis.get("xG", 1.10))
 
-            # Factor de localía fijo al 15%
             FACTOR_LOCALIA = 0.15
             xg_proyectado_local = round(
                 xg_loc_base * (1.0 + FACTOR_LOCALIA), 2
@@ -724,36 +754,50 @@ if os.path.exists(RUTA_CSV):
                 )
 
             st.markdown("---")
-import numpy as np
 
-
-def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
-    """Simula el partido N veces usando distribuciones de Poisson ajustadas con variabilidad aleatoria."""
-    # Agregamos ligera variabilidad en la efectividad del partido (desviación estándar del 10%)
-    xg_loc_sim = np.random.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
-    xg_vis_sim = np.random.normal(xg_vis, xg_vis * 0.10, num_simulaciones)
-
-    # Aseguramos valores positivos
-    xg_loc_sim = np.maximum(0.05, xg_loc_sim)
-    xg_vis_sim = np.maximum(0.05, xg_vis_sim)
-
-    # Generación de goles simulados
-    goles_loc = np.random.poisson(xg_loc_sim)
-    goles_vis = np.random.poisson(xg_vis_sim)
-
-    victorias_loc = np.sum(goles_loc > goles_vis)
-    empates = np.sum(goles_loc == goles_vis)
-    victorias_vis = np.sum(goles_vis > goles_loc)
-
-    prob_loc_mc = (victorias_loc / num_simulaciones) * 100
-    prob_emp_mc = (empates / num_simulaciones) * 100
-    prob_vis_mc = (victorias_vis / num_simulaciones) * 100
-
-    goles_totales = goles_loc + goles_vis
-
-    return prob_loc_mc, prob_emp_mc, prob_vis_mc, goles_totales
             # -----------------------------------------------------------------
-            # 6. GRÁFICO TIPO RADAR
+            # 6. SIMULACIÓN MONTE CARLO (10,000 PARTIDOS)
+            # -----------------------------------------------------------------
+            st.markdown(
+                "<h4 style='color: #cbd5e1;'>Simulación Estocástica Monte Carlo"
+                " (10,000 Partidos)</h4>",
+                unsafe_allow_html=True,
+            )
+
+            p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(
+                xg_proyectado_local, xg_proyectado_visi
+            )
+
+            c_mc1, c_mc2, c_mc3 = st.columns(3)
+            c_mc1.metric(f"Victoria {local} (MC)", f"{p_loc_mc:.1f}%")
+            c_mc2.metric("Empate (MC)", f"{p_emp_mc:.1f}%")
+            c_mc3.metric(f"Victoria {visitante} (MC)", f"{p_vis_mc:.1f}%")
+
+            fig_hist = go.Figure()
+            fig_hist.add_trace(
+                go.Histogram(
+                    x=goles_sim,
+                    nbinsx=10,
+                    marker_color="#00f3ff",
+                    opacity=0.75,
+                    name="Goles Totales",
+                )
+            )
+            fig_hist.update_layout(
+                title="Distribución de Goles Totales en 10,000 Simulaciones",
+                xaxis_title="Cantidad de Goles en el Partido",
+                yaxis_title="Frecuencia (N° de Simulación)",
+                paper_bgcolor="#070b14",
+                plot_bgcolor="#111827",
+                font=dict(color="#cbd5e1"),
+                margin=dict(t=40, b=40, l=40, r=40),
+            )
+            st.plotly_chart(fig_hist, use_container_width=True)
+
+            st.markdown("---")
+
+            # -----------------------------------------------------------------
+            # 7. GRÁFICO TIPO RADAR
             # -----------------------------------------------------------------
             st.markdown(
                 "<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis"
@@ -766,7 +810,7 @@ def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
             st.markdown("---")
 
             # -----------------------------------------------------------------
-            # 7. TOP 5 RESULTADOS MÁS PROBABLES
+            # 8. TOP 5 RESULTADOS MÁS PROBABLES
             # -----------------------------------------------------------------
             st.markdown(
                 "<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más"
