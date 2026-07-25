@@ -4,21 +4,19 @@ import os
 import re
 
 # =====================================================================
-# 1. CONFIGURACIÓN Y CSS FACHERO (NEÓN Y COLORES SERIOS)
+# 1. CONFIGURACIÓN Y CSS NEÓN
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
 st.markdown("""
     <style>
-        /* Fondo general súper oscuro */
         .stApp {
             background-color: #070b14;
             color: #e2e8f0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        /* Efecto Neón para el título principal */
         .neon-title {
-            font-size: 48px;
+            font-size: 44px;
             font-weight: 900;
             text-align: left;
             color: #ffffff;
@@ -26,27 +24,24 @@ st.markdown("""
             margin-bottom: 5px;
             text-transform: uppercase;
         }
-        /* Subtítulo tecnológico */
         .tech-sub {
             text-align: left;
             color: #94a3b8;
             letter-spacing: 2px;
-            font-size: 16px;
-            margin-bottom: 30px;
+            font-size: 15px;
+            margin-bottom: 25px;
         }
-        /* Estilo de los números de porcentaje */
         [data-testid="stMetricValue"] {
             color: #00ffcc !important;
-            font-size: 40px !important;
+            font-size: 36px !important;
             font-weight: 900 !important;
             text-shadow: 0 0 5px #00ffcc80;
         }
         [data-testid="stMetricLabel"] {
             color: #94a3b8 !important;
-            font-size: 16px !important;
+            font-size: 14px !important;
             text-transform: uppercase;
         }
-        /* Separadores */
         hr {
             border-top: 1px solid #1e293b;
         }
@@ -54,22 +49,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------
-# ENCABEZADO LIMPIO CON LOGO ESPN (SIN GIFS ROTOS)
+# ENCABEZADO CON LOGO
 # ---------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
-    # URL directa de ESPN
     url_lpf = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
     st.image(url_lpf, width=110)
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">MOTOR DE PROBABILIDAD ESTADÍSTICA v2.0</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">MODELO xG & PREDICCIÓN AVANZADA DE PARTIDOS</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
 # =====================================================================
-# 2. CARGA DE DATOS
+# 2. CARGA Y PROCESAMIENTO DE DATOS CON xG
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
@@ -83,17 +77,27 @@ if os.path.exists(RUTA_CSV):
     if "Equipo" in df.columns:
         df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
 
-    # =================================================================
-    # 3. TABLA DE POSICIONES SIEMPRE VISIBLE
-    # =================================================================
-    st.markdown("<h3 style='color: #cbd5e1;'>📊 Estado Actual del Campeonato</h3>", unsafe_allow_html=True)
+    # Generación o validación de columna xG si no existe en el CSV
+    if "xG" not in df.columns and "xG_Favor" not in df.columns:
+        # Estimación estándar basada en goles convertidos o partidos si falta la métrica exacta
+        if "GF" in df.columns and "PJ" in df.columns:
+            df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
+        else:
+            df["xG"] = 1.20  # Valor base estándar
+    elif "xG_Favor" in df.columns:
+        df["xG"] = df["xG_Favor"]
+
+    # -----------------------------------------------------------------
+    # 3. TABLA DE POSICIONES CON METRICA xG
+    # -----------------------------------------------------------------
+    st.markdown("<h3 style='color: #cbd5e1;'>📊 Tabla General & Métricas de xG</h3>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
-    # =================================================================
-    # 4. PREDICTOR 
-    # =================================================================
-    st.markdown("<h3 style='color: #cbd5e1;'>🎯 Motor de Predicción</h3>", unsafe_allow_html=True)
+    # -----------------------------------------------------------------
+    # 4. PREDICTOR BASADO EN xG + RENDIMIENTO
+    # -----------------------------------------------------------------
+    st.markdown("<h3 style='color: #cbd5e1;'>🎯 Predictor de Partido con xG Proyectado</h3>", unsafe_allow_html=True)
     
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
 
@@ -107,7 +111,6 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            # Cálculos automáticos sin botones para que sea más dinámico
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -116,11 +119,20 @@ if os.path.exists(RUTA_CSV):
             pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
             pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
 
-            prom_loc = (pts_loc / pj_loc) * 1.12
-            prom_vis = (pts_vis / pj_vis)
+            xg_loc_base = float(row_loc.get("xG", 1.25))
+            xg_vis_base = float(row_vis.get("xG", 1.10))
 
+            # Cálculo de xG proyectado para el encuentro (+10% factor localía)
+            xg_proyectado_local = round(xg_loc_base * 1.10, 2)
+            xg_proyectado_visi = round(xg_vis_base * 0.95, 2)
+
+            # Promedio combinado (Puntos + xG)
+            prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
+            prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
+
+            # Probabilidades
             diferencia = abs(prom_loc - prom_vis)
-            prob_empate = max(18.0, min(33.0, 29.0 - (diferencia * 7.5)))
+            prob_empate = max(18.0, min(33.0, 28.5 - (diferencia * 6.0)))
 
             resto = 100.0 - prob_empate
             total_prom = prom_loc + prom_vis
@@ -132,14 +144,23 @@ if os.path.exists(RUTA_CSV):
                 prob_loc = resto / 2
                 prob_vis = resto / 2
 
-            st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 30px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
             
+            # Fila extra con xG proyectado
+            col_xg1, col_xg2 = st.columns(2)
+            with col_xg1:
+                st.info(f"xG Proyectado {local}: **{xg_proyectado_local}**")
+            with col_xg2:
+                st.info(f"xG Proyectado {visitante}: **{xg_proyectado_visi}**")
+
+            # Tarjetas de resultado
             m1, m2, m3 = st.columns(3)
             m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
-            m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
+            m2.metric(label="Empate", value=f"{prob_empate:.1f}%")
             m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
 
-            st.markdown("<br><p style='color: #94a3b8;'>Distribución visual de probabilidades:</p>", unsafe_allow_html=True)
+            # Barras de porcentaje
+            st.markdown("<br><p style='color: #94a3b8;'>Distribución estadística de posibilidades:</p>", unsafe_allow_html=True)
             
             c_loc, c_emp, c_vis = st.columns(3)
             with c_loc:
