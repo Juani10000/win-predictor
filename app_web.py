@@ -9,99 +9,6 @@ import requests
 from bs4 import BeautifulSoup
 import datetime
 
-# --- FUNCION PARA OBTENER LOS PARTIDOS DEL DIA ---
-@st.cache_data(ttl=3600)  # Guarda el resultado 1 hora para no saturar la web
-def obtener_partidos_de_hoy():
-    url = "https://www.promiedos.com.ar/"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    partidos = []
-
-    try:
-        response = requests.get(url, headers=headers, timeout=5)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Buscar tabla de partidos (Liga Profesional / Copa de la Liga)
-            # Promiedos usa filas con id 'p1_1', 'p1_2', etc. o clase 'goles'
-            filas = soup.find_all('tr', id=lambda x: x and x.startswith('p'))
-            
-            for fila in filas:
-                columnas = fila.find_all('td')
-                if len(columnas) >= 5:
-                    # Extraer nombres de equipos
-                    local = columnas[1].text.strip()
-                    visitante = columnas[4].text.strip()
-                    hora_estado = columnas[0].text.strip()
-                    
-                    if local and visitante:
-                        partidos.append({
-                            "Local": local,
-                            "Visitante": visitante,
-                            "Hora": hora_estado
-                        })
-    except Exception as e:
-        st.error(f"No se pudieron cargar los partidos en vivo: {e}")
-
-    # Si no encuentra partidos en vivo (o para pruebas), devolvemos una lista de ejemplo
-    if not partidos:
-        partidos = [
-            {"Local": "River Plate", "Visitante": "Boca Juniors", "Hora": "17:00"},
-            {"Local": "Racing Club", "Visitante": "Independiente", "Hora": "19:15"},
-            {"Local": "San Lorenzo", "Visitante": "Huracan", "Hora": "21:30"}
-        ]
-
-    return partidos
-
-
-# --- FUNCION SIMULADA DE PREDICCION (Reemplazar con tu algoritmo actual) ---
-def predecir_partido(equipo_loc, equipo_vis):
-    # Acá conectás tu modelo real de probabilidades y goles
-    prob_loc = 52
-    prob_empate = 28
-    prob_vis = 20
-    marcador = "2 - 1"
-    return prob_loc, prob_empate, prob_vis, marcador
-
-
-# --- INTERFAZ EN STREAMLIT ---
-st.title("⚽ Win Predictor - Agenda del Día")
-
-fecha_actual = datetime.date.today().strftime("%d/%m/%Y")
-st.write(f"📅 **Partidos programados para hoy ({fecha_actual}):**")
-
-# Botón para refrescar partidos
-if st.button("🔄 Actualizar agenda de hoy"):
-    st.cache_data.clear()
-
-partidos_hoy = obtener_partidos_de_hoy()
-
-if partidos_hoy:
-    st.success(f"Se encontraron {len(partidos_hoy)} partidos para hoy.")
-    
-    # Renderizar cada partido en una tarjeta (expander o columnas)
-    for idx, p in enumerate(partidos_hoy):
-        with st.container():
-            col_info, col_btn = st.columns([3, 1])
-            
-            with col_info:
-                st.markdown(f"### 🕒 {p['Hora']} | **{p['Local']} vs {p['Visitante']}**")
-            
-            with col_btn:
-                # Cada partido tiene su propio botón de predicción rápida
-                if st.button("🔮 Predecir", key=f"btn_{idx}"):
-                    p_loc, p_emp, p_vis, marcador = predecir_partido(p['Local'], p['Visitante'])
-                    
-                    st.info(f"**Resultado estimado:** {marcador}")
-                    
-                    # Mostrar barra de probabilidades
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric(f"Victoria {p['Local']}", f"{p_loc}%")
-                    c2.metric("Empate", f"{p_emp}%")
-                    c3.metric(f"Victoria {p['Visitante']}", f"{p_vis}%")
-            
-            st.divider()
-else:
-    st.info("No hay partidos programados registrados para la jornada de hoy.")
 # =====================================================================
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
 # =====================================================================
@@ -149,7 +56,55 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+import streamlit as st
+import requests
+from bs4 import BeautifulSoup
+import datetime
 
+@st.cache_data(ttl=3600)
+def obtener_partidos_hoy_wiki():
+    url = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
+    partidos_hoy = []
+    
+    # 1. Armamos la fecha de hoy con el formato de Wikipedia (ej: "25 de julio")
+    meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", 
+             "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    hoy = datetime.date.today()
+    fecha_wiki = f"{hoy.day} de {meses[hoy.month - 1]}"
+    
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 2. Buscamos todas las filas de las tablas en la página
+        filas = soup.find_all('tr')
+        
+        for fila in filas:
+            # Extraemos el texto de cada celda de la fila
+            celdas = [td.get_text(strip=True) for td in fila.find_all(['td', 'th'])]
+            texto_fila = fila.get_text().lower()
+            
+            # 3. Si la fila tiene formato de partido (varias columnas) y menciona la fecha de hoy
+            if len(celdas) >= 5 and fecha_wiki in texto_fila:
+                
+                # En Wikipedia el formato suele ser: [0]Local, [1]Resultado, [2]Visitante, [3]Estadio, [4]Fecha, [5]Hora
+                local = celdas[0]
+                visitante = celdas[2]
+                
+                # Filtro rápido para asegurarnos de que sean nombres de equipos y no texto basura
+                if local and visitante and len(local) > 2:
+                    partidos_hoy.append({
+                        "Local": local,
+                        "Visitante": visitante,
+                        "Hora": celdas[-1] if len(celdas) >= 6 else "A conf."
+                    })
+                    
+    except Exception as e:
+        st.error(f"Error al intentar leer Wikipedia: {e}")
+
+    # Si por algún motivo no hay partidos o no los encuentra, avisamos
+    return partidos_hoy
 
 # ---------------------------------------------------------------------
 # FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON (MARCADORES EXACTOS)
