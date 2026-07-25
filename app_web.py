@@ -85,8 +85,8 @@ def calcular_top_resultados(xg_loc, xg_vis):
     return top_5, prob_otro
 
 
-def realizar_prediccion(local, visitante, df, factor_localia=0.10):
-    """Lógica principal de predicción de partidos incorporando Factor Localía moderado."""
+def realizar_prediccion(local, visitante, df, factor_localia=0.15):
+    """Lógica principal de predicción de partidos con un Factor Localía fijo del 15%."""
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -98,15 +98,15 @@ def realizar_prediccion(local, visitante, df, factor_localia=0.10):
     xg_loc_base = float(row_loc.get("xG", 1.25))
     xg_vis_base = float(row_vis.get("xG", 1.10))
 
-    # IMPACTO REDUCIDO: Modificación más suave del xG según el Factor Localía
-    xg_proyectado_local = round(xg_loc_base * (1.0 + (factor_localia * 0.5)), 2)
-    xg_proyectado_visi = round(xg_vis_base * (1.0 - (factor_localia * 0.25)), 2)
+    # Ajuste de xG según el 15% de localía
+    xg_proyectado_local = round(xg_loc_base * (1.0 + factor_localia), 2)
+    xg_proyectado_visi = round(xg_vis_base * (1.0 - (factor_localia * 0.5)), 2)
 
     prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
 
-    # IMPACTO REDUCIDO: Menor impulso al rendimiento general del local
-    prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.25))
+    # Impulso al rendimiento general del local por jugar en casa
+    prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     prom_vis_ajustado = prom_vis
 
     diferencia = abs(prom_loc_ajustado - prom_vis_ajustado)
@@ -325,22 +325,12 @@ if os.path.exists(RUTA_CSV):
         with col2:
             visitante = st.selectbox("Seleccionar Visitante", lista_equipos, index=min(1, len(lista_equipos) - 1), key="sb_visit")
 
-        # Control deslizable para ajustar el Factor Localía (Default 10%)
-        factor_localia_pct = st.slider(
-            "Ventaja por Factor Localía (%)",
-            min_value=0,
-            max_value=30,
-            value=10,
-            step=1,
-            help="Aumenta levemente el rendimiento y el xG del equipo local."
-        )
-        factor_localia_val = factor_localia_pct / 100.0
-
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
+            # Se aplica automáticamente el factor localía fijo de 0.15 (15%)
             prob_loc, prob_empate, prob_vis, xg_proyectado_local, xg_proyectado_visi = realizar_prediccion(
-                local, visitante, df, factor_localia=factor_localia_val
+                local, visitante, df, factor_localia=0.15
             )
 
             st.markdown(
