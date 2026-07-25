@@ -430,7 +430,7 @@ if os.path.exists(RUTA_CSV):
 
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
 
-    # CORRECCIÓN DE LA CREACIÓN DEL XG BASE PARA QUE NO SEA CASTIGADO
+    # El xG Base se genera limpio y directo
     if "xG" not in df.columns and "xG_Favor" not in df.columns:
         if "GF" in df.columns and "PJ" in df.columns:
             df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 1.0).round(2)
@@ -500,29 +500,33 @@ if os.path.exists(RUTA_CSV):
             gf_loc, gc_loc, pj_loc = obtener_stats_basicas(local, df, stats_wikipedia)
             gf_vis, gc_vis, pj_vis = obtener_stats_basicas(visitante, df, stats_wikipedia)
 
-            # 2. xG Base (sin castigar por segunda vez el ataque)
+            # 2. xG Base 
             xg_loc_base = float(row_loc.get("xG", gf_loc / max(1, pj_loc)))
             xg_vis_base = float(row_vis.get("xG", gf_vis / max(1, pj_vis)))
 
             MEDIA_LIGA = 1.15
             
-            # 3. Factor de debilidad defensiva del rival (Topes para no romper todo)
-            f_defensa_vis = max(0.5, min(2.0, (gc_vis / max(1, pj_vis)) / MEDIA_LIGA))
-            f_defensa_loc = max(0.5, min(2.0, (gc_loc / max(1, pj_loc)) / MEDIA_LIGA))
+            # 3. Promedio de goles en contra (cuánto sufre la defensa)
+            gc_prom_vis = gc_vis / max(1, pj_vis)
+            gc_prom_loc = gc_loc / max(1, pj_loc)
 
-            # 4. Ajuste directo: Mi xG Base multiplicado por cuán mala es la defensa del rival
-            xg_loc_ajustado = xg_loc_base * f_defensa_vis
-            xg_vis_ajustado = xg_vis_base * f_defensa_loc
+            # 4. Diferencia respecto al promedio (Positivo suma a tu ataque, negativo resta)
+            dif_defensa_vis = gc_prom_vis - MEDIA_LIGA
+            dif_defensa_loc = gc_prom_loc - MEDIA_LIGA
 
-            # 5. Impacto de la localía (+10% local, -5% visitante para mayor realismo)
+            # 5. SISTEMA ADITIVO: Le sumamos al ataque propio la debilidad rival (con un piso de 0.5)
+            xg_loc_ajustado = max(0.5, xg_loc_base + dif_defensa_vis)
+            xg_vis_ajustado = max(0.5, xg_vis_base + dif_defensa_loc)
+
+            # 6. Impacto de la localía (+10% local, -5% visitante para balancear)
             xg_proyectado_local = round(xg_loc_ajustado * 1.10, 2)
             xg_proyectado_visi = round(xg_vis_ajustado * 0.95, 2)
 
-            # 6. Calcular estadísticas secundarias para el Radar basadas en el nuevo xG
+            # 7. Calcular estadísticas secundarias para el Radar basadas en el nuevo xG
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
-            # 7. Ejecutar predicción probabilística final
+            # 8. Ejecutar predicción probabilística final
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
                 local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.10
             )
