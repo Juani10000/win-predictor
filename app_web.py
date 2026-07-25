@@ -124,18 +124,37 @@ def buscar_equipo(nombre_buscado, lista_equipos):
     """Mapea un nombre común de equipo al nombre exacto en el DataFrame."""
     nombre_clean = nombre_buscado.lower().strip()
     
-    # 1. Búsqueda exacta parcial
+    # Reglas específicas para diferenciar Estudiantes LP y Estudiantes RC
+    if "rio cuarto" in nombre_clean or "río cuarto" in nombre_clean or "rc" in nombre_clean.split():
+        for eq in lista_equipos:
+            if "rc" in eq.lower() or "rio cuarto" in eq.lower():
+                return eq
+    elif "la plata" in nombre_clean or "lp" in nombre_clean.split():
+        for eq in lista_equipos:
+            if "estudiantes" in eq.lower() and "rc" not in eq.lower():
+                return eq
+
+    # 1. Búsqueda exacta
+    for eq in lista_equipos:
+        if nombre_clean == eq.lower().strip():
+            return eq
+
+    # 2. Búsqueda parcial
     for eq in lista_equipos:
         eq_clean = eq.lower().strip()
         if nombre_clean in eq_clean or eq_clean in nombre_clean:
+            if "estudiantes" in eq_clean and ("rio cuarto" in nombre_clean or "rc" in nombre_clean) and "rc" not in eq_clean:
+                continue
             return eq
             
-    # 2. Búsqueda por palabras clave (ej: "Estudiantes RC" -> "Estudiantes")
+    # 3. Búsqueda por palabras clave
     palabras = nombre_clean.split()
     if palabras:
         palabra_clave = palabras[0]
         for eq in lista_equipos:
             if palabra_clave in eq.lower():
+                if palabra_clave == "estudiantes" and ("rc" in nombre_clean or "rio cuarto" in nombre_clean) and "rc" not in eq.lower():
+                    continue
                 return eq
     return None
 
@@ -222,11 +241,17 @@ if os.path.exists(RUTA_CSV):
     df = pd.read_csv(RUTA_CSV)
 
     if "Equipo" in df.columns:
-        df["Equipo"] = (
-            df["Equipo"]
-            .astype(str)
-            .apply(lambda x: re.sub(r"\[.*?\]|\(.*?\)", "", x).strip())
-        )
+        def limpiar_nombre_equipo(x):
+            s = str(x).strip()
+            # Asignación explícita para Río Cuarto
+            if any(k in s.lower() for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]):
+                return "Estudiantes RC"
+            # Asignación para Estudiantes de La Plata
+            if any(k in s.lower() for k in ["la plata", "(lp)"]):
+                return "Estudiantes"
+            return re.sub(r"\[.*?\]|\(.*?\)", "", s).strip()
+
+        df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
 
     # Garantizar columna xG
     if "xG" not in df.columns and "xG_Favor" not in df.columns:
@@ -241,7 +266,7 @@ if os.path.exists(RUTA_CSV):
 
 
     # -----------------------------------------------------------------
-    # 3. AGENDA DEL DÍA AUTOMÁTICA (SIN BOTÓN)
+    # 3. AGENDA DEL DÍA AUTOMÁTICA
     # -----------------------------------------------------------------
     st.markdown(
         "<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>",
