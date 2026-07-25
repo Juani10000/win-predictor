@@ -97,10 +97,9 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
 
-    prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
+    prom_loc_ajustado = prom_loc
     prom_vis_ajustado = prom_vis
     
-    # NUEVO: IMPACTO DEL FRENTE A FRENTE CON LAS 8 ESTADÍSTICAS
     score_loc = (stats_loc['GF'] * 0.2) + (stats_loc['Pos'] * 0.05) + (stats_loc['VI'] * 1.2) + (stats_loc['TirosArco'] * 0.8) + (stats_loc['Fortaleza'] * 0.1)
     score_vis = (stats_vis['GF'] * 0.2) + (stats_vis['Pos'] * 0.05) + (stats_vis['VI'] * 1.2) + (stats_vis['TirosArco'] * 0.8) + (stats_vis['Fortaleza'] * 0.1)
     
@@ -256,31 +255,29 @@ def obtener_estadisticas_wiki(equipos_disponibles):
     return stats_wiki
 
 
-def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
+def obtener_stats_basicas(equipo, df, stats_wiki):
     row = df[df["Equipo"] == equipo].iloc[0]
-    
     if equipo in stats_wiki:
         gf = stats_wiki[equipo]["GF"]
-        pj = max(1, stats_wiki[equipo]["PJ"])
         gc = stats_wiki[equipo]["GC"]
+        pj = max(1, stats_wiki[equipo]["PJ"])
     else:
-        gf = int(row.get("GF", round(xg_proyectado * 12)))
-        pj = int(row.get("PJ", 12))
+        gf = int(row.get("GF", 12))
         gc = int(row.get("GC", 12))
+        pj = int(row.get("PJ", 12))
         if pj == 0: pj = 1
+    return gf, gc, pj
 
-    # Cálculos y estimaciones avanzadas para las 8 variables del Radar
+
+def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
+    gf, gc, pj = obtener_stats_basicas(equipo, df, stats_wiki)
+
     pos = min(75, max(35, int(40 + (gf / pj * 8) + (xg_proyectado * 3))))
-    
     tasa_invicta = max(0, pj - int(gc * 0.8))
     vi = int(tasa_invicta * 0.4) 
-    
     tiros_arco = round(xg_proyectado * 3.5 + (gf / pj * 1.5), 1)
-    
     pases = min(92, max(60, int(pos * 1.15 + 8)))
-    
     corners = round((xg_proyectado * 2.5) + (pos * 0.06), 1)
-    
     gc_pp = gc / pj
     fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
     
@@ -302,7 +299,6 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         'Tiros al Arco (p/p)', 'Eficacia Pases (%)', 'Córners (p/p)', 'Fuerza Defensiva'
     ]
     
-    # Dinamización de los ejes máximos para que el gráfico no se deforme
     max_gf = max(stats_loc['GF'], stats_vis['GF'], 15) * 1.1
     max_xg = max(stats_loc['xG'], stats_vis['xG'], 2.0) * 1.2
     max_pos = 100
@@ -500,12 +496,33 @@ if os.path.exists(RUTA_CSV):
             row_vis = df[df["Equipo"] == visitante].iloc[0]
             xg_loc_base = float(row_loc.get("xG", 1.25))
             xg_vis_base = float(row_vis.get("xG", 1.10))
-            xg_proyectado_local = round(xg_loc_base * (1.0 + 0.15), 2)
-            xg_proyectado_visi = round(xg_vis_base * (1.0 - (0.15 * 0.5)), 2)
 
+            # 1. Obtener stats duros reales primero
+            gf_loc, gc_loc, pj_loc = obtener_stats_basicas(local, df, stats_wikipedia)
+            gf_vis, gc_vis, pj_vis = obtener_stats_basicas(visitante, df, stats_wikipedia)
+
+            MEDIA_LIGA = 1.15
+            
+            # 2. Factores ofensivos y defensivos (limitados inferiormente para no matar equipos en 0)
+            f_ataque_loc = max(0.5, (gf_loc / pj_loc) / MEDIA_LIGA)
+            f_defensa_vis = max(0.5, (gc_vis / pj_vis) / MEDIA_LIGA)
+            
+            f_ataque_vis = max(0.5, (gf_vis / pj_vis) / MEDIA_LIGA)
+            f_defensa_loc = max(0.5, (gc_loc / pj_loc) / MEDIA_LIGA)
+
+            # 3. Cruzar stats propias vs rival
+            xg_loc_ajustado = xg_loc_base * f_ataque_loc * f_defensa_vis
+            xg_vis_ajustado = xg_vis_base * f_ataque_vis * f_defensa_loc
+
+            # 4. Impacto extra de la localía (15%)
+            xg_proyectado_local = round(xg_loc_ajustado * 1.15, 2)
+            xg_proyectado_visi = round(xg_vis_ajustado * 0.925, 2) # Penalización por visita
+
+            # 5. Calcular estadísticas secundarias para el Radar basadas en el nuevo xG
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
+            # 6. Ejecutar predicción probabilística final
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
                 local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15
             )
