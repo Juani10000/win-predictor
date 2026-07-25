@@ -3,7 +3,7 @@ name: Actualizar Datos de Fútbol
 on:
   schedule:
     # Se ejecuta todos los días a las 09:00 UTC (06:00 AM hora de Argentina)
-    - cron: '0 9 * * *'
+    - cron: '0 1,15,16,17,18,19,20,21,22,23 * * *'
   workflow_dispatch: # Mantiene el botón para ejecutar el script manualmente
 
 jobs:
