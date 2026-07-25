@@ -1,39 +1,43 @@
-import streamlit as st
-import pandas as pd
+import math
 import os
 import re
-import math
+import pandas as pd
+import streamlit as st
+
 
 # =====================================================================
-# 1. FUNCIONES AUXILIARES DE CÁLCULO (DEBEN IR AL INICIO)
+# 1. FUNCIONES AUXILIARES DE CÁLCULO
 # =====================================================================
 def poisson_prob(lmbda, k):
-    """Calcula la probabilidad de anotar k goles dado un xG de lmbda."""
-    if lmbda <= 0:
-        return 1.0 if k == 0 else 0.0
-    return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
+  """Calcula la probabilidad de anotar k goles dado un xG de lmbda."""
+  if lmbda <= 0:
+    return 1.0 if k == 0 else 0.0
+  return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
+
 
 def calcular_top_resultados(xg_loc, xg_vis):
-    """Calcula la matriz de probabilidades de marcadores exactos (0 a 5 goles)."""
-    scores = {}
-    for i in range(6):
-        for j in range(6):
-            p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
-            scores[f"{i} - {j}"] = p * 100
+  """Calcula la matriz de probabilidades de marcadores exactos (0 a 5 goles)."""
+  scores = {}
+  for i in range(6):
+    for j in range(6):
+      p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
+      scores[f'{i} - {j}'] = p * 100
 
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    top_5 = sorted_scores[:5]
-    prob_top_5 = sum(p for _, p in top_5)
-    prob_otro = max(0.0, 100.0 - prob_top_5)
+  sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+  top_5 = sorted_scores[:5]
+  prob_top_5 = sum(p for _, p in top_5)
+  prob_otro = max(0.0, 100.0 - prob_top_5)
 
-    return top_5, prob_otro
+  return top_5, prob_otro
+
 
 # =====================================================================
-# 2. CONFIGURACIÓN Y CSS PROFESIONAL FUTURISTA (SIN EMOJIS)
+# 2. CONFIGURACIÓN Y CSS PROFESIONAL FUTURISTA
 # =====================================================================
-st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
+st.set_page_config(page_title='Win Predictor | LPF', layout='wide')
 
-st.markdown("""
+st.markdown(
+    """
     <style>
         /* Fondo general y tipografía */
         .stApp {
@@ -94,7 +98,7 @@ st.markdown("""
             text-transform: uppercase;
         }
         
-        /* Tarjetas de Estadísticas (xG y Métricas) */
+        /* Tarjetas de Estadísticas */
         .stat-card {
             background-color: #0f172a;
             border: 1px solid #1e293b;
@@ -127,7 +131,7 @@ st.markdown("""
             color: #cbd5e1;
         }
 
-        /* Personalización del Selector */
+        /* Selector de equipos */
         div[data-baseweb="select"] > div {
             background-color: #0f172a !important;
             border-color: #334155 !important;
@@ -135,7 +139,7 @@ st.markdown("""
             border-radius: 8px !important;
         }
 
-        /* Tabla estilizada de marcadores exactos */
+        /* Tabla estilizada */
         .custom-table {
             width: 100%;
             border-collapse: collapse;
@@ -164,7 +168,6 @@ st.markdown("""
             font-weight: bold;
         }
 
-        /* Separador */
         hr {
             border: 0;
             height: 1px;
@@ -172,186 +175,235 @@ st.markdown("""
             margin: 25px 0;
         }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ---------------------------------------------------------------------
 # ENCABEZADO PRINCIPAL
 # ---------------------------------------------------------------------
 col_logo, col_titulo = st.columns([1, 7])
 with col_logo:
-    url_lpf = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
-    st.image(url_lpf, width=95)
+  url_lpf = (
+      '[https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png](https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png)'
+  )
+  st.image(url_lpf, width=95)
 
 with col_titulo:
-    st.markdown('<div class="hero-title">WIN PREDICTOR LPF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="hero-subtitle">MODELO ANALÍTICO DE EXPECTED GOALS Y MATRIZ DE PROBABILIDAD</div>', unsafe_allow_html=True)
+  st.markdown(
+      '<div class="hero-title">WIN PREDICTOR LPF</div>', unsafe_allow_html=True
+  )
+  st.markdown(
+      '<div class="hero-subtitle">MODELO ANALÍTICO DE EXPECTED GOALS Y MATRIZ'
+      ' DE PROBABILIDAD</div>',
+      unsafe_allow_html=True,
+  )
 
-st.markdown("<hr>", unsafe_allow_html=True)
+st.markdown('<hr>', unsafe_allow_html=True)
 
 # =====================================================================
 # 3. CARGA DE DATOS
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
-RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
+RUTA_CSV = os.path.join(DIRECTORIO_APP, 'datos_procesados.csv')
 
 if not os.path.exists(RUTA_CSV):
-    RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos", "datos_procesados.csv")
+  RUTA_CSV = os.path.join(DIRECTORIO_APP, 'datos', 'datos_procesados.csv')
 
 if os.path.exists(RUTA_CSV):
-    df = pd.read_csv(RUTA_CSV)
-    
-    if "Equipo" in df.columns:
-        df["Equipo"] = df["Equipo"].astype(str).apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
+  df = pd.read_csv(RUTA_CSV)
 
-    # Garantizar columna xG
-    if "xG" not in df.columns and "xG_Favor" not in df.columns:
-        if "GF" in df.columns and "PJ" in df.columns:
-            df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
-        else:
-            df["xG"] = 1.25
-    elif "xG_Favor" in df.columns and "xG" not in df.columns:
-        df["xG"] = df["xG_Favor"]
+  if 'Equipo' in df.columns:
+    df['Equipo'] = (
+        df['Equipo']
+        .astype(str)
+        .apply(lambda x: re.sub(r'\[.*?\]|\(.*?\)', '', x).strip())
+    )
 
-    # -----------------------------------------------------------------
-    # 4. TABLA DE POSICIONES
-    # -----------------------------------------------------------------
-    st.markdown('<div class="section-header">TABLA GENERAL DE POSICIONES Y METRICAS DE XG</div>', unsafe_allow_html=True)
-    st.dataframe(df, use_container_width=True, hide_index=True)
-    
-    st.markdown("<hr>", unsafe_allow_html=True)
+  if 'xG' not in df.columns and 'xG_Favor' not in df.columns:
+    if 'GF' in df.columns and 'PJ' in df.columns:
+      df['xG'] = (df['GF'] / df['PJ'].replace(0, 1) * 0.95).round(2)
+    else:
+      df['xG'] = 1.25
+  elif 'xG_Favor' in df.columns and 'xG' not in df.columns:
+    df['xG'] = df['xG_Favor']
 
-    # -----------------------------------------------------------------
-    # 5. PREDICTOR DE PARTIDO
-    # -----------------------------------------------------------------
-    st.markdown('<div class="section-header">CONFIGURACIÓN DEL ENFRENTAMIENTO</div>', unsafe_allow_html=True)
-    
-    lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
+  # -----------------------------------------------------------------
+  # 4. TABLA DE POSICIONES
+  # -----------------------------------------------------------------
+  st.markdown(
+      '<div class="section-header">TABLA GENERAL DE POSICIONES Y METRICAS DE'
+      ' XG</div>',
+      unsafe_allow_html=True,
+  )
+  st.dataframe(df, use_container_width=True, hide_index=True)
 
-    if len(lista_equipos) >= 2:
-        col1, col2 = st.columns(2)
-        with col1:
-            local = st.selectbox("Equipo Local", lista_equipos, index=0)
-        with col2:
-            visitante = st.selectbox("Equipo Visitante", lista_equipos, index=min(1, len(lista_equipos)-1))
+  st.markdown('<hr>', unsafe_allow_html=True)
 
-        if local == visitante:
-            st.error("Selección inválida: Elija dos equipos diferentes.")
-        else:
-            row_loc = df[df["Equipo"] == local].iloc[0]
-            row_vis = df[df["Equipo"] == visitante].iloc[0]
+  # -----------------------------------------------------------------
+  # 5. PREDICTOR DE PARTIDO
+  # -----------------------------------------------------------------
+  st.markdown(
+      '<div class="section-header">CONFIGURACIÓN DEL ENFRENTAMIENTO</div>',
+      unsafe_allow_html=True,
+  )
 
-            pts_loc = float(row_loc.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
-            pts_vis = float(row_vis.get("Puntos", 0)) if "Puntos" in df.columns else 0.0
-            pj_loc = max(float(row_loc.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
-            pj_vis = max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
+  lista_equipos = sorted(df['Equipo'].unique()) if 'Equipo' in df.columns else []
 
-            xg_loc_base = float(row_loc.get("xG", 1.25))
-            xg_vis_base = float(row_vis.get("xG", 1.10))
+  if len(lista_equipos) >= 2:
+    col1, col2 = st.columns(2)
+    with col1:
+      local = st.selectbox('Equipo Local', lista_equipos, index=0)
+    with col2:
+      visitante = st.selectbox(
+          'Equipo Visitante', lista_equipos, index=min(1, len(lista_equipos) - 1)
+      )
 
-            # xG Proyectado para el encuentro
-            xg_proyectado_local = round(xg_loc_base * 1.10, 2)
-            xg_proyectado_visi = round(xg_vis_base * 0.95, 2)
+    if local == visitante:
+      st.error('Selección inválida: Elija dos equipos diferentes.')
+    else:
+      row_loc = df[df['Equipo'] == local].iloc[0]
+      row_vis = df[df['Equipo'] == visitante].iloc[0]
 
-            # Algoritmo de probabilidad 1X2
-            prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
-            prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
+      pts_loc = (
+          float(row_loc.get('Puntos', 0)) if 'Puntos' in df.columns else 0.0
+      )
+      pts_vis = (
+          float(row_vis.get('Puntos', 0)) if 'Puntos' in df.columns else 0.0
+      )
+      pj_loc = (
+          max(float(row_loc.get('PJ', 1)), 1.0) if 'PJ' in df.columns else 1.0
+      )
+      pj_vis = (
+          max(float(row_vis.get('PJ', 1)), 1.0) if 'PJ' in df.columns else 1.0
+      )
 
-            diferencia = abs(prom_loc - prom_vis)
-            prob_empate = max(18.0, min(33.0, 28.5 - (diferencia * 6.0)))
+      xg_loc_base = float(row_loc.get('xG', 1.25))
+      xg_vis_base = float(row_vis.get('xG', 1.10))
 
-            resto = 100.0 - prob_empate
-            total_prom = prom_loc + prom_vis
+      xg_proyectado_local = round(xg_loc_base * 1.10, 2)
+      xg_proyectado_visi = round(xg_vis_base * 0.95, 2)
 
-            if total_prom > 0:
-                prob_loc = (prom_loc / total_prom) * resto
-                prob_vis = (prom_vis / total_prom) * resto
-            else:
-                prob_loc = resto / 2
-                prob_vis = resto / 2
+      prom_loc = ((pts_loc / pj_loc) * 0.6) + (xg_proyectado_local * 0.4)
+      prom_vis = ((pts_vis / pj_vis) * 0.6) + (xg_proyectado_visi * 0.4)
 
-            # Banner del Partido
-            st.markdown(f'''
+      diferencia = abs(prom_loc - prom_vis)
+      prob_empate = max(18.0, min(33.0, 28.5 - (diferencia * 6.0)))
+
+      resto = 100.0 - prob_empate
+      total_prom = prom_loc + prom_vis
+
+      if total_prom > 0:
+        prob_loc = (prom_loc / total_prom) * resto
+        prob_vis = (prom_vis / total_prom) * resto
+      else:
+        prob_loc = resto / 2
+        prob_vis = resto / 2
+
+      # Banner
+      st.markdown(
+          f"""
                 <div class="match-banner">
                     <div class="match-title">{local} vs {visitante}</div>
                 </div>
-            ''', unsafe_allow_html=True)
+            """,
+          unsafe_allow_html=True,
+      )
 
-            # Tarjetas de xG Proyectado
-            col_xg1, col_xg2 = st.columns(2)
-            with col_xg1:
-                st.markdown(f'''
+      # Tarjetas xG
+      col_xg1, col_xg2 = st.columns(2)
+      with col_xg1:
+        st.markdown(
+            f"""
                     <div class="stat-card">
                         <div class="stat-label">xG Proyectado Local ({local})</div>
                         <div style="font-size: 24px; font-weight: 800; color: #00f3ff;">{xg_proyectado_local}</div>
                     </div>
-                ''', unsafe_allow_html=True)
-            with col_xg2:
-                st.markdown(f'''
+                """,
+            unsafe_allow_html=True,
+        )
+      with col_xg2:
+        st.markdown(
+            f"""
                     <div class="stat-card">
                         <div class="stat-label">xG Proyectado Visitante ({visitante})</div>
                         <div style="font-size: 24px; font-weight: 800; color: #00f3ff;">{xg_proyectado_visi}</div>
                     </div>
-                ''', unsafe_allow_html=True)
+                """,
+            unsafe_allow_html=True,
+        )
 
-            st.markdown("<br>", unsafe_allow_html=True)
+      st.markdown('<br>', unsafe_allow_html=True)
 
-            # Tarjetas Principales de Probabilidades 1X2
-            c_m1, c_m2, c_m3 = st.columns(3)
-            with c_m1:
-                st.markdown(f'''
+      # Probabilidades 1X2
+      c_m1, c_m2, c_m3 = st.columns(3)
+      with c_m1:
+        st.markdown(
+            f"""
                     <div class="stat-card">
                         <div class="stat-label">Victoria {local}</div>
                         <div class="stat-value">{prob_loc:.1f}%</div>
                     </div>
-                ''', unsafe_allow_html=True)
-            with c_m2:
-                st.markdown(f'''
+                """,
+            unsafe_allow_html=True,
+        )
+      with c_m2:
+        st.markdown(
+            f"""
                     <div class="stat-card">
                         <div class="stat-label">Probabilidad de Empate</div>
                         <div class="stat-value-draw">{prob_empate:.1f}%</div>
                     </div>
-                ''', unsafe_allow_html=True)
-            with c_m3:
-                st.markdown(f'''
+                """,
+            unsafe_allow_html=True,
+        )
+      with c_m3:
+        st.markdown(
+            f"""
                     <div class="stat-card">
                         <div class="stat-label">Victoria {visitante}</div>
                         <div class="stat-value-alt">{prob_vis:.1f}%</div>
                     </div>
-                ''', unsafe_allow_html=True)
+                """,
+            unsafe_allow_html=True,
+        )
 
-            # Barras de Progreso
-            st.markdown("<br>", unsafe_allow_html=True)
-            b1, b2, b3 = st.columns(3)
-            with b1:
-                st.progress(int(prob_loc) / 100)
-            with b2:
-                st.progress(int(prob_empate) / 100)
-            with b3:
-                st.progress(int(prob_vis) / 100)
+      st.markdown('<br>', unsafe_allow_html=True)
+      b1, b2, b3 = st.columns(3)
+      with b1:
+        st.progress(int(prob_loc) / 100)
+      with b2:
+        st.progress(int(prob_empate) / 100)
+      with b3:
+        st.progress(int(prob_vis) / 100)
 
-            st.markdown("<hr>", unsafe_allow_html=True)
+      st.markdown('<hr>', unsafe_allow_html=True)
 
-            # -----------------------------------------------------------------
-            # 6. TOP 5 MARCADORES EXACTOS
-            # -----------------------------------------------------------------
-            st.markdown('<div class="section-header">TOP 5 MARCADORES EXACTOS MÁS PROBABLES</div>', unsafe_allow_html=True)
-            
-            top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi)
+      # -----------------------------------------------------------------
+      # 6. TOP 5 MARCADORES EXACTOS
+      # -----------------------------------------------------------------
+      st.markdown(
+          '<div class="section-header">TOP 5 MARCADORES EXACTOS MÁS'
+          ' PROBABLES</div>',
+          unsafe_allow_html=True,
+      )
 
-            # Construcción de la tabla en HTML puro para máxima estética
-            rows_html = ""
-            for rank, (marcador, prob) in enumerate(top_5_marcadores, 1):
-                rank_class = "rank-top" if rank == 1 else ""
-                rows_html += f"""
+      top_5_marcadores, prob_otro = calcular_top_resultados(
+          xg_proyectado_local, xg_proyectado_visi
+      )
+
+      rows_html = ''
+      for rank, (marcador, prob) in enumerate(top_5_marcadores, 1):
+        rank_class = 'rank-top' if rank == 1 else ''
+        rows_html += f"""
                     <tr>
                         <td class="{rank_class}">#{rank}</td>
                         <td style="font-weight: 600;">{marcador}</td>
                         <td style="font-weight: 700; color: #00ffcc;">{prob:.1f}%</td>
                     </tr>
                 """
-            
-            # Fila de otros resultados
-            rows_html += f"""
+
+      rows_html += f"""
                 <tr>
                     <td style="color: #64748b;">Otros</td>
                     <td style="color: #94a3b8;">Cualquier otro marcador</td>
@@ -359,7 +411,7 @@ if os.path.exists(RUTA_CSV):
                 </tr>
             """
 
-            table_html = f"""
+      table_html = f"""
                 <table class="custom-table">
                     <thead>
                         <tr>
@@ -373,7 +425,10 @@ if os.path.exists(RUTA_CSV):
                     </tbody>
                 </table>
             """
-            st.markdown(table_html, unsafe_allow_html=True)
+      st.markdown(table_html, unsafe_allow_html=True)
 
 else:
-    st.error("Archivo de origen no encontrado. Verifique la existencia de 'datos_procesados.csv'.")
+  st.error(
+      "Archivo de origen no encontrado. Verifique la existencia de"
+      " 'datos_procesados.csv'."
+  )
