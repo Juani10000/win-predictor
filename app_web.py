@@ -141,21 +141,27 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 
 
 # ---------------------------------------------------------------------
-# SCRAPING 100% AUTOMÁTICO - API ESPN (Sin fallas de Wikipedia)
+# SCRAPING 100% AUTOMÁTICO - API ESPN (A prueba de balas)
 # ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
-    # Liga Profesional Argentina en ESPN
-    url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard"
+    # Calculamos la hora de Argentina restando 3 horas al reloj mundial
+    ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
+    
+    # Formato para filtrar en el código (YYYY-MM-DD)
+    fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
+    
+    # Formato que exige ESPN en su URL (YYYYMMDD)
+    fecha_espn_url = ahora_arg.strftime("%Y%m%d")
+    
+    # Le pedimos a ESPN exactamente la fecha de hoy
+    url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_espn_url}"
+    
     partidos_hoy = []
     
     try:
         response = requests.get(url, timeout=10)
         data = response.json()
-        
-        # ESPN usa horario mundial (UTC). Restamos 3 horas para la hora de Argentina
-        ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-        fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
         
         if 'events' in data:
             for event in data['events']:
@@ -163,7 +169,7 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
                 fecha_api = datetime.datetime.strptime(event['date'], "%Y-%m-%dT%H:%MZ")
                 fecha_partido_arg = fecha_api - datetime.timedelta(hours=3)
                 
-                # Si el partido coincide con la fecha de hoy
+                # Doble validación: comprobamos que coincida con hoy
                 if fecha_partido_arg.strftime("%Y-%m-%d") == fecha_hoy_str:
                     comps = event['competitions'][0]['competitors']
                     
@@ -176,10 +182,11 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
                     
                     hora_str = fecha_partido_arg.strftime("%H:%M")
                     
+                    # Mapear los nombres de ESPN a los de tu archivo CSV
                     loc_match = buscar_equipo(loc_raw, equipos_disponibles)
                     vis_match = buscar_equipo(vis_raw, equipos_disponibles)
                     
-                    # Agregar solo si encontramos a ambos equipos en tu CSV
+                    # Agregar solo si encontramos a ambos equipos
                     if loc_match and vis_match and loc_match != vis_match:
                         partidos_hoy.append({
                             "Local": loc_match,
