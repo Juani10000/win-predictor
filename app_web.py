@@ -145,18 +145,11 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 # ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
-    # Calculamos la hora de Argentina restando 3 horas al reloj mundial
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    
-    # Formato para filtrar en el código (YYYY-MM-DD)
     fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
-    
-    # Formato que exige ESPN en su URL (YYYYMMDD)
     fecha_espn_url = ahora_arg.strftime("%Y%m%d")
     
-    # Le pedimos a ESPN exactamente la fecha de hoy
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_espn_url}"
-    
     partidos_hoy = []
     
     try:
@@ -165,28 +158,23 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
         
         if 'events' in data:
             for event in data['events']:
-                # Analizar fecha del partido
                 fecha_api = datetime.datetime.strptime(event['date'], "%Y-%m-%dT%H:%MZ")
                 fecha_partido_arg = fecha_api - datetime.timedelta(hours=3)
                 
-                # Doble validación: comprobamos que coincida con hoy
                 if fecha_partido_arg.strftime("%Y-%m-%d") == fecha_hoy_str:
                     comps = event['competitions'][0]['competitors']
                     
                     equipo_1 = comps[0]['team']['name']
                     equipo_2 = comps[1]['team']['name']
                     
-                    # Identificar quién es local y visitante
                     loc_raw = equipo_1 if comps[0]['homeAway'] == 'home' else equipo_2
                     vis_raw = equipo_2 if comps[0]['homeAway'] == 'home' else equipo_1
                     
                     hora_str = fecha_partido_arg.strftime("%H:%M")
                     
-                    # Mapear los nombres de ESPN a los de tu archivo CSV
                     loc_match = buscar_equipo(loc_raw, equipos_disponibles)
                     vis_match = buscar_equipo(vis_raw, equipos_disponibles)
                     
-                    # Agregar solo si encontramos a ambos equipos
                     if loc_match and vis_match and loc_match != vis_match:
                         partidos_hoy.append({
                             "Local": loc_match,
@@ -271,9 +259,11 @@ if os.path.exists(RUTA_CSV):
                 with c_info:
                     st.markdown(f"🕒 **{partido['Hora']}** | **{partido['Local']}** vs **{partido['Visitante']}**")
                 with c_btn:
+                    # ACÁ ESTÁ LA MAGIA: inyectamos directo en los keys de los selectboxes y forzamos recarga
                     if st.button("🔮 Predecir", key=f"btn_hoy_{idx}"):
-                        st.session_state['sel_local'] = partido['Local']
-                        st.session_state['sel_visitante'] = partido['Visitante']
+                        st.session_state['sb_local'] = partido['Local']
+                        st.session_state['sb_visit'] = partido['Visitante']
+                        st.rerun() 
             st.divider()
     else:
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
@@ -300,19 +290,18 @@ if os.path.exists(RUTA_CSV):
     )
 
     if len(lista_equipos) >= 2:
-        idx_loc = 0
-        idx_vis = min(1, len(lista_equipos) - 1)
-        
-        if 'sel_local' in st.session_state and st.session_state['sel_local'] in lista_equipos:
-            idx_loc = lista_equipos.index(st.session_state['sel_local'])
-        if 'sel_visitante' in st.session_state and st.session_state['sel_visitante'] in lista_equipos:
-            idx_vis = lista_equipos.index(st.session_state['sel_visitante'])
+        # Inicializamos los selectores en memoria si no existen
+        if "sb_local" not in st.session_state:
+            st.session_state["sb_local"] = lista_equipos[0]
+        if "sb_visit" not in st.session_state:
+            st.session_state["sb_visit"] = lista_equipos[min(1, len(lista_equipos) - 1)]
 
+        # Desplegables limpios atados directamente a las keys de memoria
         col1, col2 = st.columns(2)
         with col1:
-            local = st.selectbox("Seleccionar Local", lista_equipos, index=idx_loc, key="sb_local")
+            local = st.selectbox("Seleccionar Local", lista_equipos, key="sb_local")
         with col2:
-            visitante = st.selectbox("Seleccionar Visitante", lista_equipos, index=idx_vis, key="sb_visit")
+            visitante = st.selectbox("Seleccionar Visitante", lista_equipos, key="sb_visit")
 
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
