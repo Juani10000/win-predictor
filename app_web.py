@@ -724,7 +724,34 @@ if os.path.exists(RUTA_CSV):
                 )
 
             st.markdown("---")
+import numpy as np
 
+
+def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
+    """Simula el partido N veces usando distribuciones de Poisson ajustadas con variabilidad aleatoria."""
+    # Agregamos ligera variabilidad en la efectividad del partido (desviación estándar del 10%)
+    xg_loc_sim = np.random.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
+    xg_vis_sim = np.random.normal(xg_vis, xg_vis * 0.10, num_simulaciones)
+
+    # Aseguramos valores positivos
+    xg_loc_sim = np.maximum(0.05, xg_loc_sim)
+    xg_vis_sim = np.maximum(0.05, xg_vis_sim)
+
+    # Generación de goles simulados
+    goles_loc = np.random.poisson(xg_loc_sim)
+    goles_vis = np.random.poisson(xg_vis_sim)
+
+    victorias_loc = np.sum(goles_loc > goles_vis)
+    empates = np.sum(goles_loc == goles_vis)
+    victorias_vis = np.sum(goles_vis > goles_loc)
+
+    prob_loc_mc = (victorias_loc / num_simulaciones) * 100
+    prob_emp_mc = (empates / num_simulaciones) * 100
+    prob_vis_mc = (victorias_vis / num_simulaciones) * 100
+
+    goles_totales = goles_loc + goles_vis
+
+    return prob_loc_mc, prob_emp_mc, prob_vis_mc, goles_totales
             # -----------------------------------------------------------------
             # 6. GRÁFICO TIPO RADAR
             # -----------------------------------------------------------------
