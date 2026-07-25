@@ -459,24 +459,20 @@ if os.path.exists(RUTA_CSV):
             prom_gf_vis = gf_vis / max(1, pj_vis)
             prom_gc_vis = gc_vis / max(1, pj_vis)
 
-            # 2. EL NUEVO CÁLCULO: PROMEDIO PONDERADO 
-            # 60% peso a tu capacidad goleadora, 40% peso a lo que el rival concede.
-            xg_loc_bruto = (prom_gf_loc * 0.60) + (prom_gc_vis * 0.40)
-            xg_vis_bruto = (prom_gf_vis * 0.60) + (prom_gc_loc * 0.40)
+            # 2. EL NUEVO CÁLCULO: SUMA PURA (LA FÓRMULA DEL USUARIO)
+            # Sumamos los goles a favor propios con los goles en contra del rival.
+            xg_loc_bruto = prom_gf_loc + prom_gc_vis
+            xg_vis_bruto = prom_gf_vis + prom_gc_loc
 
-            # 3. PISO MÍNIMO para que los números nunca sean ridículos
-            xg_loc_bruto = max(0.70, xg_loc_bruto)
-            xg_vis_bruto = max(0.70, xg_vis_bruto)
-
-            # 4. Impacto de la localía (+10% local, -5% visitante para balancear)
+            # 3. Impacto de la localía (+10% local, -5% visitante)
             xg_proyectado_local = round(xg_loc_bruto * 1.10, 2)
             xg_proyectado_visi = round(xg_vis_bruto * 0.95, 2)
 
-            # 5. Calcular estadísticas secundarias para el Radar 
+            # 4. Calcular estadísticas secundarias para el Radar 
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
-            # 6. Ejecutar predicción probabilística final
+            # 5. Ejecutar predicción probabilística final
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
                 local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.10
             )
@@ -509,7 +505,7 @@ if os.path.exists(RUTA_CSV):
             st.markdown("---")
             
             # -----------------------------------------------------------------
-            # 7. GRÁFICO TIPO RADAR: FRENTE A FRENTE OCTAGONAL
+            # 6. GRÁFICO TIPO RADAR: FRENTE A FRENTE OCTAGONAL
             # -----------------------------------------------------------------
             st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>", unsafe_allow_html=True)
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
@@ -517,7 +513,7 @@ if os.path.exists(RUTA_CSV):
             st.markdown("---")
 
             # -----------------------------------------------------------------
-            # 8. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
+            # 7. TOP 5 RESULTADOS MÁS PROBABLES (CÁLCULO POISSON)
             # -----------------------------------------------------------------
             st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
             top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi)
