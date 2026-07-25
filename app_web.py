@@ -83,7 +83,6 @@ def calcular_top_resultados(xg_loc, xg_vis):
     return top_5, prob_otro
 
 def simular_1x2_poisson(xg_loc, xg_vis, max_goles=10):
-    """Reemplazo de realizar_prediccion: Usa Poisson puro para alinear xG con % de victoria."""
     prob_loc = 0.0
     prob_emp = 0.0
     prob_vis = 0.0
@@ -101,18 +100,31 @@ def simular_1x2_poisson(xg_loc, xg_vis, max_goles=10):
     return prob_loc * 100, prob_emp * 100, prob_vis * 100
 
 def calcular_promedio_general_liga(stats_wiki):
-    """Calcula el promedio de goles de la liga usando los datos scrapeados de Wikipedia."""
     if not stats_wiki:
-        return 2.5 # Valor de contingencia estándar
+        return 2.3 # Promedio estándar del fútbol argentino
     
     total_goles = sum(eq['GF'] for eq in stats_wiki.values())
-    # Se divide por 2 porque cada partido suma PJ a dos equipos distintos
     total_partidos = sum(eq['PJ'] for eq in stats_wiki.values()) / 2 
     
     if total_partidos <= 0:
-        return 2.5
+        return 2.3
         
     return total_goles / total_partidos
+
+def calcular_xg_suavizado(prom_gf, prom_gc_rival, promedio_liga, peso=0.50):
+    """
+    Calcula el xG aplicando un Factor de Amortiguación (peso) 
+    para evitar valores extremos y mantener paridad.
+    """
+    ratio_ataque = prom_gf / promedio_liga
+    ratio_defensa = prom_gc_rival / promedio_liga
+
+    # Suavizado / Regresión a la media
+    fuerza_ataque = 1.0 + peso * (ratio_ataque - 1.0)
+    debilidad_defensa = 1.0 + peso * (ratio_defensa - 1.0)
+
+    xg = fuerza_ataque * debilidad_defensa * (promedio_liga / 2.0)
+    return xg
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
@@ -264,7 +276,7 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     
     return {
         "GF": gf, 
-        "xG": round(xg_proyectado, 1), 
+        "xG": round(xg_proyectado, 2), 
         "Pos": pos, 
         "VI": vi,
         "TirosArco": tiros_arco,
@@ -402,9 +414,6 @@ if os.path.exists(RUTA_CSV):
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     stats_wikipedia = obtener_estadisticas_wiki(lista_equipos)
     
-    # -----------------------------------------------------------------
-    # NÚCLEO: Calcular el promedio de la liga para el xG Multiplicativo
-    # -----------------------------------------------------------------
     promedio_liga = calcular_promedio_general_liga(stats_wikipedia)
 
     # -----------------------------------------------------------------
@@ -443,30 +452,25 @@ if os.path.exists(RUTA_CSV):
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            # 1. Obtener stats duros reales
             gf_loc, gc_loc, pj_loc = obtener_stats_basicas(local, df, stats_wikipedia)
             gf_vis, gc_vis, pj_vis = obtener_stats_basicas(visitante, df, stats_wikipedia)
 
-            # Promedios de goles puros por partido
             prom_gf_loc = gf_loc / max(1, pj_loc)
             prom_gc_loc = gc_loc / max(1, pj_loc)
             prom_gf_vis = gf_vis / max(1, pj_vis)
             prom_gc_vis = gc_vis / max(1, pj_vis)
 
-            # 2. EL NUEVO CÁLCULO: MÉTODO MULTIPLICATIVO (xG REALISTA)
-            # (GF_Propio / Prom_Liga) * (GC_Rival / Prom_Liga) * Prom_Liga
-            xg_loc_bruto = (prom_gf_loc / promedio_liga) * (prom_gc_vis / promedio_liga) * promedio_liga
-            xg_vis_bruto = (prom_gf_vis / promedio_liga) * (prom_gc_loc / promedio_liga) * promedio_liga
+            # CÁLCULO DE xG CON FACTOR DE AMORTIGUACIÓN (PESO = 0.50)
+            xg_loc_bruto = calcular_xg_suavizado(prom_gf_loc, prom_gc_vis, promedio_liga, peso=0.50)
+            xg_vis_bruto = calcular_xg_suavizado(prom_gf_vis, prom_gc_loc, promedio_liga, peso=0.50)
 
-            # 3. Impacto de la localía (+10% local, -5% visitante)
-            xg_proyectado_local = round(xg_loc_bruto * 1.10, 2)
-            xg_proyectado_visi = round(xg_vis_bruto * 0.95, 2)
+            # Ajuste ligero de localía (+8% local, -4% visitante)
+            xg_proyectado_local = round(xg_loc_bruto * 1.08, 2)
+            xg_proyectado_visi = round(xg_vis_bruto * 0.96, 2)
 
-            # 4. Calcular estadísticas secundarias para el Radar 
             stats_loc = consolidar_estadisticas(local, df, stats_wikipedia, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_wikipedia, xg_proyectado_visi)
             
-            # 5. Ejecutar predicción probabilística final basada 100% en Poisson
             prob_loc, prob_empate, prob_vis = simular_1x2_poisson(xg_proyectado_local, xg_proyectado_visi)
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
@@ -497,7 +501,7 @@ if os.path.exists(RUTA_CSV):
             st.markdown("---")
             
             # -----------------------------------------------------------------
-            # 6. GRÁFICO TIPO RADAR: FRENTE A FRENTE OCTAGONAL
+            # 6. GRÁFICO TIPO RADAR
             # -----------------------------------------------------------------
             st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>", unsafe_allow_html=True)
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
