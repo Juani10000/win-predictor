@@ -182,21 +182,33 @@ def obtener_historial_directo(equipo_a, equipo_b):
         return historial_final
     return historial_base
 
-def render_h2h_pills(historial):
-    html = "<div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>"
+def render_h2h_pills(historial, local, visitante):
+    # Agregamos la leyenda aclaratoria
+    html = f"""
+    <div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>
+        <span style='color: #00ffcc; font-weight: bold;'>G</span> = Ganó {local} &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style='color: #ff3366; font-weight: bold;'>P</span> = Ganó {visitante}
+    </div>
+    <div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>
+    """
+    
     for res in historial:
         if res == 'G':
             color = "#00ffcc" # Verde/Cyan neón
             bg = "rgba(0, 255, 204, 0.2)"
+            tooltip = f"Ganó {local}"
         elif res == 'E':
             color = "#cbd5e1" # Gris
             bg = "rgba(203, 213, 225, 0.2)"
+            tooltip = "Empate"
         else:
             color = "#ff3366" # Rojo neón
             bg = "rgba(255, 51, 102, 0.2)"
+            tooltip = f"Ganó {visitante}"
             
         html += f"""
-        <div style='
+        <div title='{tooltip}' style='
             background-color: {bg}; 
             color: {color}; 
             width: 32px; 
@@ -209,10 +221,10 @@ def render_h2h_pills(historial):
             font-weight: 900; 
             font-size: 14px;
             box-shadow: 0 0 5px {color}80;
+            cursor: help;
         '>{res}</div>"""
     html += "</div>"
     return html
-
 
 def realizar_prediccion(
     local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[]
