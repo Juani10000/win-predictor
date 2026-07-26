@@ -163,12 +163,8 @@ def predecir_partido(local, visitante):
 
     print(f"\n📊 Pronóstico Avanzado: {local} vs {visitante}")
     print(f"⭐ Jerarquía Plantel -> {local}: {jer_local} | {visitante}: {jer_visita}")
-    print(
-        f"🔥 Racha Local ({local}): {l_pts:.1f} pts/partido (Ajustado por Rival: {l_pts_ajustado:.2f})"
-    )
-    print(
-        f"🔥 Racha Visitante ({visitante}): {v_pts:.1f} pts/partido (Ajustado por Rival: {v_pts_ajustado:.2f})"
-    )
+    print(f"🔥 Racha Local ({local}): {l_pts:.1f} pts/partido (Ajustado por Rival: {l_pts_ajustado:.2f})")
+    print(f"🔥 Racha Visitante ({visitante}): {v_pts:.1f} pts/partido (Ajustado por Rival: {v_pts_ajustado:.2f})")
     print(f"🔮 Resultado esperado: {res_txt[prediccion]}")
     print("📈 Probabilidades realistas del Modelo:")
 
@@ -179,5 +175,4 @@ def predecir_partido(local, visitante):
 
 
 if __name__ == "__main__":
-    # Prueba del modelo
     predecir_partido("Boca Juniors", "Independiente Rivadavia")
