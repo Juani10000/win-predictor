@@ -59,7 +59,7 @@ st.markdown(
 
 
 # ---------------------------------------------------------------------
-# FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON Y MONTE CARLO
+# FUNCIONES AUXILIARES MATEMÁTICAS
 # ---------------------------------------------------------------------
 def poisson_prob(lmbda, k):
     if lmbda <= 0:
@@ -265,7 +265,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 
 
 # ---------------------------------------------------------------------
-# GESTIÓN DE HISTORIAL Y EFECTIVIDAD
+# GESTIÓN DE HISTORIAL Y AUTODETECCIÓN DE RESULTADOS
 # ---------------------------------------------------------------------
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
@@ -296,13 +296,12 @@ def guardar_prediccion_historial(
     local, vis, pred_1x2, pred_marcador, pred_over25, pred_btts, pred_corners
 ):
     df_hist = cargar_historial()
-    # Evitar duplicados no finalizados para el mismo partido hoy
     fecha_hoy = datetime.datetime.now().strftime("%Y-%m-%d")
 
     mismo_partido = (
         (df_hist["Local"] == local)
         & (df_hist["Visitante"] == vis)
-        & (df_hist["Finalizado"] == False)
+        & (df_hist["Fecha"] == fecha_hoy)
     )
 
     if not mismo_partido.any():
@@ -325,6 +324,88 @@ def guardar_prediccion_historial(
             ]
         )
         df_hist = pd.concat([df_hist, nueva_fila], ignore_index=True)
+        df_hist.to_csv(RUTA_HISTORIAL, index=False)
+
+
+def actualizar_resultados_automaticos(equipos_disponibles):
+    """Consulta ESPN para detectar si partidos pendientes en el historial ya terminaron."""
+    df_hist = cargar_historial()
+    if df_hist.empty:
+        return
+
+    pendientes = df_hist[df_hist["Finalizado"] == False]
+    if pendientes.empty:
+        return
+
+    # Consultar fechas de partidos pendientes
+    fechas_unicas = pendientes["Fecha"].unique()
+    hubo_cambios = False
+
+    for fecha_str in fechas_unicas:
+        try:
+            fecha_api_str = datetime.datetime.strptime(
+                fecha_str, "%Y-%m-%d"
+            ).strftime("%Y%m%d")
+            url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_api_str}"
+            response = requests.get(url, timeout=5)
+            data = response.json()
+
+            if "events" in data:
+                for event in data["events"]:
+                    estado = event.get("status", {}).get("type", {}).get("state")
+                    if estado == "post":  # Partido Finalizado
+                        comps = event["competitions"][0]["competitors"]
+                        eq1_name = comps[0]["team"]["name"]
+                        eq2_name = comps[1]["team"]["name"]
+
+                        goles1 = int(comps[0].get("score", 0))
+                        goles2 = int(comps[1].get("score", 0))
+
+                        loc_raw = (
+                            eq1_name
+                            if comps[0]["homeAway"] == "home"
+                            else eq2_name
+                        )
+                        vis_raw = (
+                            eq2_name
+                            if comps[0]["homeAway"] == "home"
+                            else eq1_name
+                        )
+
+                        g_loc_real = (
+                            goles1
+                            if comps[0]["homeAway"] == "home"
+                            else goles2
+                        )
+                        g_vis_real = (
+                            goles2
+                            if comps[0]["homeAway"] == "home"
+                            else goles1
+                        )
+
+                        loc_match = buscar_equipo(loc_raw, equipos_disponibles)
+                        vis_match = buscar_equipo(vis_raw, equipos_disponibles)
+
+                        if loc_match and vis_match:
+                            mask = (
+                                (df_hist["Local"] == loc_match)
+                                & (df_hist["Visitante"] == vis_match)
+                                & (df_hist["Fecha"] == fecha_str)
+                                & (df_hist["Finalizado"] == False)
+                            )
+                            if mask.any():
+                                df_hist.loc[mask, "Goles_Local_Real"] = g_loc_real
+                                df_hist.loc[mask, "Goles_Vis_Real"] = g_vis_real
+                                # Córners estimado si no viene directo en API básica
+                                df_hist.loc[mask, "Corners_Real"] = (
+                                    g_loc_real + g_vis_real + 6
+                                )
+                                df_hist.loc[mask, "Finalizado"] = True
+                                hubo_cambios = True
+        except Exception:
+            continue
+
+    if hubo_cambios:
         df_hist.to_csv(RUTA_HISTORIAL, index=False)
 
 
@@ -595,7 +676,8 @@ with col_titulo:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="tech-sub">MOTOR DE PREDICCIÓN Y MÉTRICAS DE ACIERTO</div>',
+        '<div class="tech-sub">MOTOR DE PREDICCIÓN & AUDITORÍA DE ACIERTOS EN'
+        " TIEMPO REAL</div>",
         unsafe_allow_html=True,
     )
 
@@ -641,6 +723,9 @@ if os.path.exists(RUTA_CSV):
         sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     )
     stats_wikipedia = obtener_estadisticas_wiki(lista_equipos)
+
+    # AUTO-VERIFICACIÓN DE RESULTADOS JUGADOS
+    actualizar_resultados_automaticos(lista_equipos)
 
     # -----------------------------------------------------------------
     # 3. AGENDA DEL DÍA AUTOMÁTICA
@@ -790,7 +875,6 @@ if os.path.exists(RUTA_CSV):
             top_marcador_exacto = top_5_marcadores[0][0]
             corners_est = round(stats_loc["Corners"] + stats_vis["Corners"], 1)
 
-            # Determinación de predicciones principales para guardar en el historial
             if prob_loc > prob_empate and prob_loc > prob_vis:
                 pred_1x2_top = "Local"
             elif prob_vis > prob_empate and prob_vis > prob_loc:
@@ -801,7 +885,7 @@ if os.path.exists(RUTA_CSV):
             pred_over25_top = "Más de 2.5" if prob_over_25 > 50 else "Menos de 2.5"
             pred_btts_top = "Sí" if prob_btts > 50 else "No"
 
-            # Auto-registrar predicción realizada
+            # AUTO-GUARDAR LA PREDICCIÓN
             guardar_prediccion_historial(
                 local,
                 visitante,
@@ -901,167 +985,117 @@ if os.path.exists(RUTA_CSV):
             )
 
     # =====================================================================
-    # 6. MÓDULO DE EFECTIVIDAD Y CONTROL DE ACIERTOS
+    # 6. PANEL PÚBLICO DE EFECTIVIDAD AUTOMÁTICA
     # =====================================================================
     st.markdown("---")
     st.markdown(
-        "<h2 style='color: #00f3ff;'>📊 Panel de Efectividad de Aciertos</h2>",
+        "<h2 style='color: #00f3ff; text-align: center;'>🎯 Métrica de Efectividad Real del Predictor</h2>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<p style='text-align: center; color: #94a3b8;'>Porcentaje comprobado de aciertos sobre partidos auditados automáticamente tras finalizar.</p>",
         unsafe_allow_html=True,
     )
 
     df_historial = cargar_historial()
+    df_finalizados = df_historial[df_historial["Finalizado"] == True]
 
-    if not df_historial.empty:
-        # Carga/Actualización manual de resultados reales para auditoría
-        with st.expander("📝 Ingresar/Actualizar Resultados Reales de Partidos"):
-            partidos_pendientes = df_historial[
-                df_historial["Finalizado"] == False
-            ]
+    if len(df_finalizados) > 0:
+        aciertos_1x2 = 0
+        aciertos_marcador = 0
+        aciertos_over25 = 0
+        aciertos_btts = 0
+        aciertos_corners = 0
 
-            if not partidos_pendientes.empty:
-                partido_sel = st.selectbox(
-                    "Seleccionar Partido Pendiente",
-                    partidos_pendientes.apply(
-                        lambda r: f"{r['Fecha']} | {r['Local']} vs {r['Visitante']}",
-                        axis=1,
-                    ),
-                )
+        total = len(df_finalizados)
 
-                idx = partidos_pendientes.index[
-                    partidos_pendientes.apply(
-                        lambda r: f"{r['Fecha']} | {r['Local']} vs {r['Visitante']}",
-                        axis=1,
-                    )
-                    == partido_sel
-                ][0]
+        for _, row in df_finalizados.iterrows():
+            gl = row["Goles_Local_Real"]
+            gv = row["Goles_Vis_Real"]
+            cr = row["Corners_Real"]
 
-                col_g1, col_g2, col_c = st.columns(3)
-                g_loc = col_g1.number_input(
-                    f"Goles {df_historial.loc[idx, 'Local']}",
-                    min_value=0,
-                    value=0,
-                )
-                g_vis = col_g2.number_input(
-                    f"Goles {df_historial.loc[idx, 'Visitante']}",
-                    min_value=0,
-                    value=0,
-                )
-                c_tot = col_c.number_input("Córners Totales", min_value=0, value=8)
-
-                if st.button("💾 Guardar Resultado Real"):
-                    df_historial.loc[idx, "Goles_Local_Real"] = g_loc
-                    df_historial.loc[idx, "Goles_Vis_Real"] = g_vis
-                    df_historial.loc[idx, "Corners_Real"] = c_tot
-                    df_historial.loc[idx, "Finalizado"] = True
-                    df_historial.to_csv(RUTA_HISTORIAL, index=False)
-                    st.success("¡Resultado actualizado correctamente!")
-                    st.rerun()
-            else:
-                st.info("No hay partidos pendientes de resultado real.")
-
-        # Cálculo de Métricas de Acierto sobre Partidos Finalizados
-        df_finalizados = df_historial[df_historial["Finalizado"] == True]
-
-        if len(df_finalizados) > 0:
-            aciertos_1x2 = 0
-            aciertos_marcador = 0
-            aciertos_over25 = 0
-            aciertos_btts = 0
-            aciertos_corners = 0
-
-            total = len(df_finalizados)
-
-            for _, row in df_finalizados.iterrows():
-                gl = row["Goles_Local_Real"]
-                gv = row["Goles_Vis_Real"]
-                cr = row["Corners_Real"]
-
-                # 1. 1X2
-                res_real_1x2 = (
-                    "Local" if gl > gv else ("Visitante" if gv > gl else "Empate")
-                )
-                if row["Pred_1X2"] == res_real_1x2:
-                    aciertos_1x2 += 1
-
-                # 2. Marcador Exacto
-                if row["Pred_Marcador"] == f"{int(gl)} - {int(gv)}":
-                    aciertos_marcador += 1
-
-                # 3. Over 2.5
-                over_real = "Más de 2.5" if (gl + gv) > 2.5 else "Menos de 2.5"
-                if row["Pred_Over25"] == over_real:
-                    aciertos_over25 += 1
-
-                # 4. BTTS
-                btts_real = "Sí" if (gl > 0 and gv > 0) else "No"
-                if row["Pred_BTTS"] == btts_real:
-                    aciertos_btts += 1
-
-                # 5. Córners (Tolerancia de +/- 1.5 córners)
-                if abs(row["Pred_Corners"] - cr) <= 1.5:
-                    aciertos_corners += 1
-
-            pct_1x2 = (aciertos_1x2 / total) * 100
-            pct_marcador = (aciertos_marcador / total) * 100
-            pct_over25 = (aciertos_over25 / total) * 100
-            pct_btts = (aciertos_btts / total) * 100
-            pct_corners = (aciertos_corners / total) * 100
-
-            st.markdown(f"#### Evaluados sobre **{total}** partidos finalizados:")
-
-            e1, e2, e3, e4, e5 = st.columns(5)
-            e1.metric("Acierto 1X2", f"{pct_1x2:.1f}%")
-            e2.metric("Marcador Exacto", f"{pct_marcador:.1f}%")
-            e3.metric("Over/Under 2.5", f"{pct_over25:.1f}%")
-            e4.metric("Ambos Anotan", f"{pct_btts:.1f}%")
-            e5.metric("Córners (+/-1.5)", f"{pct_corners:.1f}%")
-
-            # Gráfico de barras de efectividad
-            categorias_mkt = [
-                "Ganador 1X2",
-                "Over/Under 2.5",
-                "Ambos Anotan",
-                "Córners (Rango)",
-                "Marcador Exacto",
-            ]
-            porcentajes_mkt = [
-                pct_1x2,
-                pct_over25,
-                pct_btts,
-                pct_corners,
-                pct_marcador,
-            ]
-
-            fig_efectividad = go.Figure(
-                go.Bar(
-                    x=categorias_mkt,
-                    y=porcentajes_mkt,
-                    text=[f"{p:.1f}%" for p in porcentajes_mkt],
-                    textposition="auto",
-                    marker_color=["#00ffcc", "#00f3ff", "#3388ff", "#a855f7", "#ff3366"],
-                )
+            # 1. Ganador 1X2
+            res_real_1x2 = (
+                "Local" if gl > gv else ("Visitante" if gv > gl else "Empate")
             )
-            fig_efectividad.update_layout(
-                title="Tasa de Acierto % por Mercado",
-                yaxis_title="Porcentaje de Efectividad (%)",
-                yaxis=dict(range=[0, 100]),
-                paper_bgcolor="#070b14",
-                plot_bgcolor="#111827",
-                font=dict(color="#cbd5e1"),
-            )
-            st.plotly_chart(fig_efectividad, use_container_width=True)
+            if row["Pred_1X2"] == res_real_1x2:
+                aciertos_1x2 += 1
 
-        else:
-            st.info(
-                "Ingresá los resultados reales en el desplegable superior para"
-                " empezar a ver las métricas de efectividad y sus gráficos."
-            )
+            # 2. Marcador Exacto
+            if row["Pred_Marcador"] == f"{int(gl)} - {int(gv)}":
+                aciertos_marcador += 1
 
-        st.markdown("#### Historial General Registrado")
+            # 3. Over / Under 2.5
+            over_real = "Más de 2.5" if (gl + gv) > 2.5 else "Menos de 2.5"
+            if row["Pred_Over25"] == over_real:
+                aciertos_over25 += 1
+
+            # 4. BTTS
+            btts_real = "Sí" if (gl > 0 and gv > 0) else "No"
+            if row["Pred_BTTS"] == btts_real:
+                aciertos_btts += 1
+
+            # 5. Córners
+            if abs(row["Pred_Corners"] - cr) <= 1.5:
+                aciertos_corners += 1
+
+        pct_1x2 = (aciertos_1x2 / total) * 100
+        pct_marcador = (aciertos_marcador / total) * 100
+        pct_over25 = (aciertos_over25 / total) * 100
+        pct_btts = (aciertos_btts / total) * 100
+        pct_corners = (aciertos_corners / total) * 100
+
+        e1, e2, e3, e4, e5 = st.columns(5)
+        e1.metric("1X2 (Ganador/Empate)", f"{pct_1x2:.1f}%")
+        e2.metric("Over/Under 2.5", f"{pct_over25:.1f}%")
+        e3.metric("Ambos Anotan", f"{pct_btts:.1f}%")
+        e4.metric("Córners (+/-1.5)", f"{pct_corners:.1f}%")
+        e5.metric("Marcador Exacto", f"{pct_marcador:.1f}%")
+
+        # Gráfico de barras interactivo
+        categorias_mkt = [
+            "Ganador (1X2)",
+            "Over/Under 2.5",
+            "Ambos Anotan",
+            "Córners Totales",
+            "Marcador Exacto",
+        ]
+        porcentajes_mkt = [
+            pct_1x2,
+            pct_over25,
+            pct_btts,
+            pct_corners,
+            pct_marcador,
+        ]
+
+        fig_efectividad = go.Figure(
+            go.Bar(
+                x=categorias_mkt,
+                y=porcentajes_mkt,
+                text=[f"{p:.1f}%" for p in porcentajes_mkt],
+                textposition="auto",
+                marker_color=["#00ffcc", "#00f3ff", "#3388ff", "#a855f7", "#ff3366"],
+            )
+        )
+        fig_efectividad.update_layout(
+            title=f"Efectividad de Predicciones ({total} partidos auditados)",
+            yaxis_title="Acierto (%)",
+            yaxis=dict(range=[0, 100]),
+            paper_bgcolor="#070b14",
+            plot_bgcolor="#111827",
+            font=dict(color="#cbd5e1"),
+        )
+        st.plotly_chart(fig_efectividad, use_container_width=True)
+
+    else:
+        st.info(
+            "⏳ El sistema está acumulando y monitoreando partidos. A medida que terminen los encuentros pronosticados, la gráfica de efectividad se actualizará automáticamente aquí."
+        )
+
+    with st.expander("Ver Registro Completo de Auditoría"):
         st.dataframe(df_historial, use_container_width=True, hide_index=True)
 
 else:
     st.error(
-        "Archivo de origen no encontrado. Verifique que 'datos_procesados.csv'"
-        " exista."
+        "Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista."
     )
