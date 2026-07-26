@@ -226,6 +226,7 @@ def render_h2h_pills(historial, local, visitante):
     html += "</div>"
     return html
 
+
 def realizar_prediccion(
     local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[]
 ):
@@ -622,9 +623,9 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
             
-            # NUEVO: Renderizamos visualmente las píldoras del historial directo (H2H)
+            # NUEVO: Renderizamos visualmente las píldoras del historial directo (H2H) con nombres de equipos
             st.markdown(f"<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
-            st.markdown(render_h2h_pills(historial_h2h), unsafe_allow_html=True)
+            st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
 
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
