@@ -59,8 +59,17 @@ st.markdown(
 
 
 # ---------------------------------------------------------------------
-# FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON, MONTE CARLO Y PREDICCIÓN
+# FUNCIONES AUXILIARES: POISSON, MONTE CARLO Y DECAIMIENTO TEMPORAL
 # ---------------------------------------------------------------------
+def calcular_peso_temporal(dias_transcurridos, half_life=30.0):
+    """Calcula el peso exponencial de un dato según la antigüedad en días.
+
+    half_life = 30 significa que a los 30 días el peso cae al 50%.
+    """
+    lmbda = np.log(2) / half_life
+    return float(np.exp(-lmbda * dias_transcurridos))
+
+
 def poisson_prob(lmbda, k):
     if lmbda <= 0:
         return 1.0 if k == 0 else 0.0
@@ -156,11 +165,21 @@ def realizar_prediccion(
     prom_loc = ((pts_loc / pj_loc) * 0.4) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.4) + (xg_proyectado_visi * 0.4)
 
-    # INCLUSIÓN DE FORMA RECIENTE (Últimos 5 partidos - máx 15 pts)
-    pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
-    pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
-    
-    # Ponderador de Forma (Factor entre 0.8 y 1.2)
+    # APLICACIÓN DE DECAIMIENTO TEMPORAL A LA FORMA RECIENTE
+    dias_ultimo_partido_loc = float(row_loc.get("Dias_Ultimo_Partido", 7.0))
+    dias_ultimo_partido_vis = float(row_vis.get("Dias_Ultimo_Partido", 7.0))
+
+    peso_decay_loc = calcular_peso_temporal(
+        dias_ultimo_partido_loc, half_life=45.0
+    )
+    peso_decay_vis = calcular_peso_temporal(
+        dias_ultimo_partido_vis, half_life=45.0
+    )
+
+    pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5)) * peso_decay_loc
+    pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5)) * peso_decay_vis
+
+    # Ponderador de Forma Ajustado
     factor_forma_loc = 0.85 + (pts_u5_loc / 15.0) * 0.30
     factor_forma_vis = 0.85 + (pts_u5_vis / 15.0) * 0.30
 
@@ -409,16 +428,21 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     gc_pp = gc / pj
     fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
 
-    # EXTRACCIÓN / CÁLCULO DE FORMA RECIENTE (Puntos en los últimos 5 partidos)
+    # EXTRACCIÓN Y AJUSTE TEMPORAL DE FORMA RECIENTE
     if "Forma_U5" in df.columns:
         pts_u5 = float(row.get("Forma_U5", 7.5))
     else:
-        # Estimación basada en xG y PPJ promedio de la temporada si no existe en el CSV
         pts_u5 = round(min(15.0, max(1.0, (gf / pj) * 3.5 + (xg_proyectado * 2.0))), 1)
+
+    dias_ultimo_partido = float(row.get("Dias_Ultimo_Partido", 7.0))
+    peso_temporal = calcular_peso_temporal(dias_ultimo_partido, half_life=30.0)
+
+    # Ajustamos el xG considerando la vigencia temporal de las muestras
+    xg_ajustado = round(xg_proyectado * (0.85 + (0.15 * peso_temporal)), 2)
 
     return {
         "GF": gf,
-        "xG": round(xg_proyectado, 1),
+        "xG": xg_ajustado,
         "Pos": pos,
         "VI": vi,
         "TirosArco": tiros_arco,
@@ -426,6 +450,7 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
         "Corners": corners,
         "Fortaleza": fortaleza,
         "Pts_U5": pts_u5,
+        "Peso_Temporal": round(peso_temporal, 2),
     }
 
 
@@ -448,7 +473,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     max_ta = max(stats_loc["TirosArco"], stats_vis["TirosArco"], 5.0) * 1.2
     max_pa = 100
     max_fd = 100
-    max_forma = 15.0  # Máximo de puntos posibles en 5 partidos
+    max_forma = 15.0
 
     val_loc_norm = [
         stats_loc["GF"] / max_gf,
@@ -555,8 +580,8 @@ with col_titulo:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG, FORMA RECIENTE Y'
-        " RESULTADOS EXACTOS</div>",
+        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG, DECAIMIENTO TEMPORAL'
+        " Y MONTE CARLO</div>",
         unsafe_allow_html=True,
     )
 
@@ -638,7 +663,7 @@ if os.path.exists(RUTA_CSV):
     st.markdown("---")
 
     # -----------------------------------------------------------------
-    # 5. MOTOR DE PREDICCIÓN MANUAL
+    # 5. MOTOR DE PREDICCIÓN MANUAL CON DECAIMIENTO TEMPORAL
     # -----------------------------------------------------------------
     st.markdown(
         "<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>",
@@ -702,11 +727,15 @@ if os.path.exists(RUTA_CSV):
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
                 st.info(
-                    f"xG Proyectado {local}: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**"
+                    f"xG Ajustado {local}: **{stats_loc['xG']}** | Forma (U5):"
+                    f" **{stats_loc['Pts_U5']} pts** (Factor Reciente:"
+                    f" {stats_loc['Peso_Temporal'] * 100:.0f}%)"
                 )
             with col_xg2:
                 st.info(
-                    f"xG Proyectado {visitante}: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**"
+                    f"xG Ajustado {visitante}: **{stats_vis['xG']}** | Forma"
+                    f" (U5): **{stats_vis['Pts_U5']} pts** (Factor Reciente:"
+                    f" {stats_vis['Peso_Temporal'] * 100:.0f}%)"
                 )
 
             m1, m2, m3 = st.columns(3)
@@ -749,7 +778,7 @@ if os.path.exists(RUTA_CSV):
             )
             prob_over_25, prob_under_25, prob_btts = (
                 calcular_mercados_adicionales(
-                    xg_proyectado_local, xg_proyectado_visi
+                    stats_loc["xG"], stats_vis["xG"]
                 )
             )
 
@@ -784,7 +813,7 @@ if os.path.exists(RUTA_CSV):
             )
 
             p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(
-                xg_proyectado_local, xg_proyectado_visi
+                stats_loc["xG"], stats_vis["xG"]
             )
 
             c_mc1, c_mc2, c_mc3 = st.columns(3)
@@ -820,7 +849,7 @@ if os.path.exists(RUTA_CSV):
             # -----------------------------------------------------------------
             st.markdown(
                 "<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis"
-                " Octagonal (Incluye Forma Reciente)</h4>",
+                " Octagonal (Con Decaimiento Temporal)</h4>",
                 unsafe_allow_html=True,
             )
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
@@ -837,7 +866,7 @@ if os.path.exists(RUTA_CSV):
                 unsafe_allow_html=True,
             )
             top_5_marcadores, prob_otro = calcular_top_resultados(
-                xg_proyectado_local, xg_proyectado_visi
+                stats_loc["xG"], stats_vis["xG"]
             )
 
             tabla_marcadores = []
