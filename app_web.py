@@ -92,16 +92,47 @@ def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
 
     return prob_loc_mc, prob_emp_mc, prob_vis_mc, goles_totales
 
-def calcular_top_resultados(xg_loc, xg_vis):
+def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, prob_vis_target):
+    """
+    Calcula los marcadores exactos usando Poisson, pero los 'calibra' 
+    para que respeten estrictamente los porcentajes 1X2 del modelo principal.
+    """
     scores = {}
-    total_prob_matriz = 0.0
-
-    for i in range(6):
-        for j in range(6):
+    
+    # 1. Calcular matriz Poisson base pura
+    prob_loc_poisson = 0.0
+    prob_emp_poisson = 0.0
+    prob_vis_poisson = 0.0
+    poisson_matriz = {}
+    
+    for i in range(7):
+        for j in range(7):
             p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
-            scores[f"{i} - {j}"] = p * 100
-            total_prob_matriz += p * 100
+            poisson_matriz[(i, j)] = p
+            
+            # Sumar probabilidades base para saber cuánto pesa cada bloque
+            if i > j: prob_loc_poisson += p
+            elif i == j: prob_emp_poisson += p
+            else: prob_vis_poisson += p
 
+    # 2. Crear factores de corrección para alinear con tus probabilidades 1X2
+    # Evitamos dividir por cero usando max()
+    factor_loc = (prob_loc_target / 100.0) / max(0.0001, prob_loc_poisson)
+    factor_emp = (prob_emp_target / 100.0) / max(0.0001, prob_emp_poisson)
+    factor_vis = (prob_vis_target / 100.0) / max(0.0001, prob_vis_poisson)
+
+    # 3. Aplicar la corrección a cada resultado exacto
+    for (i, j), p in poisson_matriz.items():
+        if i > j:
+            p_ajustada = p * factor_loc
+        elif i == j:
+            p_ajustada = p * factor_emp
+        else:
+            p_ajustada = p * factor_vis
+            
+        scores[f"{i} - {j}"] = p_ajustada * 100
+
+    # 4. Ordenar y sacar el Top 5
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     top_5 = sorted_scores[:5]
 
