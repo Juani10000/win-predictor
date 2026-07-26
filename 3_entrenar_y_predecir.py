@@ -2,26 +2,86 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
-print("🧠 Entrenando modelo avanzado con rachas y prevención de sobreajuste...")
+print("🧠 Entrenando modelo avanzado con Jerarquía de Plantel y Ajuste por Rival...")
 
-# 1. Cargar los datos procesados con rachas
+# =====================================================================
+# 1. DICCIONARIO Y FUNCIÓN DE JERARQUÍA DE PLANTELES (Escala 1.0 a 10.0)
+# =====================================================================
+JERARQUIA_EQUIPOS = {
+    "River Plate": 9.5,
+    "Boca Juniors": 9.2,
+    "Racing Club": 8.5,
+    "San Lorenzo": 8.0,
+    "Independiente": 8.0,
+    "Estudiantes": 7.8,
+    "Talleres": 7.8,
+    "Vélez Sarsfield": 7.5,
+    "Lanús": 7.5,
+    "Huracán": 7.2,
+    "Rosario Central": 7.2,
+    "Argentinos Juniors": 7.0,
+    "Godoy Cruz": 7.0,
+    "Belgrano": 6.8,
+    "Newell's": 6.8,
+    "Defensa y Justicia": 6.8,
+    "Unión": 6.5,
+    "Platense": 6.5,
+    "Gimnasia LP": 6.5,
+    "Instituto": 6.3,
+    "Banfield": 6.3,
+    "Tigre": 6.2,
+    "Barracas Central": 6.0,
+    "Central Córdoba": 6.0,
+    "Sarmiento": 5.8,
+    "Deportivo Riestra": 5.8,
+    "Independiente Rivadavia": 5.8,
+    "Atlético Tucumán": 6.2,
+    "Aldosivi": 5.5,
+    "San Martín (SJ)": 5.5,
+}
+
+
+def obtener_jerarquia(nombre_equipo):
+    """Devuelve la jerarquía del equipo o un valor promedio si no se encuentra."""
+    if not isinstance(nombre_equipo, str):
+        return 6.5
+    nombre_norm = nombre_equipo.lower().strip()
+    for eq, rating in JERARQUIA_EQUIPOS.items():
+        if eq.lower() in nombre_norm or nombre_norm in eq.lower():
+            return rating
+    return 6.5
+
+
+# =====================================================================
+# 2. CARGA Y PROCESAMIENTO DE DATOS
+# =====================================================================
 df = pd.read_csv("datos/datos_procesados.csv")
 
-# 2. Definir las variables explicativas (Features) y el objetivo (Target)
+# Asignar Jerarquía de Plantel
+df["local_jerarquia"] = df["Local"].apply(obtener_jerarquia)
+df["visitante_jerarquia"] = df["Visitante"].apply(obtener_jerarquia)
+
+# Ajuste de Racha por Rival: Puntos * (Jerarquía Rival / 10.0)
+df["local_pts_ajustados_5"] = df["local_pts_5"] * (df["visitante_jerarquia"] / 10.0)
+df["visita_pts_ajustados_5"] = df["visita_pts_5"] * (df["local_jerarquia"] / 10.0)
+
+# 3. Definir las variables explicativas (Features) y el objetivo (Target)
 features = [
     "local_cod",
     "visitante_cod",
+    "local_jerarquia",
+    "visitante_jerarquia",
     "local_gf_5",
     "local_gc_5",
-    "local_pts_5",
+    "local_pts_ajustados_5",
     "visita_gf_5",
     "visita_gc_5",
-    "visita_pts_5",
+    "visita_pts_ajustados_5",
 ]
 X = df[features]
 y = df["resultado_num"]
 
-# 3. Entrenar el modelo limitando la profundidad para EVITAR el 100% de sobreajuste
+# 4. Entrenar el modelo
 modelo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
 modelo.fit(X, y)
 
@@ -38,50 +98,55 @@ def obtener_racha_actual(equipo):
     if len(partidos) == 0:
         return 1.0, 1.0, 1.0
 
-    gf, gc, pts = [], [], []
-    for _, fila in partidos.iterrows():
-        es_local = fila["Local"] == equipo
-        g_fav = fila["Goles_Local"] if es_local else fila["Goles_Visitante"]
-        g_con = fila["Goles_Visitante"] if es_local else fila["Goles_Local"]
-        res = fila["Resultado"]
-
-        if (es_local and res == "L") or (not es_local and res == "V"):
-            p = 3
-        elif res == "E":
-            p = 1
+    gf, gc, pts = 0, 0, 0
+    for _, row in partidos.iterrows():
+        if row["Local"] == equipo:
+            gf += row["Goles_Local"]
+            gc += row["Goles_Visitante"]
+            if row["Resultado"] == "L":
+                pts += 3
+            elif row["Resultado"] == "E":
+                pts += 1
         else:
-            p = 0
+            gf += row["Goles_Visitante"]
+            gc += row["Goles_Local"]
+            if row["Resultado"] == "V":
+                pts += 3
+            elif row["Resultado"] == "E":
+                pts += 1
 
-        gf.append(g_fav)
-        gc.append(g_con)
-        pts.append(p)
-
-    return np.mean(gf), np.mean(gc), np.mean(pts)
+    n = len(partidos)
+    return gf / n, gc / n, pts / n
 
 
-def predecir(local, visitante):
+def predecir_partido(local, visitante):
     if local not in mapa_equipos or visitante not in mapa_equipos:
-        print(
-            f"❌ Error: Uno de los equipos ('{local}' o '{visitante}') no existe en la lista."
-        )
+        print("❌ Uno o ambos equipos no existen en la base de datos.")
         return
 
-    # Obtener racha actual de ambos
     l_gf, l_gc, l_pts = obtener_racha_actual(local)
     v_gf, v_gc, v_pts = obtener_racha_actual(visitante)
 
-    # Crear la fila para predecir
+    jer_local = obtener_jerarquia(local)
+    jer_visita = obtener_jerarquia(visitante)
+
+    # Puntos ajustados por la jerarquía del rival
+    l_pts_ajustado = l_pts * (jer_visita / 10.0)
+    v_pts_ajustado = v_pts * (jer_local / 10.0)
+
     partido_nuevo = pd.DataFrame(
         [
             {
                 "local_cod": mapa_equipos[local],
                 "visitante_cod": mapa_equipos[visitante],
+                "local_jerarquia": jer_local,
+                "visitante_jerarquia": jer_visita,
                 "local_gf_5": l_gf,
                 "local_gc_5": l_gc,
-                "local_pts_5": l_pts,
+                "local_pts_ajustados_5": l_pts_ajustado,
                 "visita_gf_5": v_gf,
                 "visita_gc_5": v_gc,
-                "visita_pts_5": v_pts,
+                "visita_pts_ajustados_5": v_pts_ajustado,
             }
         ]
     )
@@ -97,26 +162,22 @@ def predecir(local, visitante):
     }
 
     print(f"\n📊 Pronóstico Avanzado: {local} vs {visitante}")
+    print(f"⭐ Jerarquía Plantel -> {local}: {jer_local} | {visitante}: {jer_visita}")
     print(
-        f"🔥 Racha Local ({local}): {l_pts:.1f} pts/partido | {l_gf:.1f} goles favor/partido"
+        f"🔥 Racha Local ({local}): {l_pts:.1f} pts/partido (Ajustado por Rival: {l_pts_ajustado:.2f})"
     )
     print(
-        f"🔥 Racha Visitante ({visitante}): {v_pts:.1f} pts/partido | {v_gf:.1f} goles favor/partido"
+        f"🔥 Racha Visitante ({visitante}): {v_pts:.1f} pts/partido (Ajustado por Rival: {v_pts_ajustado:.2f})"
     )
     print(f"🔮 Resultado esperado: {res_txt[prediccion]}")
-    print("📈 Probabilidades realistas del modelo:")
+    print("📈 Probabilidades realistas del Modelo:")
 
-    clases = list(modelo.classes_)
-    if 1 in clases:
-        print(f"   - Victoria Local ({local}): {probs[clases.index(1)]*100:.1f}%")
-    if 0 in clases:
-        print(f"   - Empate: {probs[clases.index(0)]*100:.1f}%")
-    if 2 in clases:
-        print(
-            f"   - Victoria Visitante ({visitante}): {probs[clases.index(2)]*100:.1f}%"
-        )
+    clases = modelo.classes_
+    mapa_clases = {0: "Empate", 1: f"Gana {local}", 2: f"Gana {visitante}"}
+    for idx, c in enumerate(clases):
+        print(f"   - {mapa_clases.get(c, c)}: {probs[idx]*100:.1f}%")
 
 
-# --- PRUEBAS DE PARTIDOS ---
-predecir("Racing Club", "Independiente")
-predecir("Boca Juniors", "River Plate")
+if __name__ == "__main__":
+    # Prueba del modelo
+    predecir_partido("Boca Juniors", "Independiente Rivadavia")
