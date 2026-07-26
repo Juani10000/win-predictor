@@ -66,6 +66,30 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# =====================================================================
+# MEJORA IA: DICCIONARIO DE JERARQUÍA DE PLANTELES
+# =====================================================================
+JERARQUIA_EQUIPOS = {
+    "River Plate": 9.5, "Boca Juniors": 9.2, "Racing Club": 8.5,
+    "San Lorenzo": 8.0, "Independiente": 8.0, "Estudiantes": 7.8,
+    "Talleres": 7.8, "Vélez Sarsfield": 7.5, "Lanús": 7.5,
+    "Huracán": 7.2, "Rosario Central": 7.2, "Argentinos Juniors": 7.0,
+    "Godoy Cruz": 7.0, "Belgrano": 6.8, "Newell's": 6.8,
+    "Defensa y Justicia": 6.8, "Unión": 6.5, "Platense": 6.5,
+    "Gimnasia LP": 6.5, "Instituto": 6.3, "Banfield": 6.3,
+    "Tigre": 6.2, "Barracas Central": 6.0, "Central Córdoba": 6.0,
+    "Sarmiento": 5.8, "Deportivo Riestra": 5.8, "Independiente Rivadavia": 5.8,
+    "Atlético Tucumán": 6.2, "Aldosivi": 5.5, "San Martín (SJ)": 5.5
+}
+
+def obtener_jerarquia(nombre_equipo):
+    """Devuelve la jerarquía del equipo. Si no está mapeado, da un valor promedio."""
+    nombre_clean = nombre_equipo.lower().strip()
+    for eq, rating in JERARQUIA_EQUIPOS.items():
+        if eq.lower() in nombre_clean or nombre_clean in eq.lower():
+            return rating
+    return 6.5
+
 # ---------------------------------------------------------------------
 # FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON, MONTE CARLO Y PREDICCIÓN
 # ---------------------------------------------------------------------
@@ -258,8 +282,16 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
     pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
 
-    factor_forma_loc = 0.85 + (pts_u5_loc / 15.0) * 0.30
-    factor_forma_vis = 0.85 + (pts_u5_vis / 15.0) * 0.30
+    # --- MEJORA IA INYECTADA: Ajuste de racha por fuerza del rival ---
+    jer_loc = obtener_jerarquia(local)
+    jer_vis = obtener_jerarquia(visitante)
+
+    pts_u5_loc_ajustado = pts_u5_loc * (jer_vis / 10.0)
+    pts_u5_vis_ajustado = pts_u5_vis * (jer_loc / 10.0)
+
+    factor_forma_loc = 0.85 + (pts_u5_loc_ajustado / 15.0) * 0.30
+    factor_forma_vis = 0.85 + (pts_u5_vis_ajustado / 15.0) * 0.30
+    # -----------------------------------------------------------------
 
     prom_loc *= factor_forma_loc
     prom_vis *= factor_forma_vis
@@ -288,8 +320,12 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     balance_h2h = victorias_h2h - derrotas_h2h
     bono_historial = balance_h2h * 0.025 
 
-    prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h + bono_historial)
-    prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h - bono_historial)
+    # --- MEJORA IA INYECTADA: Bono por diferencia de Jerarquía ---
+    bono_jerarquia = (jer_loc - jer_vis) * 0.04
+    # -------------------------------------------------------------
+
+    prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h + bono_historial + bono_jerarquia)
+    prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h - bono_historial - bono_jerarquia)
 
     prob_empate_poisson = sum(
         poisson_prob(xg_proyectado_local, k) * poisson_prob(xg_proyectado_visi, k) for k in range(5)
@@ -459,10 +495,11 @@ def consolidar_estadisticas(equipo, df, stats_torneo, xg_proyectado):
     }
 
 def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
+    # --- MEJORA IA INYECTADA: Se agregó "Jerarquía Plantel" al Radar ---
     categories = [
         "Goles a Favor", "xG Proyectado", "Posesión (%)", 
         "Vallas Invictas", "Tiros al Arco", "Eficacia Pases", 
-        "Fuerza Defensiva", "Forma Reciente (U5)"
+        "Fuerza Defensiva", "Forma Reciente (U5)", "Jerarquía Plantel"
     ]
 
     max_gf = max(stats_loc["GF"], stats_vis["GF"], 15) * 1.1
@@ -473,27 +510,31 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     max_pa = 100
     max_fd = 100
     max_forma = 15.0
+    max_jer = 10.0 # Valor máximo de jerarquía
+
+    jer_loc = obtener_jerarquia(loc_name)
+    jer_vis = obtener_jerarquia(vis_name)
 
     val_loc_norm = [
         stats_loc["GF"] / max_gf, stats_loc["xG"] / max_xg, stats_loc["Pos"] / max_pos,
         stats_loc["VI"] / max_vi, stats_loc["TirosArco"] / max_ta, stats_loc["Pases"] / max_pa,
-        stats_loc["Fortaleza"] / max_fd, stats_loc["Pts_U5"] / max_forma,
+        stats_loc["Fortaleza"] / max_fd, stats_loc["Pts_U5"] / max_forma, jer_loc / max_jer
     ]
     val_vis_norm = [
         stats_vis["GF"] / max_gf, stats_vis["xG"] / max_xg, stats_vis["Pos"] / max_pos,
         stats_vis["VI"] / max_vi, stats_vis["TirosArco"] / max_ta, stats_vis["Pases"] / max_pa,
-        stats_vis["Fortaleza"] / max_fd, stats_vis["Pts_U5"] / max_forma,
+        stats_vis["Fortaleza"] / max_fd, stats_vis["Pts_U5"] / max_forma, jer_vis / max_jer
     ]
 
     text_loc = [
         str(stats_loc["GF"]), str(stats_loc["xG"]), f"{stats_loc['Pos']} %",
         str(stats_loc["VI"]), str(stats_loc["TirosArco"]), f"{stats_loc['Pases']} %",
-        f"{stats_loc['Fortaleza']}/100", f"{stats_loc['Pts_U5']} pts",
+        f"{stats_loc['Fortaleza']}/100", f"{stats_loc['Pts_U5']} pts", f"{jer_loc}/10"
     ]
     text_vis = [
         str(stats_vis["GF"]), str(stats_vis["xG"]), f"{stats_vis['Pos']} %",
         str(stats_vis["VI"]), str(stats_vis["TirosArco"]), f"{stats_vis['Pases']} %",
-        f"{stats_vis['Fortaleza']}/100", f"{stats_vis['Pts_U5']} pts",
+        f"{stats_vis['Fortaleza']}/100", f"{stats_vis['Pts_U5']} pts", f"{jer_vis}/10"
     ]
 
     fig = go.Figure()
