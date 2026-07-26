@@ -130,6 +130,35 @@ def calcular_mercados_adicionales(xg_loc, xg_vis):
     return prob_over_2_5, prob_under_2_5, prob_btts
 
 
+def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
+    """Calcula el índice de impredecibilidad y caos del encuentro (0-100%)."""
+    xg_total = xg_loc + xg_vis
+    # Factor 1: Expectativa alta de goles
+    vol_goles = min(40.0, (xg_total / 3.5) * 40.0)
+
+    # Factor 2: Debilidad defensiva combinada (Fortaleza es de 0 a 100)
+    deb_def = 100.0 - ((stats_loc["Fortaleza"] + stats_vis["Fortaleza"]) / 2.0)
+    vol_defensa = (deb_def / 100.0) * 30.0
+
+    # Factor 3: Paridad en xG (Si están muy parejos en ataque, aumenta el caos)
+    dif_xg = abs(xg_loc - xg_vis)
+    vol_paridad = max(0.0, 30.0 - (dif_xg * 20.0))
+
+    indice = min(99.0, max(10.0, vol_goles + vol_defensa + vol_paridad))
+
+    if indice >= 65:
+        categoria = "🔥 ALTA (Partido Impredecible / Caótico)"
+        color = "red"
+    elif indice >= 40:
+        categoria = "⚡ MEDIA (Desarrollo Dinámico)"
+        color = "orange"
+    else:
+        categoria = "🛡️ BAJA (Partido Estructurado / Controlado)"
+        color = "green"
+
+    return round(indice, 1), categoria, color
+
+
 def realizar_prediccion(
     local,
     visitante,
@@ -159,7 +188,7 @@ def realizar_prediccion(
     # INCLUSIÓN DE FORMA RECIENTE (Últimos 5 partidos - máx 15 pts)
     pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
     pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
-    
+
     # Ponderador de Forma (Factor entre 0.8 y 1.2)
     factor_forma_loc = 0.85 + (pts_u5_loc / 15.0) * 0.30
     factor_forma_vis = 0.85 + (pts_u5_vis / 15.0) * 0.30
@@ -409,11 +438,9 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     gc_pp = gc / pj
     fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
 
-    # EXTRACCIÓN / CÁLCULO DE FORMA RECIENTE (Puntos en los últimos 5 partidos)
     if "Forma_U5" in df.columns:
         pts_u5 = float(row.get("Forma_U5", 7.5))
     else:
-        # Estimación basada en xG y PPJ promedio de la temporada si no existe en el CSV
         pts_u5 = round(min(15.0, max(1.0, (gf / pj) * 3.5 + (xg_proyectado * 2.0))), 1)
 
     return {
@@ -448,7 +475,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     max_ta = max(stats_loc["TirosArco"], stats_vis["TirosArco"], 5.0) * 1.2
     max_pa = 100
     max_fd = 100
-    max_forma = 15.0  # Máximo de puntos posibles en 5 partidos
+    max_forma = 15.0
 
     val_loc_norm = [
         stats_loc["GF"] / max_gf,
@@ -738,6 +765,24 @@ if os.path.exists(RUTA_CSV):
                     unsafe_allow_html=True,
                 )
                 st.progress(int(prob_vis) / 100)
+
+            st.markdown("---")
+
+            # NADA SE ROMPE: ÍNDICE DE VOLATILIDAD / CAOS DEL PARTIDO
+            st.markdown(
+                "<h4 style='color: #cbd5e1;'>Índice de Volatilidad & Impredecibilidad</h4>",
+                unsafe_allow_html=True,
+            )
+            vol_val, vol_cat, vol_col = calcular_indice_volatilidad(
+                xg_proyectado_local, xg_proyectado_visi, stats_loc, stats_vis
+            )
+
+            v_col1, v_col2 = st.columns([1, 2])
+            with v_col1:
+                st.metric(label="Índice de Caos", value=f"{vol_val}%")
+            with v_col2:
+                st.markdown(f"**Nivel de Riesgo:** :{vol_col}[{vol_cat}]")
+                st.progress(int(vol_val) / 100)
 
             st.markdown("---")
 
