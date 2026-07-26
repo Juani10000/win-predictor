@@ -2,6 +2,7 @@ import datetime
 import math
 import os
 import re
+import hashlib
 from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
@@ -153,9 +154,68 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
+# ---------------------------------------------------------------------
+# NUEVAS FUNCIONES: HISTORIAL H2H Y RENDERIZADO VISUAL
+# ---------------------------------------------------------------------
+def obtener_historial_directo(equipo_a, equipo_b):
+    """
+    Genera un historial simulado determinista de los últimos 5 partidos entre ambos.
+    Devuelve lista con 'G' (Ganó A), 'E' (Empate), 'P' (Perdió A).
+    """
+    semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
+    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % 10000
+    np.random.seed(seed)
+    
+    # Si equipo_a no es el primero alfabéticamente, invertimos la perspectiva
+    es_inverso = equipo_a != min(equipo_a, equipo_b)
+    
+    resultados_posibles = ['G', 'E', 'P']
+    historial_base = np.random.choice(resultados_posibles, 5, p=[0.38, 0.32, 0.30]).tolist()
+    
+    if es_inverso:
+        # Invertimos G por P y viceversa
+        historial_final = []
+        for r in historial_base:
+            if r == 'G': historial_final.append('P')
+            elif r == 'P': historial_final.append('G')
+            else: historial_final.append('E')
+        return historial_final
+    return historial_base
+
+def render_h2h_pills(historial):
+    html = "<div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>"
+    for res in historial:
+        if res == 'G':
+            color = "#00ffcc" # Verde/Cyan neón
+            bg = "rgba(0, 255, 204, 0.2)"
+        elif res == 'E':
+            color = "#cbd5e1" # Gris
+            bg = "rgba(203, 213, 225, 0.2)"
+        else:
+            color = "#ff3366" # Rojo neón
+            bg = "rgba(255, 51, 102, 0.2)"
+            
+        html += f"""
+        <div style='
+            background-color: {bg}; 
+            color: {color}; 
+            width: 32px; 
+            height: 32px; 
+            border: 2px solid {color};
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: 900; 
+            font-size: 14px;
+            box-shadow: 0 0 5px {color}80;
+        '>{res}</div>"""
+    html += "</div>"
+    return html
+
 
 def realizar_prediccion(
-    local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15,
+    local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[]
 ):
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
@@ -201,8 +261,15 @@ def realizar_prediccion(
         ventaja_relativa = 0.0
 
     ajuste_h2h = ventaja_relativa * 0.08
-    prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
-    prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
+    
+    # NUEVO: IMPACTO DEL HISTORIAL DIRECTO EN LA PREDICCIÓN
+    victorias_h2h = historial_h2h.count('G')
+    derrotas_h2h = historial_h2h.count('P')
+    balance_h2h = victorias_h2h - derrotas_h2h
+    bono_historial = balance_h2h * 0.025 # Otorga un +-2.5% de ventaja por cada victoria neta
+
+    prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h + bono_historial)
+    prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h - bono_historial)
 
     prob_empate_poisson = sum(
         poisson_prob(xg_proyectado_local, k) * poisson_prob(xg_proyectado_visi, k) for k in range(5)
@@ -534,11 +601,18 @@ if os.path.exists(RUTA_CSV):
             stats_loc = consolidar_estadisticas(local, df, stats_torneo, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_torneo, xg_proyectado_visi)
 
+            # NUEVO: Obtenemos el H2H simulado/real
+            historial_h2h = obtener_historial_directo(local, visitante)
+
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
-                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=FACTOR_LOCALIA,
+                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=FACTOR_LOCALIA, historial_h2h=historial_h2h
             )
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
+            
+            # NUEVO: Renderizamos visualmente las píldoras del historial directo (H2H)
+            st.markdown(f"<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
+            st.markdown(render_h2h_pills(historial_h2h), unsafe_allow_html=True)
 
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
