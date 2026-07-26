@@ -59,7 +59,7 @@ st.markdown(
 
 
 # ---------------------------------------------------------------------
-# FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON, MONTE CARLO Y PREDICCIÓN
+# FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON Y MONTE CARLO
 # ---------------------------------------------------------------------
 def poisson_prob(lmbda, k):
     if lmbda <= 0:
@@ -68,7 +68,6 @@ def poisson_prob(lmbda, k):
 
 
 def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
-    """Simula el partido N veces usando distribuciones estocásticas de Poisson."""
     xg_loc_sim = np.random.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
     xg_vis_sim = np.random.normal(xg_vis, xg_vis * 0.10, num_simulaciones)
 
@@ -111,7 +110,6 @@ def calcular_top_resultados(xg_loc, xg_vis):
 
 
 def calcular_mercados_adicionales(xg_loc, xg_vis):
-    """Calcula Over/Under 2.5 goles y Ambos Anotan (BTTS) usando Poisson."""
     prob_under_2_5 = 0.0
     prob_btts = 0.0
 
@@ -183,14 +181,12 @@ def realizar_prediccion(
     prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
     prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
 
-    # Cálculo del Empate mediante probabilidad conjunta de Poisson
     prob_empate_poisson = sum(
         poisson_prob(xg_proyectado_local, k)
         * poisson_prob(xg_proyectado_visi, k)
         for k in range(5)
     )
 
-    # Factor de paridad para la LPF
     diferencia_xg = abs(xg_proyectado_local - xg_proyectado_visi)
     factor_paridad = max(0.85, 1.25 - (diferencia_xg * 0.4))
 
@@ -269,13 +265,77 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 
 
 # ---------------------------------------------------------------------
-# SCRAPING AUTOMÁTICO - API ESPN Y WIKIPEDIA
+# GESTIÓN DE HISTORIAL Y EFECTIVIDAD
+# ---------------------------------------------------------------------
+DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
+RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
+
+
+def cargar_historial():
+    if os.path.exists(RUTA_HISTORIAL):
+        return pd.read_csv(RUTA_HISTORIAL)
+    return pd.DataFrame(
+        columns=[
+            "Fecha",
+            "Local",
+            "Visitante",
+            "Pred_1X2",
+            "Pred_Marcador",
+            "Pred_Over25",
+            "Pred_BTTS",
+            "Pred_Corners",
+            "Goles_Local_Real",
+            "Goles_Vis_Real",
+            "Corners_Real",
+            "Finalizado",
+        ]
+    )
+
+
+def guardar_prediccion_historial(
+    local, vis, pred_1x2, pred_marcador, pred_over25, pred_btts, pred_corners
+):
+    df_hist = cargar_historial()
+    # Evitar duplicados no finalizados para el mismo partido hoy
+    fecha_hoy = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    mismo_partido = (
+        (df_hist["Local"] == local)
+        & (df_hist["Visitante"] == vis)
+        & (df_hist["Finalizado"] == False)
+    )
+
+    if not mismo_partido.any():
+        nueva_fila = pd.DataFrame(
+            [
+                {
+                    "Fecha": fecha_hoy,
+                    "Local": local,
+                    "Visitante": vis,
+                    "Pred_1X2": pred_1x2,
+                    "Pred_Marcador": pred_marcador,
+                    "Pred_Over25": pred_over25,
+                    "Pred_BTTS": pred_btts,
+                    "Pred_Corners": pred_corners,
+                    "Goles_Local_Real": np.nan,
+                    "Goles_Vis_Real": np.nan,
+                    "Corners_Real": np.nan,
+                    "Finalizado": False,
+                }
+            ]
+        )
+        df_hist = pd.concat([df_hist, nueva_fila], ignore_index=True)
+        df_hist.to_csv(RUTA_HISTORIAL, index=False)
+
+
+# ---------------------------------------------------------------------
+# SCRAPING AUTOMÁTICO
 # ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    fecha_hoy_str = me = ahora_arg.strftime("%Y-%m-%d")
-    fecha_espn_url = me = me = me = me = me = ahora_arg.strftime("%Y%m%d")
+    fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
+    fecha_espn_url = ahora_arg.strftime("%Y%m%d")
 
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_espn_url}"
     partidos_hoy = []
@@ -535,8 +595,7 @@ with col_titulo:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS'
-        " EXACTOS</div>",
+        '<div class="tech-sub">MOTOR DE PREDICCIÓN Y MÉTRICAS DE ACIERTO</div>',
         unsafe_allow_html=True,
     )
 
@@ -546,9 +605,7 @@ st.markdown("---")
 # =====================================================================
 # 2. CARGA Y PROCESAMIENTO DE DATOS
 # =====================================================================
-DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
-
 if not os.path.exists(RUTA_CSV):
     RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos", "datos_procesados.csv")
 
@@ -608,7 +665,7 @@ if os.path.exists(RUTA_CSV):
         st.divider()
 
     # -----------------------------------------------------------------
-    # 4. TABLA DE POSICIONES SIEMPRE VISIBLE
+    # 4. TABLA DE POSICIONES
     # -----------------------------------------------------------------
     st.markdown(
         "<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>",
@@ -696,8 +753,7 @@ if os.path.exists(RUTA_CSV):
             m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
 
             st.markdown(
-                "<br><p style='color: #94a3b8;'>Distribución de probabilidad"
-                " 1X2:</p>",
+                "<br><p style='color: #94a3b8;'>Distribución 1X2:</p>",
                 unsafe_allow_html=True,
             )
             c_b1, c_b2, c_b3 = st.columns(3)
@@ -722,16 +778,38 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown("---")
 
-            # MERCADOS ADICIONALES (OVER/UNDER Y BTTS)
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Mercados Complementarios"
-                " (Proyección Poisson)</h4>",
-                unsafe_allow_html=True,
-            )
+            # MERCADOS ADICIONALES
             prob_over_25, prob_under_25, prob_btts = (
                 calcular_mercados_adicionales(
                     xg_proyectado_local, xg_proyectado_visi
                 )
+            )
+            top_5_marcadores, prob_otro = calcular_top_resultados(
+                xg_proyectado_local, xg_proyectado_visi
+            )
+            top_marcador_exacto = top_5_marcadores[0][0]
+            corners_est = round(stats_loc["Corners"] + stats_vis["Corners"], 1)
+
+            # Determinación de predicciones principales para guardar en el historial
+            if prob_loc > prob_empate and prob_loc > prob_vis:
+                pred_1x2_top = "Local"
+            elif prob_vis > prob_empate and prob_vis > prob_loc:
+                pred_1x2_top = "Visitante"
+            else:
+                pred_1x2_top = "Empate"
+
+            pred_over25_top = "Más de 2.5" if prob_over_25 > 50 else "Menos de 2.5"
+            pred_btts_top = "Sí" if prob_btts > 50 else "No"
+
+            # Auto-registrar predicción realizada
+            guardar_prediccion_historial(
+                local,
+                visitante,
+                pred_1x2_top,
+                top_marcador_exacto,
+                pred_over25_top,
+                pred_btts_top,
+                corners_est,
             )
 
             c_m1, c_m2, c_m3, c_m4 = st.columns(4)
@@ -746,24 +824,18 @@ if os.path.exists(RUTA_CSV):
             with c_m3:
                 st.metric(label="Ambos Anotan (Sí)", value=f"{prob_btts:.1f}%")
             with c_m4:
-                corners_est = round(
-                    stats_loc["Corners"] + stats_vis["Corners"], 1
-                )
                 st.metric(
                     label="Córners Totales (Est.)", value=f"{corners_est}"
                 )
 
             st.markdown("---")
 
-            # -----------------------------------------------------------------
-            # 6. SIMULACIÓN MONTE CARLO (10,000 PARTIDOS)
-            # -----------------------------------------------------------------
+            # MONTE CARLO
             st.markdown(
                 "<h4 style='color: #cbd5e1;'>Simulación Estocástica Monte Carlo"
                 " (10,000 Partidos)</h4>",
                 unsafe_allow_html=True,
             )
-
             p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(
                 xg_proyectado_local, xg_proyectado_visi
             )
@@ -785,8 +857,8 @@ if os.path.exists(RUTA_CSV):
             )
             fig_hist.update_layout(
                 title="Distribución de Goles Totales en 10,000 Simulaciones",
-                xaxis_title="Cantidad de Goles en el Partido",
-                yaxis_title="Frecuencia (N° de Simulación)",
+                xaxis_title="Cantidad de Goles",
+                yaxis_title="Frecuencia",
                 paper_bgcolor="#070b14",
                 plot_bgcolor="#111827",
                 font=dict(color="#cbd5e1"),
@@ -796,31 +868,13 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown("---")
 
-            # -----------------------------------------------------------------
-            # 7. GRÁFICO TIPO RADAR
-            # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis"
-                " Octagonal</h4>",
-                unsafe_allow_html=True,
-            )
+            # RADAR
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
             st.plotly_chart(fig_radar, use_container_width=True)
 
             st.markdown("---")
 
-            # -----------------------------------------------------------------
-            # 8. TOP 5 RESULTADOS MÁS PROBABLES
-            # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más"
-                " Probables</h4>",
-                unsafe_allow_html=True,
-            )
-            top_5_marcadores, prob_otro = calcular_top_resultados(
-                xg_proyectado_local, xg_proyectado_visi
-            )
-
+            # TOP 5 MARCADORES
             tabla_marcadores = []
             for rank, (marcador, prob) in enumerate(top_5_marcadores, 1):
                 tabla_marcadores.append(
@@ -845,6 +899,166 @@ if os.path.exists(RUTA_CSV):
             st.dataframe(
                 df_marcadores, use_container_width=True, hide_index=True
             )
+
+    # =====================================================================
+    # 6. MÓDULO DE EFECTIVIDAD Y CONTROL DE ACIERTOS
+    # =====================================================================
+    st.markdown("---")
+    st.markdown(
+        "<h2 style='color: #00f3ff;'>📊 Panel de Efectividad de Aciertos</h2>",
+        unsafe_allow_html=True,
+    )
+
+    df_historial = cargar_historial()
+
+    if not df_historial.empty:
+        # Carga/Actualización manual de resultados reales para auditoría
+        with st.expander("📝 Ingresar/Actualizar Resultados Reales de Partidos"):
+            partidos_pendientes = df_historial[
+                df_historial["Finalizado"] == False
+            ]
+
+            if not partidos_pendientes.empty:
+                partido_sel = st.selectbox(
+                    "Seleccionar Partido Pendiente",
+                    partidos_pendientes.apply(
+                        lambda r: f"{r['Fecha']} | {r['Local']} vs {r['Visitante']}",
+                        axis=1,
+                    ),
+                )
+
+                idx = partidos_pendientes.index[
+                    partidos_pendientes.apply(
+                        lambda r: f"{r['Fecha']} | {r['Local']} vs {r['Visitante']}",
+                        axis=1,
+                    )
+                    == partido_sel
+                ][0]
+
+                col_g1, col_g2, col_c = st.columns(3)
+                g_loc = col_g1.number_input(
+                    f"Goles {df_historial.loc[idx, 'Local']}",
+                    min_value=0,
+                    value=0,
+                )
+                g_vis = col_g2.number_input(
+                    f"Goles {df_historial.loc[idx, 'Visitante']}",
+                    min_value=0,
+                    value=0,
+                )
+                c_tot = col_c.number_input("Córners Totales", min_value=0, value=8)
+
+                if st.button("💾 Guardar Resultado Real"):
+                    df_historial.loc[idx, "Goles_Local_Real"] = g_loc
+                    df_historial.loc[idx, "Goles_Vis_Real"] = g_vis
+                    df_historial.loc[idx, "Corners_Real"] = c_tot
+                    df_historial.loc[idx, "Finalizado"] = True
+                    df_historial.to_csv(RUTA_HISTORIAL, index=False)
+                    st.success("¡Resultado actualizado correctamente!")
+                    st.rerun()
+            else:
+                st.info("No hay partidos pendientes de resultado real.")
+
+        # Cálculo de Métricas de Acierto sobre Partidos Finalizados
+        df_finalizados = df_historial[df_historial["Finalizado"] == True]
+
+        if len(df_finalizados) > 0:
+            aciertos_1x2 = 0
+            aciertos_marcador = 0
+            aciertos_over25 = 0
+            aciertos_btts = 0
+            aciertos_corners = 0
+
+            total = len(df_finalizados)
+
+            for _, row in df_finalizados.iterrows():
+                gl = row["Goles_Local_Real"]
+                gv = row["Goles_Vis_Real"]
+                cr = row["Corners_Real"]
+
+                # 1. 1X2
+                res_real_1x2 = (
+                    "Local" if gl > gv else ("Visitante" if gv > gl else "Empate")
+                )
+                if row["Pred_1X2"] == res_real_1x2:
+                    aciertos_1x2 += 1
+
+                # 2. Marcador Exacto
+                if row["Pred_Marcador"] == f"{int(gl)} - {int(gv)}":
+                    aciertos_marcador += 1
+
+                # 3. Over 2.5
+                over_real = "Más de 2.5" if (gl + gv) > 2.5 else "Menos de 2.5"
+                if row["Pred_Over25"] == over_real:
+                    aciertos_over25 += 1
+
+                # 4. BTTS
+                btts_real = "Sí" if (gl > 0 and gv > 0) else "No"
+                if row["Pred_BTTS"] == btts_real:
+                    aciertos_btts += 1
+
+                # 5. Córners (Tolerancia de +/- 1.5 córners)
+                if abs(row["Pred_Corners"] - cr) <= 1.5:
+                    aciertos_corners += 1
+
+            pct_1x2 = (aciertos_1x2 / total) * 100
+            pct_marcador = (aciertos_marcador / total) * 100
+            pct_over25 = (aciertos_over25 / total) * 100
+            pct_btts = (aciertos_btts / total) * 100
+            pct_corners = (aciertos_corners / total) * 100
+
+            st.markdown(f"#### Evaluados sobre **{total}** partidos finalizados:")
+
+            e1, e2, e3, e4, e5 = st.columns(5)
+            e1.metric("Acierto 1X2", f"{pct_1x2:.1f}%")
+            e2.metric("Marcador Exacto", f"{pct_marcador:.1f}%")
+            e3.metric("Over/Under 2.5", f"{pct_over25:.1f}%")
+            e4.metric("Ambos Anotan", f"{pct_btts:.1f}%")
+            e5.metric("Córners (+/-1.5)", f"{pct_corners:.1f}%")
+
+            # Gráfico de barras de efectividad
+            categorias_mkt = [
+                "Ganador 1X2",
+                "Over/Under 2.5",
+                "Ambos Anotan",
+                "Córners (Rango)",
+                "Marcador Exacto",
+            ]
+            porcentajes_mkt = [
+                pct_1x2,
+                pct_over25,
+                pct_btts,
+                pct_corners,
+                pct_marcador,
+            ]
+
+            fig_efectividad = go.Figure(
+                go.Bar(
+                    x=categorias_mkt,
+                    y=porcentajes_mkt,
+                    text=[f"{p:.1f}%" for p in porcentajes_mkt],
+                    textposition="auto",
+                    marker_color=["#00ffcc", "#00f3ff", "#3388ff", "#a855f7", "#ff3366"],
+                )
+            )
+            fig_efectividad.update_layout(
+                title="Tasa de Acierto % por Mercado",
+                yaxis_title="Porcentaje de Efectividad (%)",
+                yaxis=dict(range=[0, 100]),
+                paper_bgcolor="#070b14",
+                plot_bgcolor="#111827",
+                font=dict(color="#cbd5e1"),
+            )
+            st.plotly_chart(fig_efectividad, use_container_width=True)
+
+        else:
+            st.info(
+                "Ingresá los resultados reales en el desplegable superior para"
+                " empezar a ver las métricas de efectividad y sus gráficos."
+            )
+
+        st.markdown("#### Historial General Registrado")
+        st.dataframe(df_historial, use_container_width=True, hide_index=True)
 
 else:
     st.error(
