@@ -386,11 +386,14 @@ def obtener_estadisticas_wiki(equipos_disponibles):
                         td.get_text(strip=True)
                         for td in fila.find_all(["td", "th"])
                     ]
-                    if len(celdas) >= 8:
+                    # Ajustamos al formato real: 0:Pos, 1:Eq, 2:Pts, 3:PJ, 4:PG, 5:PE, 6:PP, 7:GF, 8:GC
+                    if len(celdas) >= 9:
                         equipo_raw = celdas[1]
-                        pj_raw = celdas[2] if celdas[2].isdigit() else "1"
-                        gf_raw = celdas[6] if celdas[6].isdigit() else "0"
-                        gc_raw = celdas[7] if celdas[7].isdigit() else "0"
+                        
+                        # Corrección de índices:
+                        pj_raw = celdas[3] if celdas[3].isdigit() else "1"
+                        gf_raw = celdas[7] if celdas[7].isdigit() else "0"
+                        gc_raw = celdas[8] if celdas[8].isdigit() else "0"
 
                         eq_match = buscar_equipo(
                             equipo_raw, equipos_disponibles
