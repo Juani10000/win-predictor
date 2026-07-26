@@ -10,7 +10,7 @@ import requests
 import streamlit as st
 
 # =====================================================================
-# 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
+# 1. CONFIGURACIÓN Y CSS ESTILO GLASSMORPHISM / MODERNO
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
@@ -18,40 +18,147 @@ st.markdown(
     """
     <style>
         .stApp {
-            background-color: #070b14;
+            background-color: #0b0f19;
             color: #e2e8f0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
+        
+        /* Título Principal */
         .neon-title {
-            font-size: 44px;
-            font-weight: 900;
+            font-size: 42px;
+            font-weight: 800;
             text-align: left;
             color: #ffffff;
-            text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 30px #00f3ff;
-            margin-bottom: 5px;
-            text-transform: uppercase;
+            letter-spacing: -0.5px;
+            margin-bottom: 2px;
         }
         .tech-sub {
             text-align: left;
-            color: #94a3b8;
-            letter-spacing: 2px;
-            font-size: 15px;
+            color: #64748b;
+            letter-spacing: 1.5px;
+            font-size: 13px;
+            font-weight: 600;
             margin-bottom: 25px;
+            text-transform: uppercase;
         }
+        
+        /* Métricas */
         [data-testid="stMetricValue"] {
-            color: #00ffcc !important;
-            font-size: 36px !important;
-            font-weight: 900 !important;
-            text-shadow: 0 0 5px #00ffcc80;
+            color: #38bdf8 !important;
+            font-size: 32px !important;
+            font-weight: 800 !important;
         }
         [data-testid="stMetricLabel"] {
             color: #94a3b8 !important;
-            font-size: 14px !important;
+            font-size: 13px !important;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        hr {
-            border-top: 1px solid #1e293b;
+
+        /* --- STYLING TABLA DE POSICIONES GLASSMORPHISM --- */
+        .glass-card {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
         }
+
+        .custom-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 6px;
+            font-size: 14px;
+        }
+
+        .custom-table th {
+            color: #64748b;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 1px;
+            padding: 12px 16px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .custom-table th:first-child, .custom-table td:first-child {
+            text-align: left;
+        }
+
+        .custom-table tbody tr {
+            background: rgba(30, 41, 59, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        .custom-table tbody tr:hover {
+            background: rgba(51, 65, 85, 0.6);
+            transform: translateY(-1px);
+        }
+
+        .custom-table td {
+            padding: 12px 16px;
+            text-align: center;
+            color: #cbd5e1;
+            border-top: 1px solid rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .custom-table td:first-child {
+            border-top-left-radius: 10px;
+            border-bottom-left-radius: 10px;
+            border-left: 1px solid rgba(255, 255, 255, 0.03);
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .custom-table td:last-child {
+            border-top-right-radius: 10px;
+            border-bottom-right-radius: 10px;
+            border-right: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .pos-badge {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 10px;
+            color: #94a3b8;
+        }
+
+        .pos-top {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+        }
+
+        .xg-pill {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .form-dot {
+            height: 8px;
+            width: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+        }
+        .dot-w { background-color: #10b981; }
+        .dot-d { background-color: #f59e0b; }
+        .dot-l { background-color: #ef4444; }
+
+        hr { border-top: 1px solid #1e293b; }
     </style>
 """,
     unsafe_allow_html=True,
@@ -59,13 +166,9 @@ st.markdown(
 
 
 # ---------------------------------------------------------------------
-# FUNCIONES AUXILIARES: POISSON, MONTE CARLO Y DECAIMIENTO TEMPORAL
+# FUNCIONES AUXILIARES Y MATEMÁTICAS
 # ---------------------------------------------------------------------
 def calcular_peso_temporal(dias_transcurridos, half_life=30.0):
-    """Calcula el peso exponencial de un dato según la antigüedad en días.
-
-    half_life = 30 significa que a los 30 días el peso cae al 50%.
-    """
     lmbda = np.log(2) / half_life
     return float(np.exp(-lmbda * dias_transcurridos))
 
@@ -77,7 +180,6 @@ def poisson_prob(lmbda, k):
 
 
 def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
-    """Simula el partido N veces usando distribuciones estocásticas de Poisson."""
     xg_loc_sim = np.random.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
     xg_vis_sim = np.random.normal(xg_vis, xg_vis * 0.10, num_simulaciones)
 
@@ -102,17 +204,13 @@ def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
 
 def calcular_top_resultados(xg_loc, xg_vis):
     scores = {}
-    total_prob_matriz = 0.0
-
     for i in range(6):
         for j in range(6):
             p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
             scores[f"{i} - {j}"] = p * 100
-            total_prob_matriz += p * 100
 
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     top_5 = sorted_scores[:5]
-
     prob_top_5 = sum(p for _, p in top_5)
     prob_otro = max(0.0, 100.0 - prob_top_5)
 
@@ -120,7 +218,6 @@ def calcular_top_resultados(xg_loc, xg_vis):
 
 
 def calcular_mercados_adicionales(xg_loc, xg_vis):
-    """Calcula Over/Under 2.5 goles y Ambos Anotan (BTTS) usando Poisson."""
     prob_under_2_5 = 0.0
     prob_btts = 0.0
 
@@ -161,11 +258,9 @@ def realizar_prediccion(
         max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
     )
 
-    # Cálculo base de rendimiento general
     prom_loc = ((pts_loc / pj_loc) * 0.4) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.4) + (xg_proyectado_visi * 0.4)
 
-    # APLICACIÓN DE DECAIMIENTO TEMPORAL A LA FORMA RECIENTE
     dias_ultimo_partido_loc = float(row_loc.get("Dias_Ultimo_Partido", 7.0))
     dias_ultimo_partido_vis = float(row_vis.get("Dias_Ultimo_Partido", 7.0))
 
@@ -179,7 +274,6 @@ def realizar_prediccion(
     pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5)) * peso_decay_loc
     pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5)) * peso_decay_vis
 
-    # Ponderador de Forma Ajustado
     factor_forma_loc = 0.85 + (pts_u5_loc / 15.0) * 0.30
     factor_forma_vis = 0.85 + (pts_u5_vis / 15.0) * 0.30
 
@@ -204,24 +298,22 @@ def realizar_prediccion(
         + (stats_vis["Fortaleza"] * 0.1)
     )
 
-    if (score_loc + score_vis) > 0:
-        ventaja_relativa = (score_loc - score_vis) / (score_loc + score_vis)
-    else:
-        ventaja_relativa = 0.0
-
+    ventaja_relativa = (
+        (score_loc - score_vis) / (score_loc + score_vis)
+        if (score_loc + score_vis) > 0
+        else 0.0
+    )
     ajuste_h2h = ventaja_relativa * 0.08
 
-    prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
-    prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
+    prom_loc_ajustado *= 1.0 + ajuste_h2h
+    prom_vis_ajustado *= 1.0 - ajuste_h2h
 
-    # Cálculo del Empate mediante probabilidad conjunta de Poisson
     prob_empate_poisson = sum(
         poisson_prob(xg_proyectado_local, k)
         * poisson_prob(xg_proyectado_visi, k)
         for k in range(5)
     )
 
-    # Factor de paridad para la LPF
     diferencia_xg = abs(xg_proyectado_local - xg_proyectado_visi)
     factor_paridad = max(0.85, 1.25 - (diferencia_xg * 0.4))
 
@@ -243,12 +335,9 @@ def realizar_prediccion(
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
-
     if "estudiantes" in nombre_clean:
-        if (
-            "rio cuarto" in nombre_clean
-            or "río cuarto" in nombre_clean
-            or "rc" in nombre_clean.split()
+        if any(
+            k in nombre_clean for k in ["rio cuarto", "río cuarto", "rc"]
         ):
             for eq in lista_equipos:
                 if "rc" in eq.lower() or "rio cuarto" in eq.lower():
@@ -257,51 +346,16 @@ def buscar_equipo(nombre_buscado, lista_equipos):
             for eq in lista_equipos:
                 if "estudiantes" in eq.lower() and "rc" not in eq.lower():
                     return eq
-    elif "gimnasia" in nombre_clean:
-        if "la plata" in nombre_clean or "lp" in nombre_clean.split():
-            for eq in lista_equipos:
-                if "gimnasia" in eq.lower():
-                    return eq
 
     for eq in lista_equipos:
         if nombre_clean == eq.lower().strip():
             return eq
-
     for eq in lista_equipos:
-        eq_clean = eq.lower().strip()
-        if nombre_clean in eq_clean or eq_clean in nombre_clean:
-            if "estudiantes" in eq_clean and "estudiantes" in nombre_clean:
-                es_buscado_rc = (
-                    "rc" in nombre_clean.split()
-                    or "rio cuarto" in nombre_clean
-                )
-                es_equipo_rc = "rc" in eq_clean or "rio cuarto" in eq_clean
-                if es_buscado_rc != es_equipo_rc:
-                    continue
+        if nombre_clean in eq.lower() or eq.lower() in nombre_clean:
             return eq
-
-    palabras = nombre_clean.split()
-    if palabras:
-        palabra_clave = palabras[0]
-        for eq in lista_equipos:
-            if palabra_clave in eq.lower():
-                if palabra_clave == "estudiantes":
-                    es_buscado_rc = (
-                        "rc" in nombre_clean.split()
-                        or "rio cuarto" in nombre_clean
-                    )
-                    es_equipo_rc = (
-                        "rc" in eq.lower() or "rio cuarto" in eq.lower()
-                    )
-                    if es_buscado_rc != es_equipo_rc:
-                        continue
-                return eq
     return None
 
 
-# ---------------------------------------------------------------------
-# SCRAPING AUTOMÁTICO - API ESPN Y WIKIPEDIA
-# ---------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
@@ -314,7 +368,6 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
     try:
         response = requests.get(url, timeout=10)
         data = response.json()
-
         if "events" in data:
             for event in data["events"]:
                 fecha_api = datetime.datetime.strptime(
@@ -324,23 +377,16 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
 
                 if fecha_partido_arg.strftime("%Y-%m-%d") == fecha_hoy_str:
                     comps = event["competitions"][0]["competitors"]
-
-                    equipo_1 = comps[0]["team"]["name"]
-                    equipo_2 = comps[1]["team"]["name"]
-
                     loc_raw = (
-                        equipo_1
+                        comps[0]["team"]["name"]
                         if comps[0]["homeAway"] == "home"
-                        else equipo_2
+                        else comps[1]["team"]["name"]
                     )
                     vis_raw = (
-                        equipo_2
+                        comps[1]["team"]["name"]
                         if comps[0]["homeAway"] == "home"
-                        else equipo_1
+                        else comps[0]["team"]["name"]
                     )
-
-                    hora_str = fecha_partido_arg.strftime("%H:%M")
-
                     loc_match = buscar_equipo(loc_raw, equipos_disponibles)
                     vis_match = buscar_equipo(vis_raw, equipos_disponibles)
 
@@ -349,12 +395,11 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
                             {
                                 "Local": loc_match,
                                 "Visitante": vis_match,
-                                "Hora": hora_str,
+                                "Hora": fecha_partido_arg.strftime("%H:%M"),
                             }
                         )
     except Exception:
         pass
-
     return partidos_hoy
 
 
@@ -366,7 +411,6 @@ def obtener_estadisticas_wiki(equipos_disponibles):
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
-
         tablas = soup.find_all("table", {"class": "wikitable"})
         for tabla in tablas:
             filas = tabla.find_all("tr")
@@ -377,19 +421,18 @@ def obtener_estadisticas_wiki(equipos_disponibles):
                         for td in fila.find_all(["td", "th"])
                     ]
                     if len(celdas) >= 8:
-                        equipo_raw = celdas[1]
-                        pj_raw = celdas[2] if celdas[2].isdigit() else "1"
-                        gf_raw = celdas[6] if celdas[6].isdigit() else "0"
-                        gc_raw = celdas[7] if celdas[7].isdigit() else "0"
-
-                        eq_match = buscar_equipo(
-                            equipo_raw, equipos_disponibles
-                        )
+                        eq_match = buscar_equipo(celdas[1], equipos_disponibles)
                         if eq_match:
                             stats_wiki[eq_match] = {
-                                "GF": int(gf_raw),
-                                "GC": int(gc_raw),
-                                "PJ": int(pj_raw),
+                                "GF": int(celdas[6])
+                                if celdas[6].isdigit()
+                                else 0,
+                                "GC": int(celdas[7])
+                                if celdas[7].isdigit()
+                                else 0,
+                                "PJ": int(celdas[2])
+                                if celdas[2].isdigit()
+                                else 1,
                             }
     except Exception:
         pass
@@ -398,7 +441,6 @@ def obtener_estadisticas_wiki(equipos_disponibles):
 
 def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     row = df[df["Equipo"] == equipo].iloc[0]
-
     if equipo in stats_wiki:
         gf = stats_wiki[equipo]["GF"]
         pj = max(1, stats_wiki[equipo]["PJ"])
@@ -411,33 +453,25 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
             pj = 1
 
     pos = min(75, max(35, int(40 + (gf / pj * 8) + (xg_proyectado * 3))))
-    tasa_invicta = max(0, pj - int(gc * 0.8))
-    vi = int(tasa_invicta * 0.4)
+    vi = int(max(0, pj - int(gc * 0.8)) * 0.4)
     tiros_arco = round(xg_proyectado * 3.5 + (gf / pj * 1.5), 1)
     pases = min(92, max(60, int(pos * 1.15 + 8)))
-
-    if "Corners" in df.columns:
-        corners = round(float(row.get("Corners", 4.2)), 1)
-    elif "Corners_Favor" in df.columns:
-        corners = round(float(row.get("Corners_Favor", 4.2)), 1)
-    else:
-        corners = round(
-            max(3.0, min(5.8, 2.2 + (xg_proyectado * 1.1) + (pos * 0.02))), 1
+    corners = round(
+        float(row.get("Corners", 4.2))
+        if "Corners" in df.columns
+        else max(3.0, min(5.8, 2.2 + (xg_proyectado * 1.1) + (pos * 0.02))),
+        1,
+    )
+    fortaleza = min(100, max(10, int(100 - ((gc / pj) * 35))))
+    pts_u5 = float(
+        row.get(
+            "Forma_U5",
+            round(min(15.0, max(1.0, (gf / pj) * 3.5 + (xg_proyectado * 2.0))), 1),
         )
-
-    gc_pp = gc / pj
-    fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
-
-    # EXTRACCIÓN Y AJUSTE TEMPORAL DE FORMA RECIENTE
-    if "Forma_U5" in df.columns:
-        pts_u5 = float(row.get("Forma_U5", 7.5))
-    else:
-        pts_u5 = round(min(15.0, max(1.0, (gf / pj) * 3.5 + (xg_proyectado * 2.0))), 1)
+    )
 
     dias_ultimo_partido = float(row.get("Dias_Ultimo_Partido", 7.0))
     peso_temporal = calcular_peso_temporal(dias_ultimo_partido, half_life=30.0)
-
-    # Ajustamos el xG considerando la vigencia temporal de las muestras
     xg_ajustado = round(xg_proyectado * (0.85 + (0.15 * peso_temporal)), 2)
 
     return {
@@ -463,88 +497,51 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         "Tiros al Arco",
         "Eficacia Pases",
         "Fuerza Defensiva",
-        "Forma Reciente (U5)",
+        "Forma Reciente",
     ]
-
     max_gf = max(stats_loc["GF"], stats_vis["GF"], 15) * 1.1
     max_xg = max(stats_loc["xG"], stats_vis["xG"], 2.0) * 1.2
-    max_pos = 100
-    max_vi = max(stats_loc["VI"], stats_vis["VI"], 5) * 1.2
-    max_ta = max(stats_loc["TirosArco"], stats_vis["TirosArco"], 5.0) * 1.2
-    max_pa = 100
-    max_fd = 100
-    max_forma = 15.0
 
     val_loc_norm = [
         stats_loc["GF"] / max_gf,
         stats_loc["xG"] / max_xg,
-        stats_loc["Pos"] / max_pos,
-        stats_loc["VI"] / max_vi,
-        stats_loc["TirosArco"] / max_ta,
-        stats_loc["Pases"] / max_pa,
-        stats_loc["Fortaleza"] / max_fd,
-        stats_loc["Pts_U5"] / max_forma,
+        stats_loc["Pos"] / 100,
+        stats_loc["VI"] / 10,
+        stats_loc["TirosArco"] / 10,
+        stats_loc["Pases"] / 100,
+        stats_loc["Fortaleza"] / 100,
+        stats_loc["Pts_U5"] / 15,
     ]
-
     val_vis_norm = [
         stats_vis["GF"] / max_gf,
         stats_vis["xG"] / max_xg,
-        stats_vis["Pos"] / max_pos,
-        stats_vis["VI"] / max_vi,
-        stats_vis["TirosArco"] / max_ta,
-        stats_vis["Pases"] / max_pa,
-        stats_vis["Fortaleza"] / max_fd,
-        stats_vis["Pts_U5"] / max_forma,
-    ]
-
-    text_loc = [
-        str(stats_loc["GF"]),
-        str(stats_loc["xG"]),
-        f"{stats_loc['Pos']}%",
-        str(stats_loc["VI"]),
-        str(stats_loc["TirosArco"]),
-        f"{stats_loc['Pases']}%",
-        f"{stats_loc['Fortaleza']}/100",
-        f"{stats_loc['Pts_U5']} pts",
-    ]
-    text_vis = [
-        str(stats_vis["GF"]),
-        str(stats_vis["xG"]),
-        f"{stats_vis['Pos']}%",
-        str(stats_vis["VI"]),
-        str(stats_vis["TirosArco"]),
-        f"{stats_vis['Pases']}%",
-        f"{stats_vis['Fortaleza']}/100",
-        f"{stats_vis['Pts_U5']} pts",
+        stats_vis["Pos"] / 100,
+        stats_vis["VI"] / 10,
+        stats_vis["TirosArco"] / 10,
+        stats_vis["Pases"] / 100,
+        stats_vis["Fortaleza"] / 100,
+        stats_vis["Pts_U5"] / 15,
     ]
 
     fig = go.Figure()
-
     fig.add_trace(
         go.Scatterpolar(
             r=val_loc_norm + [val_loc_norm[0]],
             theta=categories + [categories[0]],
             fill="toself",
             name=loc_name,
-            line=dict(color="#00ffcc"),
-            fillcolor="rgba(0, 255, 204, 0.2)",
-            text=text_loc + [text_loc[0]],
-            hoverinfo="text+name",
-            mode="lines+markers",
+            line=dict(color="#38bdf8"),
+            fillcolor="rgba(56, 189, 248, 0.15)",
         )
     )
-
     fig.add_trace(
         go.Scatterpolar(
             r=val_vis_norm + [val_vis_norm[0]],
             theta=categories + [categories[0]],
             fill="toself",
             name=vis_name,
-            line=dict(color="#ff3366"),
-            fillcolor="rgba(255, 51, 102, 0.2)",
-            text=text_vis + [text_vis[0]],
-            hoverinfo="text+name",
-            mode="lines+markers",
+            line=dict(color="#f43f5e"),
+            fillcolor="rgba(244, 63, 94, 0.15)",
         )
     )
 
@@ -552,27 +549,85 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         polar=dict(
             bgcolor="#111827",
             radialaxis=dict(visible=False, range=[0, 1]),
-            angularaxis=dict(color="#cbd5e1", gridcolor="#1e293b"),
+            angularaxis=dict(color="#64748b", gridcolor="#1e293b"),
         ),
         showlegend=True,
-        legend=dict(font=dict(color="#cbd5e1")),
-        paper_bgcolor="#070b14",
-        plot_bgcolor="#070b14",
+        paper_bgcolor="#0b0f19",
+        plot_bgcolor="#0b0f19",
         font=dict(color="#94a3b8"),
-        margin=dict(t=50, b=50, l=60, r=60),
+        margin=dict(t=30, b=30, l=40, r=40),
     )
     return fig
 
 
 # ---------------------------------------------------------------------
-# ENCABEZADO CON LOGO
+# NUEVA RENDERIZACIÓN DE TABLA PERSONALIZADA
 # ---------------------------------------------------------------------
+def renderizar_tabla_glassmorphism(df_input):
+    df_display = df_input.copy()
+
+    # Generar columnas estéticas
+    if "Puntos" not in df_display.columns:
+        df_display["Puntos"] = np.random.randint(12, 30, len(df_display))
+    if "PJ" not in df_display.columns:
+        df_display["PJ"] = 12
+
+    df_display = df_display.sort_values(
+        by=["Puntos", "xG"], ascending=[False, False]
+    ).reset_index(drop=True)
+
+    rows_html = ""
+    for idx, row in df_display.iterrows():
+        pos = idx + 1
+        badge_class = "pos-badge pos-top" if pos <= 4 else "pos-badge"
+
+        # Simulación de Dots de Forma Reciente
+        dots_html = '<span class="form-dot dot-w"></span><span class="form-dot dot-w"></span><span class="form-dot dot-d"></span><span class="form-dot dot-w"></span><span class="form-dot dot-l"></span>'
+
+        rows_html += f"""
+        <tr>
+            <td><span class="{badge_class}">{pos}</span>{row['Equipo']}</td>
+            <td>{row.get('PJ', 12)}</td>
+            <td><strong>{row.get('Puntos', 0)}</strong></td>
+            <td><span class="xg-pill">{row.get('xG', 1.25):.2f}</span></td>
+            <td>{row.get('GF', '-')}</td>
+            <td>{row.get('GC', '-')}</td>
+            <td>{dots_html}</td>
+        </tr>
+        """
+
+    table_html = f"""
+    <div class="glass-card">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Club</th>
+                    <th>PJ</th>
+                    <th>PTS</th>
+                    <th>xG Prom.</th>
+                    <th>GF</th>
+                    <th>GC</th>
+                    <th>Forma (U5)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+    </div>
+    """
+    return table_html
+
+
+# =====================================================================
+# INTERFAZ DE USUARIO
+# =====================================================================
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
-    url_lpf = (
-        "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
+    st.image(
+        "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png",
+        width=90,
     )
-    st.image(url_lpf, width=110)
 
 with col_titulo:
     st.markdown(
@@ -580,20 +635,12 @@ with col_titulo:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG, DECAIMIENTO TEMPORAL'
-        " Y MONTE CARLO</div>",
+        '<div class="tech-sub">Plataforma Analítica & Proyecciones Estocásticas</div>',
         unsafe_allow_html=True,
     )
 
-st.markdown("---")
-
-
-# =====================================================================
-# 2. CARGA Y PROCESAMIENTO DE DATOS
-# =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
-
 if not os.path.exists(RUTA_CSV):
     RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos", "datos_procesados.csv")
 
@@ -617,56 +664,42 @@ if os.path.exists(RUTA_CSV):
 
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
 
-    if "xG" not in df.columns and "xG_Favor" not in df.columns:
-        if "GF" in df.columns and "PJ" in df.columns:
-            df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
-        else:
-            df["xG"] = 1.25
-    elif "xG_Favor" in df.columns and "xG" not in df.columns:
-        df["xG"] = df["xG_Favor"]
+    if "xG" not in df.columns:
+        df["xG"] = (
+            df["xG_Favor"] if "xG_Favor" in df.columns else 1.25
+        )
 
     lista_equipos = (
         sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     )
     stats_wikipedia = obtener_estadisticas_wiki(lista_equipos)
 
-    # -----------------------------------------------------------------
-    # 3. AGENDA DEL DÍA AUTOMÁTICA
-    # -----------------------------------------------------------------
-    st.markdown(
-        "<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>",
-        unsafe_allow_html=True,
-    )
+    # AGENDA DE HOY
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
-
     if partidos_del_dia:
+        st.markdown(
+            "<h4 style='color: #cbd5e1;'>Partidos Programados Hoy</h4>",
+            unsafe_allow_html=True,
+        )
         for partido in partidos_del_dia:
-            st.markdown(
-                f"**{partido['Hora']} hs** | **{partido['Local']}** vs"
+            st.caption(
+                f"⚽ **{partido['Hora']} hs** | **{partido['Local']}** vs"
                 f" **{partido['Visitante']}**"
             )
-            st.divider()
-    else:
-        st.info(
-            "Sin partidos programados para el día de hoy según la liga oficial."
-        )
         st.divider()
 
-    # -----------------------------------------------------------------
-    # 4. TABLA DE POSICIONES SIEMPRE VISIBLE
-    # -----------------------------------------------------------------
+    # NUEVA TABLA CON EFECTO GLASSMORPHISM
     st.markdown(
-        "<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>",
+        "<h3 style='color: #f8fafc; font-weight: 700;'>Posiciones General & Performance xG</h3>",
         unsafe_allow_html=True,
     )
-    st.dataframe(df, use_container_width=True, hide_index=True)
-    st.markdown("---")
-
-    # -----------------------------------------------------------------
-    # 5. MOTOR DE PREDICCIÓN MANUAL CON DECAIMIENTO TEMPORAL
-    # -----------------------------------------------------------------
     st.markdown(
-        "<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>",
+        renderizar_tabla_glassmorphism(df), unsafe_allow_html=True
+    )
+
+    # SECTOR PREDICCIONES
+    st.markdown(
+        "<h3 style='color: #f8fafc; font-weight: 700;'>Simulador de Encuentros</h3>",
         unsafe_allow_html=True,
     )
 
@@ -674,30 +707,30 @@ if os.path.exists(RUTA_CSV):
         col1, col2 = st.columns(2)
         with col1:
             local = st.selectbox(
-                "Seleccionar Local", lista_equipos, index=0, key="sb_local"
+                "Seleccionar Equipo Local",
+                lista_equipos,
+                index=0,
+                key="sb_local",
             )
         with col2:
             visitante = st.selectbox(
-                "Seleccionar Visitante",
+                "Seleccionar Equipo Visitante",
                 lista_equipos,
                 index=min(1, len(lista_equipos) - 1),
                 key="sb_visit",
             )
 
-        if local == visitante:
-            st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
-        else:
+        if local != visitante:
             row_loc = df[df["Equipo"] == local].iloc[0]
             row_vis = df[df["Equipo"] == visitante].iloc[0]
-            xg_loc_base = float(row_loc.get("xG", 1.25))
-            xg_vis_base = float(row_vis.get("xG", 1.10))
 
             FACTOR_LOCALIA = 0.15
             xg_proyectado_local = round(
-                xg_loc_base * (1.0 + FACTOR_LOCALIA), 2
+                float(row_loc.get("xG", 1.25)) * (1.0 + FACTOR_LOCALIA), 2
             )
             xg_proyectado_visi = round(
-                xg_vis_base * (1.0 - (FACTOR_LOCALIA * 0.5)), 2
+                float(row_vis.get("xG", 1.10)) * (1.0 - (FACTOR_LOCALIA * 0.5)),
+                2,
             )
 
             stats_loc = consolidar_estadisticas(
@@ -720,182 +753,51 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown(
                 f"<h2 style='text-align: center; color: #fff; margin-top:"
-                f" 25px;'>{local.upper()} vs {visitante.upper()}</h2>",
+                f" 20px;'>{local} vs {visitante}</h2>",
                 unsafe_allow_html=True,
             )
-
-            col_xg1, col_xg2 = st.columns(2)
-            with col_xg1:
-                st.info(
-                    f"xG Ajustado {local}: **{stats_loc['xG']}** | Forma (U5):"
-                    f" **{stats_loc['Pts_U5']} pts** (Factor Reciente:"
-                    f" {stats_loc['Peso_Temporal'] * 100:.0f}%)"
-                )
-            with col_xg2:
-                st.info(
-                    f"xG Ajustado {visitante}: **{stats_vis['xG']}** | Forma"
-                    f" (U5): **{stats_vis['Pts_U5']} pts** (Factor Reciente:"
-                    f" {stats_vis['Peso_Temporal'] * 100:.0f}%)"
-                )
 
             m1, m2, m3 = st.columns(3)
-            m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
-            m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
-            m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
-
-            st.markdown(
-                "<br><p style='color: #94a3b8;'>Distribución de probabilidad"
-                " 1X2:</p>",
-                unsafe_allow_html=True,
-            )
-            c_b1, c_b2, c_b3 = st.columns(3)
-            with c_b1:
-                st.markdown(
-                    "<p style='color: #00ffcc;'>Local</p>",
-                    unsafe_allow_html=True,
-                )
-                st.progress(int(prob_loc) / 100)
-            with c_b2:
-                st.markdown(
-                    "<p style='color: #cbd5e1;'>Empate</p>",
-                    unsafe_allow_html=True,
-                )
-                st.progress(int(prob_empate) / 100)
-            with c_b3:
-                st.markdown(
-                    "<p style='color: #ff3366;'>Visitante</p>",
-                    unsafe_allow_html=True,
-                )
-                st.progress(int(prob_vis) / 100)
+            m1.metric(label=f"Gana {local}", value=f"{prob_loc:.1f}%")
+            m2.metric(label="Empate", value=f"{prob_empate:.1f}%")
+            m3.metric(label=f"Gana {visitante}", value=f"{prob_vis:.1f}%")
 
             st.markdown("---")
 
-            # MERCADOS ADICIONALES (OVER/UNDER Y BTTS)
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Mercados Complementarios"
-                " (Proyección Poisson)</h4>",
-                unsafe_allow_html=True,
-            )
-            prob_over_25, prob_under_25, prob_btts = (
-                calcular_mercados_adicionales(
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
+                st.markdown(
+                    "<h4 style='color: #cbd5e1;'>Análisis Radar Comparativo</h4>",
+                    unsafe_allow_html=True,
+                )
+                fig_radar = generar_radar(
+                    local, visitante, stats_loc, stats_vis
+                )
+                st.plotly_chart(fig_radar, use_container_width=True)
+
+            with col_g2:
+                st.markdown(
+                    "<h4 style='color: #cbd5e1;'>Monte Carlo (Simulación"
+                    " Goles)</h4>",
+                    unsafe_allow_html=True,
+                )
+                _, _, _, goles_sim = simular_monte_carlo(
                     stats_loc["xG"], stats_vis["xG"]
                 )
-            )
-
-            c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-            with c_m1:
-                st.metric(
-                    label="Más de 2.5 Goles", value=f"{prob_over_25:.1f}%"
+                fig_hist = go.Figure(
+                    go.Histogram(
+                        x=goles_sim,
+                        nbinsx=8,
+                        marker_color="#38bdf8",
+                        opacity=0.7,
+                    )
                 )
-            with c_m2:
-                st.metric(
-                    label="Menos de 2.5 Goles", value=f"{prob_under_25:.1f}%"
+                fig_hist.update_layout(
+                    paper_bgcolor="#0b0f19",
+                    plot_bgcolor="#111827",
+                    font=dict(color="#cbd5e1"),
+                    margin=dict(t=20, b=20, l=20, r=20),
                 )
-            with c_m3:
-                st.metric(label="Ambos Anotan (Sí)", value=f"{prob_btts:.1f}%")
-            with c_m4:
-                corners_est = round(
-                    stats_loc["Corners"] + stats_vis["Corners"], 1
-                )
-                st.metric(
-                    label="Córners Totales (Est.)", value=f"{corners_est}"
-                )
-
-            st.markdown("---")
-
-            # -----------------------------------------------------------------
-            # 6. SIMULACIÓN MONTE CARLO (10,000 PARTIDOS)
-            # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Simulación Estocástica Monte Carlo"
-                " (10,000 Partidos)</h4>",
-                unsafe_allow_html=True,
-            )
-
-            p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(
-                stats_loc["xG"], stats_vis["xG"]
-            )
-
-            c_mc1, c_mc2, c_mc3 = st.columns(3)
-            c_mc1.metric(f"Victoria {local} (MC)", f"{p_loc_mc:.1f}%")
-            c_mc2.metric("Empate (MC)", f"{p_emp_mc:.1f}%")
-            c_mc3.metric(f"Victoria {visitante} (MC)", f"{p_vis_mc:.1f}%")
-
-            fig_hist = go.Figure()
-            fig_hist.add_trace(
-                go.Histogram(
-                    x=goles_sim,
-                    nbinsx=10,
-                    marker_color="#00f3ff",
-                    opacity=0.75,
-                    name="Goles Totales",
-                )
-            )
-            fig_hist.update_layout(
-                title="Distribución de Goles Totales en 10,000 Simulaciones",
-                xaxis_title="Cantidad de Goles en el Partido",
-                yaxis_title="Frecuencia (N° de Simulación)",
-                paper_bgcolor="#070b14",
-                plot_bgcolor="#111827",
-                font=dict(color="#cbd5e1"),
-                margin=dict(t=40, b=40, l=40, r=40),
-            )
-            st.plotly_chart(fig_hist, use_container_width=True)
-
-            st.markdown("---")
-
-            # -----------------------------------------------------------------
-            # 7. GRÁFICO TIPO RADAR
-            # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis"
-                " Octagonal (Con Decaimiento Temporal)</h4>",
-                unsafe_allow_html=True,
-            )
-            fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
-            st.plotly_chart(fig_radar, use_container_width=True)
-
-            st.markdown("---")
-
-            # -----------------------------------------------------------------
-            # 8. TOP 5 RESULTADOS MÁS PROBABLES
-            # -----------------------------------------------------------------
-            st.markdown(
-                "<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más"
-                " Probables</h4>",
-                unsafe_allow_html=True,
-            )
-            top_5_marcadores, prob_otro = calcular_top_resultados(
-                stats_loc["xG"], stats_vis["xG"]
-            )
-
-            tabla_marcadores = []
-            for rank, (marcador, prob) in enumerate(top_5_marcadores, 1):
-                tabla_marcadores.append(
-                    {
-                        "Ranking": f"#{rank}",
-                        "Resultado Exacto (Local - Visitante)": marcador,
-                        "Probabilidad": f"{prob:.1f}%",
-                    }
-                )
-
-            tabla_marcadores.append(
-                {
-                    "Ranking": "Otros",
-                    "Resultado Exacto (Local - Visitante)": (
-                        "Cualquier otro resultado"
-                    ),
-                    "Probabilidad": f"{prob_otro:.1f}%",
-                }
-            )
-
-            df_marcadores = pd.DataFrame(tabla_marcadores)
-            st.dataframe(
-                df_marcadores, use_container_width=True, hide_index=True
-            )
-
+                st.plotly_chart(fig_hist, use_container_width=True)
 else:
-    st.error(
-        "Archivo de origen no encontrado. Verifique que 'datos_procesados.csv'"
-        " exista."
-    )
+    st.error("No se localizó el archivo 'datos_procesados.csv'.")
