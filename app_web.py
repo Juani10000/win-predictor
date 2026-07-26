@@ -58,7 +58,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # ---------------------------------------------------------------------
 # FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON, MONTE CARLO Y PREDICCIÓN
 # ---------------------------------------------------------------------
@@ -67,17 +66,19 @@ def poisson_prob(lmbda, k):
         return 1.0 if k == 0 else 0.0
     return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
 
-
 def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
     """Simula el partido N veces usando distribuciones estocásticas de Poisson."""
-    xg_loc_sim = np.random.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
-    xg_vis_sim = np.random.normal(xg_vis, xg_vis * 0.10, num_simulaciones)
+    # Instanciamos un generador independiente para no mezclar semillas
+    rng = np.random.default_rng()
+    
+    xg_loc_sim = rng.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
+    xg_vis_sim = rng.normal(xg_vis, xg_vis * 0.10, num_simulaciones)
 
     xg_loc_sim = np.maximum(0.05, xg_loc_sim)
     xg_vis_sim = np.maximum(0.05, xg_vis_sim)
 
-    goles_loc = np.random.poisson(xg_loc_sim)
-    goles_vis = np.random.poisson(xg_vis_sim)
+    goles_loc = rng.poisson(xg_loc_sim)
+    goles_vis = rng.poisson(xg_vis_sim)
 
     victorias_loc = np.sum(goles_loc > goles_vis)
     empates = np.sum(goles_loc == goles_vis)
@@ -90,7 +91,6 @@ def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
     goles_totales = goles_loc + goles_vis
 
     return prob_loc_mc, prob_emp_mc, prob_vis_mc, goles_totales
-
 
 def calcular_top_resultados(xg_loc, xg_vis):
     scores = {}
@@ -110,7 +110,6 @@ def calcular_top_resultados(xg_loc, xg_vis):
 
     return top_5, prob_otro
 
-
 def calcular_mercados_adicionales(xg_loc, xg_vis):
     """Calcula Over/Under 2.5 goles y Ambos Anotan (BTTS) usando Poisson."""
     prob_under_2_5 = 0.0
@@ -129,7 +128,6 @@ def calcular_mercados_adicionales(xg_loc, xg_vis):
     prob_btts *= 100
 
     return prob_over_2_5, prob_under_2_5, prob_btts
-
 
 def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
     """Calcula el índice de impredecibilidad y caos del encuentro (0-100%)."""
@@ -163,17 +161,16 @@ def obtener_historial_directo(equipo_a, equipo_b):
     Devuelve lista con 'G' (Ganó A), 'E' (Empate), 'P' (Perdió A).
     """
     semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
-    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % 10000
-    np.random.seed(seed)
+    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
     
-    # Si equipo_a no es el primero alfabéticamente, invertimos la perspectiva
+    # CORRECCIÓN CLAVE: Generador local para no arruinar el azar de Monte Carlo
+    rng = np.random.default_rng(seed)
+    
     es_inverso = equipo_a != min(equipo_a, equipo_b)
-    
     resultados_posibles = ['G', 'E', 'P']
-    historial_base = np.random.choice(resultados_posibles, 5, p=[0.38, 0.32, 0.30]).tolist()
+    historial_base = rng.choice(resultados_posibles, 5, p=[0.38, 0.32, 0.30]).tolist()
     
     if es_inverso:
-        # Invertimos G por P y viceversa
         historial_final = []
         for r in historial_base:
             if r == 'G': historial_final.append('P')
@@ -183,7 +180,6 @@ def obtener_historial_directo(equipo_a, equipo_b):
     return historial_base
 
 def render_h2h_pills(historial, local, visitante):
-    # Armamos el HTML sin saltos de línea ni sangrías para evitar que Streamlit lo tome como código
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
     html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Ganó {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
     html += "<span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; "
@@ -194,15 +190,15 @@ def render_h2h_pills(historial, local, visitante):
     
     for res in historial:
         if res == 'G':
-            color = "#00ffcc" # Verde
+            color = "#00ffcc"
             bg = "rgba(0, 255, 204, 0.2)"
             tooltip = f"Ganó {local}"
         elif res == 'E':
-            color = "#cbd5e1" # Gris
+            color = "#cbd5e1"
             bg = "rgba(203, 213, 225, 0.2)"
             tooltip = "Empate"
         else:
-            color = "#ff3366" # Rojo
+            color = "#ff3366"
             bg = "rgba(255, 51, 102, 0.2)"
             tooltip = f"Ganó {visitante}"
             
@@ -211,9 +207,7 @@ def render_h2h_pills(historial, local, visitante):
     html += "</div>"
     return html
 
-def realizar_prediccion(
-    local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[]
-):
+def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[]):
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -238,18 +232,12 @@ def realizar_prediccion(
     prom_vis_ajustado = prom_vis
 
     score_loc = (
-        (stats_loc["GF"] * 0.2)
-        + (stats_loc["Pos"] * 0.05)
-        + (stats_loc["VI"] * 1.2)
-        + (stats_loc["TirosArco"] * 0.8)
-        + (stats_loc["Fortaleza"] * 0.1)
+        (stats_loc["GF"] * 0.2) + (stats_loc["Pos"] * 0.05) + (stats_loc["VI"] * 1.2) +
+        (stats_loc["TirosArco"] * 0.8) + (stats_loc["Fortaleza"] * 0.1)
     )
     score_vis = (
-        (stats_vis["GF"] * 0.2)
-        + (stats_vis["Pos"] * 0.05)
-        + (stats_vis["VI"] * 1.2)
-        + (stats_vis["TirosArco"] * 0.8)
-        + (stats_vis["Fortaleza"] * 0.1)
+        (stats_vis["GF"] * 0.2) + (stats_vis["Pos"] * 0.05) + (stats_vis["VI"] * 1.2) +
+        (stats_vis["TirosArco"] * 0.8) + (stats_vis["Fortaleza"] * 0.1)
     )
 
     if (score_loc + score_vis) > 0:
@@ -259,11 +247,10 @@ def realizar_prediccion(
 
     ajuste_h2h = ventaja_relativa * 0.08
     
-    # NUEVO: IMPACTO DEL HISTORIAL DIRECTO EN LA PREDICCIÓN
     victorias_h2h = historial_h2h.count('G')
     derrotas_h2h = historial_h2h.count('P')
     balance_h2h = victorias_h2h - derrotas_h2h
-    bono_historial = balance_h2h * 0.025 # Otorga un +-2.5% de ventaja por cada victoria neta
+    bono_historial = balance_h2h * 0.025 
 
     prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h + bono_historial)
     prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h - bono_historial)
@@ -288,7 +275,6 @@ def realizar_prediccion(
         prob_vis = resto / 2
 
     return prob_loc, prob_empate, prob_vis
-
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
@@ -317,7 +303,6 @@ def buscar_equipo(nombre_buscado, lista_equipos):
             return eq
     return None
 
-
 # ---------------------------------------------------------------------
 # SCRAPING AUTOMÁTICO - PROMIEDOS
 # ---------------------------------------------------------------------
@@ -328,36 +313,37 @@ def obtener_estadisticas_promiedos(equipos_disponibles):
     
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "es-AR,es;q=0.8,en-US;q=0.5,en;q=0.3"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Accept-Language": "es-AR,es;q=0.8"
         }
         response = requests.get(url, headers=headers, timeout=15)
         response.encoding = 'utf-8'
-        soup = BeautifulSoup(response.text, "html.parser")
-        tabla = soup.find("table", id="posiciones")
         
-        if tabla:
-            filas = tabla.find_all("tr")
-            for fila in filas[1:]:
-                celdas = fila.find_all(["td", "th"])
-                if len(celdas) >= 9:
-                    # Promiedos formato: 0: Pos, 1: Equipo, 2: Pts, 3: PJ, 4: PG, 5: PE, 6: PP, 7: GF, 8: GC, 9: DIF
-                    equipo_raw = celdas[1].get_text(strip=True)
-                    pts_raw = celdas[2].get_text(strip=True)
-                    pj_raw = celdas[3].get_text(strip=True)
-                    gf_raw = celdas[7].get_text(strip=True)
-                    gc_raw = celdas[8].get_text(strip=True)
+        # Evitamos que la app muera si promiedos se cae
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            tabla = soup.find("table", id="posiciones")
+            
+            if tabla:
+                filas = tabla.find_all("tr")
+                for fila in filas[1:]:
+                    celdas = fila.find_all(["td", "th"])
+                    if len(celdas) >= 9:
+                        equipo_raw = celdas[1].get_text(strip=True)
+                        pts_raw = celdas[2].get_text(strip=True)
+                        pj_raw = celdas[3].get_text(strip=True)
+                        gf_raw = celdas[7].get_text(strip=True)
+                        gc_raw = celdas[8].get_text(strip=True)
 
-                    eq_match = buscar_equipo(equipo_raw, equipos_disponibles)
-                    if eq_match:
-                        stats_promiedos[eq_match] = {
-                            "Puntos": int(pts_raw) if pts_raw.isdigit() else 0,
-                            "GF": int(gf_raw) if gf_raw.isdigit() else 0,
-                            "GC": int(gc_raw) if gc_raw.isdigit() else 0,
-                            "PJ": int(pj_raw) if pj_raw.isdigit() else 1,
-                        }
-    except Exception as e:
+                        eq_match = buscar_equipo(equipo_raw, equipos_disponibles)
+                        if eq_match:
+                            stats_promiedos[eq_match] = {
+                                "Puntos": int(pts_raw) if pts_raw.isdigit() else 0,
+                                "GF": int(gf_raw) if gf_raw.isdigit() else 0,
+                                "GC": int(gc_raw) if gc_raw.isdigit() else 0,
+                                "PJ": int(pj_raw) if pj_raw.isdigit() else 1,
+                            }
+    except Exception:
         pass
         
     return stats_promiedos
@@ -371,24 +357,24 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
     partidos_hoy = []
     try:
         response = requests.get(url, timeout=10)
-        data = response.json()
-        if "events" in data:
-            for event in data["events"]:
-                fecha_api = datetime.datetime.strptime(event["date"], "%Y-%m-%dT%H:%MZ")
-                fecha_partido_arg = fecha_api - datetime.timedelta(hours=3)
-                if fecha_partido_arg.strftime("%Y-%m-%d") == fecha_hoy_str:
-                    comps = event["competitions"][0]["competitors"]
-                    loc_raw = comps[0]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[1]["team"]["name"]
-                    vis_raw = comps[1]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[0]["team"]["name"]
-                    hora_str = fecha_partido_arg.strftime("%H:%M")
-                    loc_match = buscar_equipo(loc_raw, equipos_disponibles)
-                    vis_match = buscar_equipo(vis_raw, equipos_disponibles)
-                    if loc_match and vis_match and loc_match != vis_match:
-                        partidos_hoy.append({"Local": loc_match, "Visitante": vis_match, "Hora": hora_str})
+        if response.status_code == 200:
+            data = response.json()
+            if "events" in data:
+                for event in data["events"]:
+                    fecha_api = datetime.datetime.strptime(event["date"], "%Y-%m-%dT%H:%MZ")
+                    fecha_partido_arg = fecha_api - datetime.timedelta(hours=3)
+                    if fecha_partido_arg.strftime("%Y-%m-%d") == fecha_hoy_str:
+                        comps = event["competitions"][0]["competitors"]
+                        loc_raw = comps[0]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[1]["team"]["name"]
+                        vis_raw = comps[1]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[0]["team"]["name"]
+                        hora_str = fecha_partido_arg.strftime("%H:%M")
+                        loc_match = buscar_equipo(loc_raw, equipos_disponibles)
+                        vis_match = buscar_equipo(vis_raw, equipos_disponibles)
+                        if loc_match and vis_match and loc_match != vis_match:
+                            partidos_hoy.append({"Local": loc_match, "Visitante": vis_match, "Hora": hora_str})
     except Exception:
         pass
     return partidos_hoy
-
 
 def consolidar_estadisticas(equipo, df, stats_torneo, xg_proyectado):
     row = df[df["Equipo"] == equipo].iloc[0]
@@ -435,7 +421,6 @@ def consolidar_estadisticas(equipo, df, stats_torneo, xg_proyectado):
         "Fortaleza": fortaleza,
         "Pts_U5": pts_u5,
     }
-
 
 def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     categories = [
@@ -501,7 +486,6 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     )
     return fig
 
-
 # ---------------------------------------------------------------------
 # ENCABEZADO CON LOGO
 # ---------------------------------------------------------------------
@@ -547,7 +531,6 @@ if os.path.exists(RUTA_CSV):
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     
-    # NUEVO: DATOS SCRAPEADOS DE PROMIEDOS (REEMPLAZA WIKIPEDIA)
     stats_torneo = obtener_estadisticas_promiedos(lista_equipos)
 
     # -----------------------------------------------------------------
@@ -598,7 +581,6 @@ if os.path.exists(RUTA_CSV):
             stats_loc = consolidar_estadisticas(local, df, stats_torneo, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df, stats_torneo, xg_proyectado_visi)
 
-            # NUEVO: Obtenemos el H2H simulado/real
             historial_h2h = obtener_historial_directo(local, visitante)
 
             prob_loc, prob_empate, prob_vis = realizar_prediccion(
@@ -607,7 +589,6 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
             
-            # NUEVO: Renderizamos visualmente las píldoras del historial directo (H2H) con nombres de equipos
             st.markdown(f"<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
 
@@ -636,7 +617,6 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown("---")
 
-            # ÍNDICE DE VOLATILIDAD / CAOS DEL PARTIDO
             st.markdown("<h4 style='color: #cbd5e1;'>Índice de Volatilidad & Impredecibilidad</h4>", unsafe_allow_html=True)
             vol_val, vol_cat, vol_col = calcular_indice_volatilidad(xg_proyectado_local, xg_proyectado_visi, stats_loc, stats_vis)
             v_col1, v_col2 = st.columns([1, 2])
@@ -647,7 +627,6 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown("---")
 
-            # MERCADOS ADICIONALES (OVER/UNDER Y BTTS)
             st.markdown("<h4 style='color: #cbd5e1;'>Mercados Complementarios (Proyección Poisson)</h4>", unsafe_allow_html=True)
             prob_over_25, prob_under_25, prob_btts = calcular_mercados_adicionales(xg_proyectado_local, xg_proyectado_visi)
             c_m1, c_m2, c_m3, c_m4 = st.columns(4)
@@ -660,7 +639,6 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown("---")
 
-            # SIMULACIÓN MONTE CARLO (10,000 PARTIDOS)
             st.markdown("<h4 style='color: #cbd5e1;'>Simulación Estocástica Monte Carlo (10,000 Partidos)</h4>", unsafe_allow_html=True)
             p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(xg_proyectado_local, xg_proyectado_visi)
             c_mc1, c_mc2, c_mc3 = st.columns(3)
@@ -680,14 +658,12 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown("---")
 
-            # GRÁFICO TIPO RADAR (YA CON BUG GF/GC CORREGIDO EN LAS FUENTES DE DATOS)
             st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal (Incluye Forma Reciente)</h4>", unsafe_allow_html=True)
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
             st.plotly_chart(fig_radar, use_container_width=True)
 
             st.markdown("---")
 
-            # TOP 5 RESULTADOS MÁS PROBABLES
             st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
             top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi)
 
