@@ -68,7 +68,6 @@ def poisson_prob(lmbda, k):
 
 def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
     """Simula el partido N veces usando distribuciones estocásticas de Poisson."""
-    # Instanciamos un generador independiente para no mezclar semillas
     rng = np.random.default_rng()
     
     xg_loc_sim = rng.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
@@ -116,7 +115,6 @@ def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, pr
             else: prob_vis_poisson += p
 
     # 2. Crear factores de corrección para alinear con tus probabilidades 1X2
-    # Evitamos dividir por cero usando max()
     factor_loc = (prob_loc_target / 100.0) / max(0.0001, prob_loc_poisson)
     factor_emp = (prob_emp_target / 100.0) / max(0.0001, prob_emp_poisson)
     factor_vis = (prob_vis_target / 100.0) / max(0.0001, prob_vis_poisson)
@@ -194,7 +192,6 @@ def obtener_historial_directo(equipo_a, equipo_b):
     semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
     seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
     
-    # CORRECCIÓN CLAVE: Generador local para no arruinar el azar de Monte Carlo
     rng = np.random.default_rng(seed)
     
     es_inverso = equipo_a != min(equipo_a, equipo_b)
@@ -696,7 +693,15 @@ if os.path.exists(RUTA_CSV):
             st.markdown("---")
 
             st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
-            top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi)
+            
+            # ---> AQUÍ ESTÁ LA LÍNEA CORREGIDA QUE CONECTA EL 1X2 CON LOS MARCADORES EXACTOS <---
+            top_5_marcadores, prob_otro = calcular_top_resultados(
+                xg_proyectado_local, 
+                xg_proyectado_visi, 
+                prob_loc,       
+                prob_empate,    
+                prob_vis
+            )
 
             tabla_marcadores = [
                 {"Ranking": f"#{rank}", "Resultado Exacto (Local - Visitante)": marcador, "Probabilidad": f"{prob:.1f}%"}
