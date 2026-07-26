@@ -18,7 +18,7 @@ st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 st.markdown(
     """
     <head>
-        <meta name="google-site-verification" content="nGtul4qMmIIjYUnDas" />
+        <meta name="google-site-verification" content="nGtul4qMmIIjYUn" />
     </head>
     """,
     unsafe_allow_html=True
