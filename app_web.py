@@ -14,7 +14,15 @@ import streamlit as st
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
-
+# Insertar meta etiqueta de verificación para Google Search Console
+st.markdown(
+    """
+    <head>
+        <meta name="google-site-verification" content="PEGAR_AQUI_TU_CODIGO_DE_GOOGLE" />
+    </head>
+    """,
+    unsafe_allow_html=True
+)
 st.markdown(
     """
     <style>
