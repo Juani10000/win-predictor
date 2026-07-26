@@ -202,13 +202,13 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
     indice = min(99.0, max(10.0, vol_goles + vol_defensa + vol_paridad))
 
     if indice >= 65:
-        categoria = "🔥 ALTA (Partido Impredecible / Caótico)"
+        categoria = "ALTA (Partido Impredecible / Caótico)"
         color = "red"
     elif indice >= 40:
-        categoria = "⚡ MEDIA (Desarrollo Dinámico)"
+        categoria = "MEDIA (Desarrollo Dinámico)"
         color = "orange"
     else:
-        categoria = "🛡️ BAJA (Partido Estructurado / Controlado)"
+        categoria = "BAJA (Partido Estructurado / Controlado)"
         color = "green"
 
     return round(indice, 1), categoria, color
@@ -673,10 +673,10 @@ if os.path.exists(RUTA_CSV):
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
                 jer_local_ui = obtener_jerarquia(local)
-                st.info(f"⭐ Jerarquía: **{jer_local_ui}/10** | xG Proy: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
+                st.info(f"Jerarquía: **{jer_local_ui}/10** | xG Proy: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
             with col_xg2:
                 jer_visita_ui = obtener_jerarquia(visitante)
-                st.info(f"⭐ Jerarquía: **{jer_visita_ui}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
+                st.info(f"Jerarquía: **{jer_visita_ui}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
             # ----------------------------------------------------------------------
 
             m1, m2, m3 = st.columns(3)
