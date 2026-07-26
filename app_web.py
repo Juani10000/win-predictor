@@ -669,11 +669,15 @@ if os.path.exists(RUTA_CSV):
             st.markdown(f"<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
 
+            # --- MEJORA IA INYECTADA EN UI: Mostrar jerarquías explícitamente ---
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
-                st.info(f"xG Proyectado {local}: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
+                jer_local_ui = obtener_jerarquia(local)
+                st.info(f"⭐ Jerarquía: **{jer_local_ui}/10** | xG Proy: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
             with col_xg2:
-                st.info(f"xG Proyectado {visitante}: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
+                jer_visita_ui = obtener_jerarquia(visitante)
+                st.info(f"⭐ Jerarquía: **{jer_visita_ui}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
+            # ----------------------------------------------------------------------
 
             m1, m2, m3 = st.columns(3)
             m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
