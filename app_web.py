@@ -138,8 +138,6 @@ def realizar_prediccion(
     stats_vis,
     xg_proyectado_local,
     xg_proyectado_visi,
-    vic_h2h_loc=0,
-    vic_h2h_vis=0,
     factor_localia=0.15,
 ):
     row_loc = df[df["Equipo"] == local].iloc[0]
@@ -158,10 +156,11 @@ def realizar_prediccion(
     prom_loc = ((pts_loc / pj_loc) * 0.4) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.4) + (xg_proyectado_visi * 0.4)
 
-    # FORMA RECIENTE (Últimos 5 partidos - máx 15 pts)
+    # INCLUSIÓN DE FORMA RECIENTE (Últimos 5 partidos - máx 15 pts)
     pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
     pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
     
+    # Ponderador de Forma (Factor entre 0.8 y 1.2)
     factor_forma_loc = 0.85 + (pts_u5_loc / 15.0) * 0.30
     factor_forma_vis = 0.85 + (pts_u5_vis / 15.0) * 0.30
 
@@ -171,16 +170,30 @@ def realizar_prediccion(
     prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     prom_vis_ajustado = prom_vis
 
-    # BONIFICACIÓN POR HISTORIAL DIRECTO (H2H)
-    total_h2h_jugados = vic_h2h_loc + vic_h2h_vis
-    if total_h2h_jugados > 0:
-        # Ponderación máxima de +- 10% basada en dominio histórico directo
-        bono_h2h = ((vic_h2h_loc - vic_h2h_vis) / max(5.0, float(total_h2h_jugados))) * 0.10
-    else:
-        bono_h2h = 0.0
+    score_loc = (
+        (stats_loc["GF"] * 0.2)
+        + (stats_loc["Pos"] * 0.05)
+        + (stats_loc["VI"] * 1.2)
+        + (stats_loc["TirosArco"] * 0.8)
+        + (stats_loc["Fortaleza"] * 0.1)
+    )
+    score_vis = (
+        (stats_vis["GF"] * 0.2)
+        + (stats_vis["Pos"] * 0.05)
+        + (stats_vis["VI"] * 1.2)
+        + (stats_vis["TirosArco"] * 0.8)
+        + (stats_vis["Fortaleza"] * 0.1)
+    )
 
-    prom_loc_ajustado = prom_loc_ajustado * (1.0 + bono_h2h)
-    prom_vis_ajustado = prom_vis_ajustado * (1.0 - bono_h2h)
+    if (score_loc + score_vis) > 0:
+        ventaja_relativa = (score_loc - score_vis) / (score_loc + score_vis)
+    else:
+        ventaja_relativa = 0.0
+
+    ajuste_h2h = ventaja_relativa * 0.08
+
+    prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h)
+    prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h)
 
     # Cálculo del Empate mediante probabilidad conjunta de Poisson
     prob_empate_poisson = sum(
@@ -396,9 +409,11 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     gc_pp = gc / pj
     fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
 
+    # EXTRACCIÓN / CÁLCULO DE FORMA RECIENTE (Puntos en los últimos 5 partidos)
     if "Forma_U5" in df.columns:
         pts_u5 = float(row.get("Forma_U5", 7.5))
     else:
+        # Estimación basada en xG y PPJ promedio de la temporada si no existe en el CSV
         pts_u5 = round(min(15.0, max(1.0, (gf / pj) * 3.5 + (xg_proyectado * 2.0))), 1)
 
     return {
@@ -433,7 +448,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     max_ta = max(stats_loc["TirosArco"], stats_vis["TirosArco"], 5.0) * 1.2
     max_pa = 100
     max_fd = 100
-    max_forma = 15.0
+    max_forma = 15.0  # Máximo de puntos posibles en 5 partidos
 
     val_loc_norm = [
         stats_loc["GF"] / max_gf,
@@ -623,7 +638,7 @@ if os.path.exists(RUTA_CSV):
     st.markdown("---")
 
     # -----------------------------------------------------------------
-    # 5. MOTOR DE PREDICCIÓN MANUAL Y AJUSTE H2H
+    # 5. MOTOR DE PREDICCIÓN MANUAL
     # -----------------------------------------------------------------
     st.markdown(
         "<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>",
@@ -643,16 +658,6 @@ if os.path.exists(RUTA_CSV):
                 index=min(1, len(lista_equipos) - 1),
                 key="sb_visit",
             )
-            
-        with st.expander("⚔️ Ajuste Manual de Historial Directo (H2H)"):
-            st.caption("Ingresá los resultados de los últimos 5 partidos entre sí para aplicar un bonificador estadístico.")
-            c_h2h1, c_h2h2, c_h2h3 = st.columns(3)
-            vic_h2h_loc = c_h2h1.number_input(f"Victorias {local}", min_value=0, max_value=5, value=2, step=1)
-            emp_h2h = c_h2h2.number_input("Empates", min_value=0, max_value=5, value=1, step=1)
-            vic_h2h_vis = c_h2h3.number_input(f"Victorias {visitante}", min_value=0, max_value=5, value=2, step=1)
-            
-            if (vic_h2h_loc + emp_h2h + vic_h2h_vis) > 5:
-                st.warning("⚠️ Ingresaste más de 5 partidos. El modelo ajustará la proporción matemáticamente.")
 
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
@@ -685,8 +690,6 @@ if os.path.exists(RUTA_CSV):
                 stats_vis,
                 xg_proyectado_local,
                 xg_proyectado_visi,
-                vic_h2h_loc=vic_h2h_loc,
-                vic_h2h_vis=vic_h2h_vis,
                 factor_localia=FACTOR_LOCALIA,
             )
 
