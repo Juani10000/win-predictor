@@ -369,45 +369,56 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
 
 
 @st.cache_data(ttl=3600)
-def obtener_estadisticas_wiki(equipos_disponibles):
-    url = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
-    stats_wiki = {}
+def obtener_estadisticas_promiedos(equipos_disponibles):
+    # Usamos la URL directa del torneo de Primera División
+    url = "https://www.promiedos.com.ar/primera"
+    stats_promiedos = {}
+    
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers, timeout=10)
+        # Es VITAL pasarle un User-Agent real para que Promiedos no nos bloquee creyendo que somos un bot malo
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "es-AR,es;q=0.8,en-US;q=0.5,en;q=0.3"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.encoding = 'utf-8' # Para que las tildes y ñ salgan bien
         soup = BeautifulSoup(response.text, "html.parser")
 
-        tablas = soup.find_all("table", {"class": "wikitable"})
-        for tabla in tablas:
+        # Promiedos tiene la tabla principal bajo el id "posiciones"
+        tabla = soup.find("table", id="posiciones")
+        
+        if tabla:
             filas = tabla.find_all("tr")
-            if len(filas) > 15:
-                for fila in filas[1:]:
-                    celdas = [
-                        td.get_text(strip=True)
-                        for td in fila.find_all(["td", "th"])
-                    ]
-                    # Ajustamos al formato real: 0:Pos, 1:Eq, 2:Pts, 3:PJ, 4:PG, 5:PE, 6:PP, 7:GF, 8:GC
-                    if len(celdas) >= 9:
-                        equipo_raw = celdas[1]
-                        
-                        # Corrección de índices:
-                        pj_raw = celdas[3] if celdas[3].isdigit() else "1"
-                        gf_raw = celdas[7] if celdas[7].isdigit() else "0"
-                        gc_raw = celdas[8] if celdas[8].isdigit() else "0"
+            
+            # Iteramos saltando la primera fila que es el encabezado
+            for fila in filas[1:]:
+                celdas = fila.find_all(["td", "th"])
+                
+                # La estructura típica de Promiedos es:
+                # 0: Pos, 1: Equipo, 2: Pts, 3: PJ, 4: PG, 5: PE, 6: PP, 7: GF, 8: GC, 9: DIF
+                if len(celdas) >= 9:
+                    equipo_raw = celdas[1].get_text(strip=True)
+                    pts_raw = celdas[2].get_text(strip=True)
+                    pj_raw = celdas[3].get_text(strip=True)
+                    gf_raw = celdas[7].get_text(strip=True)
+                    gc_raw = celdas[8].get_text(strip=True)
 
-                        eq_match = buscar_equipo(
-                            equipo_raw, equipos_disponibles
-                        )
-                        if eq_match:
-                            stats_wiki[eq_match] = {
-                                "GF": int(gf_raw),
-                                "GC": int(gc_raw),
-                                "PJ": int(pj_raw),
-                            }
-    except Exception:
-        pass
-    return stats_wiki
-
+                    # Buscamos que el equipo coincida con nuestro CSV
+                    eq_match = buscar_equipo(equipo_raw, equipos_disponibles)
+                    
+                    if eq_match:
+                        stats_promiedos[eq_match] = {
+                            "Puntos": int(pts_raw) if pts_raw.isdigit() else 0,
+                            "GF": int(gf_raw) if gf_raw.isdigit() else 0,
+                            "GC": int(gc_raw) if gc_raw.isdigit() else 0,
+                            "PJ": int(pj_raw) if pj_raw.isdigit() else 1,
+                        }
+    except Exception as e:
+        print(f"Error scrapeando Promiedos: {e}")
+        
+    return stats_promiedos
 
 def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     row = df[df["Equipo"] == equipo].iloc[0]
