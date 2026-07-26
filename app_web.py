@@ -152,8 +152,20 @@ def realizar_prediccion(
         max(float(row_vis.get("PJ", 1)), 1.0) if "PJ" in df.columns else 1.0
     )
 
-    prom_loc = ((pts_loc / pj_loc) * 0.5) + (xg_proyectado_local * 0.5)
-    prom_vis = ((pts_vis / pj_vis) * 0.5) + (xg_proyectado_visi * 0.5)
+    # Cálculo base de rendimiento general
+    prom_loc = ((pts_loc / pj_loc) * 0.4) + (xg_proyectado_local * 0.4)
+    prom_vis = ((pts_vis / pj_vis) * 0.4) + (xg_proyectado_visi * 0.4)
+
+    # INCLUSIÓN DE FORMA RECIENTE (Últimos 5 partidos - máx 15 pts)
+    pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
+    pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
+    
+    # Ponderador de Forma (Factor entre 0.8 y 1.2)
+    factor_forma_loc = 0.85 + (pts_u5_loc / 15.0) * 0.30
+    factor_forma_vis = 0.85 + (pts_u5_vis / 15.0) * 0.30
+
+    prom_loc *= factor_forma_loc
+    prom_vis *= factor_forma_vis
 
     prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     prom_vis_ajustado = prom_vis
@@ -274,8 +286,8 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    fecha_hoy_str = me = ahora_arg.strftime("%Y-%m-%d")
-    fecha_espn_url = me = me = me = me = me = ahora_arg.strftime("%Y%m%d")
+    fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
+    fecha_espn_url = ahora_arg.strftime("%Y%m%d")
 
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_espn_url}"
     partidos_hoy = []
@@ -397,6 +409,13 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
     gc_pp = gc / pj
     fortaleza = min(100, max(10, int(100 - (gc_pp * 35))))
 
+    # EXTRACCIÓN / CÁLCULO DE FORMA RECIENTE (Puntos en los últimos 5 partidos)
+    if "Forma_U5" in df.columns:
+        pts_u5 = float(row.get("Forma_U5", 7.5))
+    else:
+        # Estimación basada en xG y PPJ promedio de la temporada si no existe en el CSV
+        pts_u5 = round(min(15.0, max(1.0, (gf / pj) * 3.5 + (xg_proyectado * 2.0))), 1)
+
     return {
         "GF": gf,
         "xG": round(xg_proyectado, 1),
@@ -406,6 +425,7 @@ def consolidar_estadisticas(equipo, df, stats_wiki, xg_proyectado):
         "Pases": pases,
         "Corners": corners,
         "Fortaleza": fortaleza,
+        "Pts_U5": pts_u5,
     }
 
 
@@ -415,10 +435,10 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         "xG Proyectado",
         "Posesión (%)",
         "Vallas Invictas",
-        "Tiros al Arco (p/p)",
-        "Eficacia Pases (%)",
-        "Córners (p/p)",
+        "Tiros al Arco",
+        "Eficacia Pases",
         "Fuerza Defensiva",
+        "Forma Reciente (U5)",
     ]
 
     max_gf = max(stats_loc["GF"], stats_vis["GF"], 15) * 1.1
@@ -427,8 +447,8 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     max_vi = max(stats_loc["VI"], stats_vis["VI"], 5) * 1.2
     max_ta = max(stats_loc["TirosArco"], stats_vis["TirosArco"], 5.0) * 1.2
     max_pa = 100
-    max_co = max(stats_loc["Corners"], stats_vis["Corners"], 6.0) * 1.2
     max_fd = 100
+    max_forma = 15.0  # Máximo de puntos posibles en 5 partidos
 
     val_loc_norm = [
         stats_loc["GF"] / max_gf,
@@ -437,8 +457,8 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         stats_loc["VI"] / max_vi,
         stats_loc["TirosArco"] / max_ta,
         stats_loc["Pases"] / max_pa,
-        stats_loc["Corners"] / max_co,
         stats_loc["Fortaleza"] / max_fd,
+        stats_loc["Pts_U5"] / max_forma,
     ]
 
     val_vis_norm = [
@@ -448,8 +468,8 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         stats_vis["VI"] / max_vi,
         stats_vis["TirosArco"] / max_ta,
         stats_vis["Pases"] / max_pa,
-        stats_vis["Corners"] / max_co,
         stats_vis["Fortaleza"] / max_fd,
+        stats_vis["Pts_U5"] / max_forma,
     ]
 
     text_loc = [
@@ -459,8 +479,8 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         str(stats_loc["VI"]),
         str(stats_loc["TirosArco"]),
         f"{stats_loc['Pases']}%",
-        str(stats_loc["Corners"]),
         f"{stats_loc['Fortaleza']}/100",
+        f"{stats_loc['Pts_U5']} pts",
     ]
     text_vis = [
         str(stats_vis["GF"]),
@@ -469,8 +489,8 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         str(stats_vis["VI"]),
         str(stats_vis["TirosArco"]),
         f"{stats_vis['Pases']}%",
-        str(stats_vis["Corners"]),
         f"{stats_vis['Fortaleza']}/100",
+        f"{stats_vis['Pts_U5']} pts",
     ]
 
     fig = go.Figure()
@@ -535,8 +555,8 @@ with col_titulo:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG Y RESULTADOS'
-        " EXACTOS</div>",
+        '<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG, FORMA RECIENTE Y'
+        " RESULTADOS EXACTOS</div>",
         unsafe_allow_html=True,
     )
 
@@ -682,12 +702,11 @@ if os.path.exists(RUTA_CSV):
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
                 st.info(
-                    f"xG Proyectado {local}: **{xg_proyectado_local}** (Local)"
+                    f"xG Proyectado {local}: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**"
                 )
             with col_xg2:
                 st.info(
-                    f"xG Proyectado {visitante}:"
-                    f" **{xg_proyectado_visi}** (Visitante)"
+                    f"xG Proyectado {visitante}: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**"
                 )
 
             m1, m2, m3 = st.columns(3)
@@ -801,7 +820,7 @@ if os.path.exists(RUTA_CSV):
             # -----------------------------------------------------------------
             st.markdown(
                 "<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis"
-                " Octagonal</h4>",
+                " Octagonal (Incluye Forma Reciente)</h4>",
                 unsafe_allow_html=True,
             )
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
