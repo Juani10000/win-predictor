@@ -281,9 +281,9 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
 
     # Si tenemos un modelo .pkl cargado, intentamos predecir directamente con IA
     if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
-        mapa = paquete_ia["mapa_equipos"]
-        modelo = paquete_ia["modelo"]
-        features_req = paquete_ia.get("features", [])
+    mapa = paquete_ia["mapa_equipos"]
+    modelo = paquete_ia["modelo"]
+    features_req = paquete_ia.get("features", [])
 
      data_dict = {
     "local_cod": mapa[local],
