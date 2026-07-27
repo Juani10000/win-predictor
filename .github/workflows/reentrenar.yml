@@ -1,4 +1,4 @@
-name: Reentrenamiento Automático de IA
+name: Reentrenamiento Automático de IA 
 
 on:
   schedule:
