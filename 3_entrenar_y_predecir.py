@@ -5,10 +5,11 @@ import pandas as pd
 from xgboost import XGBClassifier
 from sklearn.calibration import CalibratedClassifierCV
 
-print("Iniciando entrenamiento continuo del Win Predictor (XGBoost + Calibración)...")
+print("Iniciando entrenamiento continuo del Win Predictor...")
+print("Cargando mejora: Dinámica de Rendimiento (Rolling xG de 5 partidos)")
 
 # =====================================================================
-# 1. JERARQUÍA DE PLANTELES
+# 1. JERARQUÍA DE PLANTELES (BASE ESTATICA)
 # =====================================================================
 JERARQUIA_EQUIPOS = {
     "River Plate": 9.5, "Boca Juniors": 9.2, "Racing Club": 8.5,
@@ -41,18 +42,39 @@ if not os.path.exists(ruta_csv):
 
 df = pd.read_csv(ruta_csv)
 
-# Generación de variables avanzadas
+# 2.1 Variables Base de Jerarquía
 df["local_jerarquia"] = df["Local"].apply(obtener_jerarquia)
 df["visitante_jerarquia"] = df["Visitante"].apply(obtener_jerarquia)
 df["dif_jerarquia"] = df["local_jerarquia"] - df["visitante_jerarquia"]
 
+# 2.2 Variables de Forma Ajustadas
 df["local_pts_ajustados_5"] = df["local_pts_5"] * (df["visitante_jerarquia"] / 10.0)
 df["visita_pts_ajustados_5"] = df["visita_pts_5"] * (df["local_jerarquia"] / 10.0)
 
-# Decaimiento temporal (dar más peso a los partidos recientes)
+# 2.3 NUEVA MEJORA: Dinámica de Rendimiento (Rolling xG)
+# Si el CSV original no tiene el historial exacto partido a partido para hacer el rolling,
+# aproximamos la dinámica reciente cruzando los goles recientes con la jerarquía ofensiva.
+if "local_xG" in df.columns and "visita_xG" in df.columns:
+    # Cálculo real si los datos están ordenados temporalmente
+    df["local_xG_prom_5"] = df.groupby("Local")["local_xG"].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
+    df["visita_xG_prom_5"] = df.groupby("Visitante")["visita_xG"].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
+else:
+    # Respaldo matemático: aproxima el xG de los últimos 5 partidos basado en goles recientes y jerarquía
+    df["local_xG_prom_5"] = (df["local_gf_5"] / 5.0) * 0.85 + (df["local_jerarquia"] * 0.15)
+    df["visita_xG_prom_5"] = (df["visita_gf_5"] / 5.0) * 0.85 + (df["visitante_jerarquia"] * 0.15)
+
+# Llenar posibles valores nulos generados por la ventana móvil
+df["local_xG_prom_5"] = df["local_xG_prom_5"].fillna(1.2)
+df["visita_xG_prom_5"] = df["visita_xG_prom_5"].fillna(1.1)
+
+# Diferencia de momento ofensivo
+df["dif_xG_prom_5"] = df["local_xG_prom_5"] - df["visita_xG_prom_5"]
+
+# 2.4 Decaimiento temporal (pesos)
 pesos_temporales = np.exp(np.linspace(-3, 0, len(df)))
 df["peso_temporal"] = pesos_temporales
 
+# Lista de variables que alimentan a la IA
 features = [
     "local_cod",
     "visitante_cod",
@@ -65,6 +87,9 @@ features = [
     "visita_gf_5",
     "visita_gc_5",
     "visita_pts_ajustados_5",
+    "local_xG_prom_5",     # <-- Nueva variable
+    "visita_xG_prom_5",    # <-- Nueva variable
+    "dif_xG_prom_5"        # <-- Nueva variable
 ]
 
 X = df[features]
@@ -84,11 +109,10 @@ modelo_base = XGBClassifier(
     eval_metric="mlogloss"
 )
 
-# Calibración de probabilidades para que no sea extremadamente conservador
 modelo_calibrado = CalibratedClassifierCV(estimator=modelo_base, method="sigmoid", cv=3)
 modelo_calibrado.fit(X, y, sample_weight=pesos)
 
-print("Modelo XGBoost entrenado y calibrado con éxito.")
+print("¡Modelo XGBoost entrenado! Nuevos patrones de Rolling xG asimilados.")
 
 # =====================================================================
 # 4. GUARDAR EL MODELO PARA LA APP WEB
@@ -104,4 +128,4 @@ paquete_modelo = {
 }
 
 joblib.dump(paquete_modelo, "modelo_entrenado.pkl")
-print("Modelo exportado correctamente a 'modelo_entrenado.pkl'.")
+print("Cerebro exportado correctamente a 'modelo_entrenado.pkl'.")
