@@ -21,20 +21,18 @@ jobs:
 
     - name: 📦 Instalar dependencias
       run: |
-        pip install pandas numpy scikit-learn joblib requests beautifulsoup4
+        pip install -r requirements.txt
 
-    - name: 🌐 PASO 1: Obtener datos frescos de partidos y tabla
+    - name: 🚀 PASO 1: Ejecutar Pipeline de Datos y Entrenamiento
       run: |
         python 1_obtener_datos.py
-
-    - name: 🧠 PASO 2: Reentrenar el Modelo de IA
-      run: |
-        python entrenar_modelo.py
+        python 2_preparar_datos.py
+        python 3_entrenar_y_predecir.py
 
     - name: 💾 Guardar datos y modelo actualizado en GitHub
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email "actions@github.com"
-        git add datos_procesados.csv modelo_entrenado.pkl
-        git commit -m "🤖 Datos y Modelo actualizados automáticamente" || echo "Sin cambios"
+        git add .
+        git commit -m "🤖 Pipeline automático: Datos y Modelo actualizados" || echo "Sin cambios"
         git push
