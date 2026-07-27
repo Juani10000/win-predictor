@@ -285,47 +285,48 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
         modelo = paquete_ia["modelo"]
         features_req = paquete_ia.get("features", [])
 
-        data_dict = {
-            "local_cod": mapa[local],
-            "visitante_cod": mapa[visitante],
-            "local_jerarquia": jer_loc,
-            "visitante_jerarquia": jer_vis,
-            "dif_jerarquia": jer_loc - jer_vis,
-            "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
-            "local_gc_5": 1.0,
-            "local_pts_5": pts_u5_loc / 5.0,
-            "local_pts_ajustados_5": pts_u5_loc_ajustado / 5.0,
-            "visita_gf_5": stats_vis.get("GF", 1.0) / max(1, stats_vis.get("PJ", 1)),
-            "visita_gc_5": 1.0,
-            "visita_pts_5": pts_u5_vis / 5.0,
-            "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
-            "local_xG_prom_5": xg_proyectado_local,
-            "visita_xG_prom_5": xg_proyectado_visi,
-            "dif_xG_prom_5": xg_proyectado_local - xg_proyectado_visi
-        }
-        
-        if features_req:
-            row_input = pd.DataFrame([{col: data_dict.get(col, 0) for col in features_req}])
-        else:
-            row_input = pd.DataFrame([data_dict])
-
-        try:
-            probs = modelo.predict_proba(row_input)[0]
-            clases = list(modelo.classes_)
+        if local in mapa and visitante in mapa:
+            data_dict = {
+                "local_cod": mapa[local],
+                "visitante_cod": mapa[visitante],
+                "local_jerarquia": jer_loc,
+                "visitante_jerarquia": jer_vis,
+                "dif_jerarquia": jer_loc - jer_vis,
+                "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
+                "local_gc_5": 1.0,
+                "local_pts_5": pts_u5_loc / 5.0,
+                "local_pts_ajustados_5": pts_u5_loc_ajustado / 5.0,
+                "visita_gf_5": stats_vis.get("GF", 1.0) / max(1, stats_vis.get("PJ", 1)),
+                "visita_gc_5": 1.0,
+                "visita_pts_5": pts_u5_vis / 5.0,
+                "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
+                "local_xG_prom_5": xg_proyectado_local,
+                "visita_xG_prom_5": xg_proyectado_visi,
+                "dif_xG_prom_5": xg_proyectado_local - xg_proyectado_visi
+            }
             
-            idx_loc = clases.index(1) if 1 in clases else 0
-            idx_emp = clases.index(0) if 0 in clases else 1
-            idx_vis = clases.index(2) if 2 in clases else 2
+            if features_req:
+                row_input = pd.DataFrame([{col: data_dict.get(col, 0) for col in features_req}])
+            else:
+                row_input = pd.DataFrame([data_dict])
 
-            prob_loc = float(probs[idx_loc]) * 100.0
-            prob_empate = float(probs[idx_emp]) * 100.0
-            prob_vis = float(probs[idx_vis]) * 100.0
+            try:
+                probs = modelo.predict_proba(row_input)[0]
+                clases = list(modelo.classes_)
+                
+                idx_loc = clases.index(1) if 1 in clases else 0
+                idx_emp = clases.index(0) if 0 in clases else 1
+                idx_vis = clases.index(2) if 2 in clases else 2
 
-            return prob_loc, prob_empate, prob_vis, True
-        except Exception:
-            pass
+                prob_loc = float(probs[idx_loc]) * 100.0
+                prob_empate = float(probs[idx_emp]) * 100.0
+                prob_vis = float(probs[idx_vis]) * 100.0
 
-    # Resguardo: Algoritmo estadístico heurístico
+                return prob_loc, prob_empate, prob_vis, True
+            except Exception:
+                pass
+
+    # Resguardo: Algoritmo estadístico heurístico (se ejecuta si la IA falla o no existe)
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -761,4 +762,51 @@ if os.path.exists(RUTA_CSV):
             with c_m3: st.metric(label="Ambos Anotan (Sí)", value=f"{prob_btts:.1f}%")
             with c_m4:
                 corners_est = round(stats_loc["Corners"] + stats_vis["Corners"], 1)
-                st.metric(label="Córners Totales", value=corners_est)
+                st.metric(label="Córners Totales (Est.)", value=f"{corners_est}")
+
+            st.markdown("---")
+
+            st.markdown("<h4 style='color: #cbd5e1;'>Simulación Estocástica Monte Carlo (10,000 Partidos)</h4>", unsafe_allow_html=True)
+            p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(xg_proyectado_local, xg_proyectado_visi)
+            c_mc1, c_mc2, c_mc3 = st.columns(3)
+            c_mc1.metric(f"Victoria {local} (MC)", f"{p_loc_mc:.1f}%")
+            c_mc2.metric("Empate (MC)", f"{p_emp_mc:.1f}%")
+            c_mc3.metric(f"Victoria {visitante} (MC)", f"{p_vis_mc:.1f}%")
+
+            fig_hist = go.Figure()
+            fig_hist.add_trace(go.Histogram(x=goles_sim, nbinsx=10, marker_color="#00f3ff", opacity=0.75, name="Goles Totales"))
+            fig_hist.update_layout(
+                title="Distribución de Goles Totales en 10,000 Simulaciones",
+                xaxis_title="Cantidad de Goles en el Partido", yaxis_title="Frecuencia (N° de Simulación)",
+                paper_bgcolor="#070b14", plot_bgcolor="#111827", font=dict(color="#cbd5e1"),
+                margin=dict(t=40, b=40, l=40, r=40),
+            )
+            st.plotly_chart(fig_hist, use_container_width=True)
+
+            st.markdown("---")
+
+            st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal (Incluye Forma Reciente)</h4>", unsafe_allow_html=True)
+            fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
+            st.plotly_chart(fig_radar, use_container_width=True)
+
+            st.markdown("---")
+
+            st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
+            
+            top_5_marcadores, prob_otro = calcular_top_resultados(
+                xg_proyectado_local, 
+                xg_proyectado_visi, 
+                prob_loc,       
+                prob_empate,    
+                prob_vis
+            )
+
+            tabla_marcadores = [
+                {"Ranking": f"#{rank}", "Resultado Exacto (Local - Visitante)": marcador, "Probabilidad": f"{prob:.1f}%"}
+                for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)
+            ]
+            tabla_marcadores.append({"Ranking": "Otros", "Resultado Exacto (Local - Visitante)": "Cualquier otro resultado", "Probabilidad": f"{prob_otro:.1f}%"})
+            st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
+
+else:
+    st.error("Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista.")
