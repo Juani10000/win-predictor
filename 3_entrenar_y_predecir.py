@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-import joblib
 
 print("🧠 Entrenando modelo avanzado con rachas y prevención de sobreajuste...")
 
@@ -27,10 +26,6 @@ modelo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
 modelo.fit(X, y)
 
 print("✅ Modelo entrenado y calibrado correctamente.")
-
-# 💾 GUARDAR EL MODELO PARA LA WEB
-joblib.dump(modelo, "modelo_entrenado.pkl")
-print("💾 Modelo guardado con éxito en 'modelo_entrenado.pkl'.")
 
 # Lista de equipos
 equipos_unicos = sorted(pd.concat([df["Local"], df["Visitante"]]).unique())
