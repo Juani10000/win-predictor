@@ -1,8 +1,12 @@
+import os
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import accuracy_score
+import joblib
 
-print("🧠 Entrenando modelo avanzado con rachas y prevención de sobreajuste...")
+print("🧠 Iniciando sistema de Auto-Tuning y Aprendizaje Continuo...")
 
 # 1. Cargar los datos procesados con rachas
 df = pd.read_csv("datos/datos_procesados.csv")
@@ -21,102 +25,69 @@ features = [
 X = df[features]
 y = df["resultado_num"]
 
-# 3. Entrenar el modelo limitando la profundidad para EVITAR el 100% de sobreajuste
-modelo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
-modelo.fit(X, y)
+# 3. Separar un 20% de los datos para el "Examen Final" de la IA
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-print("✅ Modelo entrenado y calibrado correctamente.")
+# =====================================================================
+# 🏆 FASE 1: EVALUAR EL MODELO VIEJO (Si existe)
+# =====================================================================
+archivo_modelo = "modelo_entrenado.pkl"
+precision_vieja = 0.0
 
-# Lista de equipos
-equipos_unicos = sorted(pd.concat([df["Local"], df["Visitante"]]).unique())
-mapa_equipos = {equipo: i for i, equipo in enumerate(equipos_unicos)}
+if os.path.exists(archivo_modelo):
+    try:
+        modelo_viejo = joblib.load(archivo_modelo)
+        predicciones_viejas = modelo_viejo.predict(X_test)
+        precision_vieja = accuracy_score(y_test, predicciones_viejas)
+        print(f"👴 Modelo anterior detectado. Precisión en el examen: {precision_vieja*100:.2f}%")
+    except Exception as e:
+        print("⚠️ No se pudo evaluar el modelo viejo, se creará uno nuevo de cero.")
+else:
+    print("🌱 No hay modelo viejo. Se creará la primera versión.")
 
+# =====================================================================
+# 🔬 FASE 2: AUTO-ENTRENAMIENTO Y BÚSQUEDA DEL MEJOR MODELO NUEVO
+# =====================================================================
+print("⚙️ Buscando la mejor configuración posible para los datos actuales (Auto-Tuning)...")
 
-# Función para calcular la racha más reciente de un equipo
-def obtener_racha_actual(equipo):
-    partidos = df[(df["Local"] == equipo) | (df["Visitante"] == equipo)].tail(5)
-    if len(partidos) == 0:
-        return 1.0, 1.0, 1.0
+# Le damos opciones para que pruebe cuál rinde mejor sin sobreajustarse
+parametros_a_probar = {
+    'n_estimators': [50, 100, 150],
+    'max_depth': [3, 5, 7],
+    'min_samples_split': [2, 5, 10]
+}
 
-    gf, gc, pts = [], [], []
-    for _, fila in partidos.iterrows():
-        es_local = fila["Local"] == equipo
-        g_fav = fila["Goles_Local"] if es_local else fila["Goles_Visitante"]
-        g_con = fila["Goles_Visitante"] if es_local else fila["Goles_Local"]
-        res = fila["Resultado"]
+# GridSearchCV entrena y evalúa todas las combinaciones posibles
+buscador = GridSearchCV(
+    estimator=RandomForestClassifier(random_state=42),
+    param_grid=parametros_a_probar,
+    cv=3, # Hace 3 validaciones cruzadas por cada prueba
+    scoring='accuracy',
+    n_jobs=-1 # Usa todos los procesadores para ir más rápido
+)
 
-        if (es_local and res == "L") or (not es_local and res == "V"):
-            p = 3
-        elif res == "E":
-            p = 1
-        else:
-            p = 0
+buscador.fit(X_train, y_train)
 
-        gf.append(g_fav)
-        gc.append(g_con)
-        pts.append(p)
+# Nos quedamos con el mejor modelo que encontró
+modelo_nuevo = buscador.best_estimator_
+print(f"✨ Mejor configuración encontrada: {buscador.best_params_}")
 
-    return np.mean(gf), np.mean(gc), np.mean(pts)
+# Le tomamos el "Examen Final" al modelo nuevo
+predicciones_nuevas = modelo_nuevo.predict(X_test)
+precision_nueva = accuracy_score(y_test, predicciones_nuevas)
+print(f"🚀 Precisión del modelo NUEVO en el examen: {precision_nueva*100:.2f}%")
 
+# =====================================================================
+# ⚔️ FASE 3: EL DUELO (Nuevo vs Viejo)
+# =====================================================================
+# Solo guardamos si el nuevo es ESTRICTAMENTE mejor que el anterior
+if precision_nueva > precision_vieja:
+    print(f"🎉 ¡El modelo nuevo es MEJOR! (Superó al viejo por {(precision_nueva - precision_vieja)*100:.2f}%)")
+    joblib.dump(modelo_nuevo, archivo_modelo)
+    print("💾 NUEVO MODELO GUARDADO EXITOSAMENTE.")
+else:
+    print(f"🛡️ El modelo viejo sigue siendo mejor o igual. (Nuevo: {precision_nueva*100:.2f}% vs Viejo: {precision_vieja*100:.2f}%)")
+    print("⛔ Se descartará el modelo nuevo para proteger la precisión de la web.")
+    # No hacemos el dump, así que GitHub Actions no detectará cambios en el .pkl
 
-def predecir(local, visitante):
-    if local not in mapa_equipos or visitante not in mapa_equipos:
-        print(
-            f"❌ Error: Uno de los equipos ('{local}' o '{visitante}') no existe en la lista."
-        )
-        return
-
-    # Obtener racha actual de ambos
-    l_gf, l_gc, l_pts = obtener_racha_actual(local)
-    v_gf, v_gc, v_pts = obtener_racha_actual(visitante)
-
-    # Crear la fila para predecir
-    partido_nuevo = pd.DataFrame(
-        [
-            {
-                "local_cod": mapa_equipos[local],
-                "visitante_cod": mapa_equipos[visitante],
-                "local_gf_5": l_gf,
-                "local_gc_5": l_gc,
-                "local_pts_5": l_pts,
-                "visita_gf_5": v_gf,
-                "visita_gc_5": v_gc,
-                "visita_pts_5": v_pts,
-            }
-        ]
-    )
-
-    # Predecir
-    prediccion = modelo.predict(partido_nuevo)[0]
-    probs = modelo.predict_proba(partido_nuevo)[0]
-
-    res_txt = {
-        1: f"Gana {local} (Local)",
-        0: "Empate",
-        2: f"Gana {visitante} (Visitante)",
-    }
-
-    print(f"\n📊 Pronóstico Avanzado: {local} vs {visitante}")
-    print(
-        f"🔥 Racha Local ({local}): {l_pts:.1f} pts/partido | {l_gf:.1f} goles favor/partido"
-    )
-    print(
-        f"🔥 Racha Visitante ({visitante}): {v_pts:.1f} pts/partido | {v_gf:.1f} goles favor/partido"
-    )
-    print(f"🔮 Resultado esperado: {res_txt[prediccion]}")
-    print("📈 Probabilidades realistas del modelo:")
-
-    clases = list(modelo.classes_)
-    if 1 in clases:
-        print(f"   - Victoria Local ({local}): {probs[clases.index(1)]*100:.1f}%")
-    if 0 in clases:
-        print(f"   - Empate: {probs[clases.index(0)]*100:.1f}%")
-    if 2 in clases:
-        print(
-            f"   - Victoria Visitante ({visitante}): {probs[clases.index(2)]*100:.1f}%"
-        )
-
-
-# --- PRUEBAS DE PARTIDOS ---
-predecir("Racing Club", "Independiente")
-predecir("Boca Juniors", "River Plate")
+print("✅ Proceso de entrenamiento finalizado.")
