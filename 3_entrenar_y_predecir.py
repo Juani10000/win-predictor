@@ -1,89 +1,122 @@
-import os
-import pandas as pd
 import numpy as np
-import joblib
-from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 
-print("🚀 Iniciando script de entrenamiento y predicción...")
+print("🧠 Entrenando modelo avanzado con rachas y prevención de sobreajuste...")
 
-# 1. Cargar datos
-PATH_DATOS = "datos_procesados.csv"
+# 1. Cargar los datos procesados con rachas
+df = pd.read_csv("datos/datos_procesados.csv")
 
-if not os.path.exists(PATH_DATOS):
-    print(f"❌ Error: No se encontró el archivo {PATH_DATOS}")
-    exit(1)
-
-df = pd.read_csv(PATH_DATOS)
-print(f"📊 Datos cargados correctamente. Total de filas: {len(df)}")
-
-# ------------------------------------------------------------------
-# 🛡️ PROTECCIÓN DE COLUMNAS (Evita KeyError durante la ejecución)
-# ------------------------------------------------------------------
-columnas_requeridas = {
-    'local_pts_5': 0,
-    'visitante_pts_5': 0,
-    'local_jerarquia': 1.0,
-    'visitante_jerarquia': 1.0,
-    'local_gf_5': 0,
-    'visitante_gf_5': 0,
-    'local_gc_5': 0,
-    'visitante_gc_5': 0,
-    'local_xg_prom_5': 1.0,
-    'visitante_xg_prom_5': 1.0,
-    'local_xga_prom_5': 1.0,
-    'visitante_xga_prom_5': 1.0,
-    'resultado': 0  # 0: Empate, 1: Gana Local, 2: Gana Visitante
-}
-
-for col, val_defecto in columnas_requeridas.items():
-    if col not in df.columns:
-        df[col] = val_defecto
-# ------------------------------------------------------------------
-
-# 2. Ingeniería de características (Feature Engineering)
-print("⚙️ Procesando variables para la IA...")
-
-df["local_pts_ajustados_5"] = df["local_pts_5"] * (df["visitante_jerarquia"] / 10.0)
-df["visitante_pts_ajustados_5"] = df["visitante_pts_5"] * (df["local_jerarquia"] / 10.0)
-
-df["local_xG_prom_5"] = (df["local_gf_5"] / 5.0) * 0.85 + (df["local_jerarquia"] * 0.15)
-df["visitante_xG_prom_5"] = (df["visitante_gf_5"] / 5.0) * 0.85 + (df["visitante_jerarquia"] * 0.15)
-
-# Lista de variables (features) que usará el modelo
+# 2. Definir las variables explicativas (Features) y el objetivo (Target)
 features = [
-    'local_pts_5', 'visitante_pts_5',
-    'local_jerarquia', 'visitante_jerarquia',
-    'local_pts_ajustados_5', 'visitante_pts_ajustados_5',
-    'local_xG_prom_5', 'visitante_xG_prom_5',
-    'local_gc_5', 'visitante_gc_5'
+    "local_cod",
+    "visitante_cod",
+    "local_gf_5",
+    "local_gc_5",
+    "local_pts_5",
+    "visita_gf_5",
+    "visita_gc_5",
+    "visita_pts_5",
 ]
-
 X = df[features]
-y = df['resultado']
+y = df["resultado_num"]
 
-# 3. Entrenamiento del Modelo XGBoost
-print("🧠 Entrenando el modelo XGBoost...")
+# 3. Entrenar el modelo limitando la profundidad para EVITAR el 100% de sobreajuste
+modelo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
+modelo.fit(X, y)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+print("✅ Modelo entrenado y calibrado correctamente.")
 
-model = XGBClassifier(
-    n_estimators=100,
-    learning_rate=0.05,
-    max_depth=4,
-    random_state=42,
-    eval_metric='mlogloss'
-)
+# Lista de equipos
+equipos_unicos = sorted(pd.concat([df["Local"], df["Visitante"]]).unique())
+mapa_equipos = {equipo: i for i, equipo in enumerate(equipos_unicos)}
 
-model.fit(X_train, y_train)
 
-# Evaluar precisión
-y_pred = model.predict(X_test)
-acc = accuracy_score(y_test, y_pred)
-print(f"🎯 Precisión del modelo en prueba: {acc * 100:.2f}%")
+# Función para calcular la racha más reciente de un equipo
+def obtener_racha_actual(equipo):
+    partidos = df[(df["Local"] == equipo) | (df["Visitante"] == equipo)].tail(5)
+    if len(partidos) == 0:
+        return 1.0, 1.0, 1.0
 
-# 4. Guardar el modelo entrenado
-PATH_MODELO = "modelo_entrenado.pkl"
-joblib.dump(model, PATH_MODELO)
-print(f"✅ ¡Modelo guardado con éxito en {PATH_MODELO}!")
+    gf, gc, pts = [], [], []
+    for _, fila in partidos.iterrows():
+        es_local = fila["Local"] == equipo
+        g_fav = fila["Goles_Local"] if es_local else fila["Goles_Visitante"]
+        g_con = fila["Goles_Visitante"] if es_local else fila["Goles_Local"]
+        res = fila["Resultado"]
+
+        if (es_local and res == "L") or (not es_local and res == "V"):
+            p = 3
+        elif res == "E":
+            p = 1
+        else:
+            p = 0
+
+        gf.append(g_fav)
+        gc.append(g_con)
+        pts.append(p)
+
+    return np.mean(gf), np.mean(gc), np.mean(pts)
+
+
+def predecir(local, visitante):
+    if local not in mapa_equipos or visitante not in mapa_equipos:
+        print(
+            f"❌ Error: Uno de los equipos ('{local}' o '{visitante}') no existe en la lista."
+        )
+        return
+
+    # Obtener racha actual de ambos
+    l_gf, l_gc, l_pts = obtener_racha_actual(local)
+    v_gf, v_gc, v_pts = obtener_racha_actual(visitante)
+
+    # Crear la fila para predecir
+    partido_nuevo = pd.DataFrame(
+        [
+            {
+                "local_cod": mapa_equipos[local],
+                "visitante_cod": mapa_equipos[visitante],
+                "local_gf_5": l_gf,
+                "local_gc_5": l_gc,
+                "local_pts_5": l_pts,
+                "visita_gf_5": v_gf,
+                "visita_gc_5": v_gc,
+                "visita_pts_5": v_pts,
+            }
+        ]
+    )
+
+    # Predecir
+    prediccion = modelo.predict(partido_nuevo)[0]
+    probs = modelo.predict_proba(partido_nuevo)[0]
+
+    res_txt = {
+        1: f"Gana {local} (Local)",
+        0: "Empate",
+        2: f"Gana {visitante} (Visitante)",
+    }
+
+    print(f"\n📊 Pronóstico Avanzado: {local} vs {visitante}")
+    print(
+        f"🔥 Racha Local ({local}): {l_pts:.1f} pts/partido | {l_gf:.1f} goles favor/partido"
+    )
+    print(
+        f"🔥 Racha Visitante ({visitante}): {v_pts:.1f} pts/partido | {v_gf:.1f} goles favor/partido"
+    )
+    print(f"🔮 Resultado esperado: {res_txt[prediccion]}")
+    print("📈 Probabilidades realistas del modelo:")
+
+    clases = list(modelo.classes_)
+    if 1 in clases:
+        print(f"   - Victoria Local ({local}): {probs[clases.index(1)]*100:.1f}%")
+    if 0 in clases:
+        print(f"   - Empate: {probs[clases.index(0)]*100:.1f}%")
+    if 2 in clases:
+        print(
+            f"   - Victoria Visitante ({visitante}): {probs[clases.index(2)]*100:.1f}%"
+        )
+
+
+# --- PRUEBAS DE PARTIDOS ---
+predecir("Racing Club", "Independiente")
+predecir("Boca Juniors", "River Plate")
