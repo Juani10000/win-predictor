@@ -1,0 +1,37 @@
+name: Reentrenamiento Automático de IA
+
+on:
+  schedule:
+    # Esto significa: Ejecutar todos los lunes a las 03:00 AM (UTC)
+    - cron: '0 3 * * 1'
+  workflow_dispatch: # Esto te agrega un botón en GitHub por si querés forzar el reentrenamiento a mano
+
+jobs:
+  entrenar-ia:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Descargar el código del repositorio
+      uses: actions/checkout@v3
+
+    - name: 🐍 Preparar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: 📦 Instalar dependencias
+      run: |
+        pip install pandas numpy scikit-learn joblib
+
+    - name: 🧠 Ejecutar el script de entrenamiento
+      run: |
+        # Acá le decimos que corra tu script de entrenamiento.
+        python entrenar_modelo.py
+
+    - name: 💾 Guardar la nueva IA (modelo_entrenado.pkl) en GitHub
+      run: |
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "actions@github.com"
+        git add modelo_entrenado.pkl
+        git commit -m "🤖 IA reentrenada automáticamente con datos nuevos" || echo "No hubo cambios para guardar"
+        git push
