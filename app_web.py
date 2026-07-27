@@ -10,6 +10,17 @@ import plotly.graph_objects as go
 import requests
 import streamlit as st
 
+import joblib
+
+# Cargar el modelo de IA al iniciar Streamlit
+@st.cache_resource
+def cargar_modelo_ia():
+    try:
+        return joblib.load("modelo_entrenado.pkl")
+    except Exception:
+        return None
+
+paquete_ia = cargar_modelo_ia()
 # =====================================================================
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
 # =====================================================================
