@@ -285,22 +285,26 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
         modelo = paquete_ia["modelo"]
         features_req = paquete_ia.get("features", [])
 
-        if local in mapa and visitante in mapa:
-            data_dict = {
-                "local_cod": mapa[local],
-                "visitante_cod": mapa[visitante],
-                "local_jerarquia": jer_loc,
-                "visitante_jerarquia": jer_vis,
-                "dif_jerarquia": jer_loc - jer_vis,
-                "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
-                "local_gc_5": 1.0,
-                "local_pts_5": pts_u5_loc / 5.0,
-                "local_pts_ajustados_5": pts_u5_loc_ajustado / 5.0,
-                "visita_gf_5": stats_vis.get("GF", 1.0) / max(1, stats_vis.get("PJ", 1)),
-                "visita_gc_5": 1.0,
-                "visita_pts_5": pts_u5_vis / 5.0,
-                "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
-            }
+     data_dict = {
+    "local_cod": mapa[local],
+    "visitante_cod": mapa[visitante],
+    "local_jerarquia": jer_loc,
+    "visitante_jerarquia": jer_vis,
+    "dif_jerarquia": jer_loc - jer_vis,
+    "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
+    "local_gc_5": 1.0,
+    "local_pts_5": pts_u5_loc / 5.0,
+    "local_pts_ajustados_5": pts_u5_loc_ajustado / 5.0,
+    "visita_gf_5": stats_vis.get("GF", 1.0) / max(1, stats_vis.get("PJ", 1)),
+    "visita_gc_5": 1.0,
+    "visita_pts_5": pts_u5_vis / 5.0,
+    "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
+    
+    # NUEVAS VARIABLES PASADAS AL MODELO
+    "local_xG_prom_5": xg_proyectado_local,
+    "visita_xG_prom_5": xg_proyectado_visi,
+    "dif_xG_prom_5": xg_proyectado_local - xg_proyectado_visi
+}
             if features_req:
                 row_input = pd.DataFrame([{col: data_dict.get(col, 0) for col in features_req}])
             else:
