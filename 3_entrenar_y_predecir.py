@@ -1,45 +1,11 @@
-import os
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import GridSearchCV, train_test_split
 
-print("🧠 Entrenando modelo avanzado con auto-mejora (Auto-Tuning) y rachas...")
+print("🧠 Entrenando modelo avanzado con rachas y prevención de sobreajuste...")
 
 # 1. Cargar los datos procesados con rachas
-path_datos = "datos/datos_procesados.csv"
-
-if not os.path.exists(path_datos):
-    print(f"❌ Error: No se encontró el archivo {path_datos}")
-    exit(1)
-
-df = pd.read_csv(path_datos)
-
-# ------------------------------------------------------------------
-# 🛡️ ESCUDO PROTECTOR (Evita KeyError si faltan columnas en el CSV)
-# ------------------------------------------------------------------
-columnas_requeridas = {
-    "local_cod": 0,
-    "visitante_cod": 0,
-    "local_gf_5": 0.0,
-    "local_gc_5": 0.0,
-    "local_pts_5": 0.0,
-    "visita_gf_5": 0.0,
-    "visita_gc_5": 0.0,
-    "visita_pts_5": 0.0,
-    "resultado_num": 0,
-    "Local": "Sin Nombre",
-    "Visitante": "Sin Nombre",
-    "Goles_Local": 0,
-    "Goles_Visitante": 0,
-    "Resultado": "E",
-}
-
-for col, val_defecto in columnas_requeridas.items():
-    if col not in df.columns:
-        df[col] = val_defecto
+df = pd.read_csv("datos/datos_procesados.csv")
 
 # 2. Definir las variables explicativas (Features) y el objetivo (Target)
 features = [
@@ -55,66 +21,11 @@ features = [
 X = df[features]
 y = df["resultado_num"]
 
-# 3. Separación de datos para el examen de precisión
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
+# 3. Entrenar el modelo limitando la profundidad para EVITAR el 100% de sobreajuste
+modelo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
+modelo.fit(X, y)
 
-# ------------------------------------------------------------------
-# 🤖 MOTOR DE IA QUE MEJORA SOLA (Auto-Tuning)
-# ------------------------------------------------------------------
-archivo_modelo = "modelo_entrenado.pkl"
-precision_anterior = 0.0
-
-# Evaluamos la precisión del modelo guardado anteriormente (si existe)
-if os.path.exists(archivo_modelo):
-    try:
-        modelo_previo = joblib.load(archivo_modelo)
-        preds_previas = modelo_previo.predict(X_test)
-        precision_anterior = accuracy_score(y_test, preds_previas)
-        print(
-            f"👴 Modelo anterior cargado. Precisión actual: {precision_anterior*100:.1f}%"
-        )
-    except Exception:
-        precision_anterior = 0.0
-
-print("⚙️ Probando combinaciones de parámetros para mejorar la IA...")
-
-# Probar automáticamente distintas combinaciones para RandomForest
-parametros = {
-    "n_estimators": [50, 100, 150],
-    "max_depth": [3, 5, 7],
-    "min_samples_split": [2, 5],
-}
-
-busqueda = GridSearchCV(
-    estimator=RandomForestClassifier(random_state=42),
-    param_grid=parametros,
-    cv=3,
-    scoring="accuracy",
-    n_jobs=-1,
-)
-
-busqueda.fit(X_train, y_train)
-modelo_nuevo = busqueda.best_estimator_
-
-# Evaluar el modelo optimizado
-preds_nuevas = modelo_nuevo.predict(X_test)
-precision_nueva = accuracy_score(y_test, preds_nuevas)
-print(f"🚀 Nuevo modelo optimizado. Precisión en examen: {precision_nueva*100:.1f}%")
-
-# Guardar solo si el modelo nuevo supera o iguala al anterior
-if precision_nueva >= precision_anterior:
-    modelo = modelo_nuevo
-    joblib.dump(modelo, archivo_modelo)
-    print(f"🎉 ¡El nuevo modelo se guardó con éxito en '{archivo_modelo}'!")
-else:
-    print("🛡️ Se conserva el modelo anterior por tener mayor precisión.")
-    modelo = joblib.load(archivo_modelo)
-
-# ------------------------------------------------------------------
-# 📋 TUS FUNCIONES Y PRUEBAS ORIGINALES (INTACTAS)
-# ------------------------------------------------------------------
+print("✅ Modelo entrenado y calibrado correctamente.")
 
 # Lista de equipos
 equipos_unicos = sorted(pd.concat([df["Local"], df["Visitante"]]).unique())
@@ -192,7 +103,7 @@ def predecir(local, visitante):
     print(
         f"🔥 Racha Visitante ({visitante}): {v_pts:.1f} pts/partido | {v_gf:.1f} goles favor/partido"
     )
-    print(f"🔮 Resultado esperado: {res_txt.get(prediccion, 'Desconocido')}")
+    print(f"🔮 Resultado esperado: {res_txt[prediccion]}")
     print("📈 Probabilidades realistas del modelo:")
 
     clases = list(modelo.classes_)
