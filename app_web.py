@@ -279,39 +279,40 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     pts_u5_loc_ajustado = pts_u5_loc * (jer_vis / 10.0)
     pts_u5_vis_ajustado = pts_u5_vis * (jer_loc / 10.0)
 
-    # Si tenemos un modelo .pkl cargado, intentamos predecir directamente con IA
+   # Si tenemos un modelo .pkl cargado, intentamos predecir directamente con IA
     if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
-    mapa = paquete_ia["mapa_equipos"]
-    modelo = paquete_ia["modelo"]
-    features_req = paquete_ia.get("features", [])
+        mapa = paquete_ia["mapa_equipos"]
+        modelo = paquete_ia["modelo"]
+        features_req = paquete_ia.get("features", [])
 
-     data_dict = {
-    "local_cod": mapa[local],
-    "visitante_cod": mapa[visitante],
-    "local_jerarquia": jer_loc,
-    "visitante_jerarquia": jer_vis,
-    "dif_jerarquia": jer_loc - jer_vis,
-    "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
-    "local_gc_5": 1.0,
-    "local_pts_5": pts_u5_loc / 5.0,
-    "local_pts_ajustados_5": pts_u5_loc_ajustado / 5.0,
-    "visita_gf_5": stats_vis.get("GF", 1.0) / max(1, stats_vis.get("PJ", 1)),
-    "visita_gc_5": 1.0,
-    "visita_pts_5": pts_u5_vis / 5.0,
-    "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
-    
-    # NUEVAS VARIABLES PASADAS AL MODELO
-    "local_xG_prom_5": xg_proyectado_local,
-    "visita_xG_prom_5": xg_proyectado_visi,
-    "dif_xG_prom_5": xg_proyectado_local - xg_proyectado_visi
-}
-            if features_req:
-                row_input = pd.DataFrame([{col: data_dict.get(col, 0) for col in features_req}])
-            else:
-                row_input = pd.DataFrame([data_dict])
+        # TODO ESTE BLOQUE DEBE ESTAR ALINEADO A LA MISMA ALTURA QUE "mapa" Y "modelo"
+        data_dict = {
+            "local_cod": mapa[local],
+            "visitante_cod": mapa[visitante],
+            "local_jerarquia": jer_loc,
+            "visitante_jerarquia": jer_vis,
+            "dif_jerarquia": jer_loc - jer_vis,
+            "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
+            "local_gc_5": 1.0,
+            "local_pts_5": pts_u5_loc / 5.0,
+            "local_pts_ajustados_5": pts_u5_loc_ajustado / 5.0,
+            "visita_gf_5": stats_vis.get("GF", 1.0) / max(1, stats_vis.get("PJ", 1)),
+            "visita_gc_5": 1.0,
+            "visita_pts_5": pts_u5_vis / 5.0,
+            "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
+            "local_xG_prom_5": xg_proyectado_local,
+            "visita_xG_prom_5": xg_proyectado_visi,
+            "dif_xG_prom_5": xg_proyectado_local - xg_proyectado_visi
+        }
 
-            try:
-                probs = modelo.predict_proba(row_input)[0]
+        # EL "if" TAMBIÉN DEBE IR EN ESA MISMA LÍNEA VERTICAL
+        if features_req:
+            row_input = pd.DataFrame([{col: data_dict.get(col, 0) for col in features_req}])
+        else:
+            row_input = pd.DataFrame([data_dict])
+
+        try:
+            probs = modelo.predict_proba(row_input)[0]
                 clases = list(modelo.classes_)
                 
                 idx_loc = clases.index(1) if 1 in clases else 0
