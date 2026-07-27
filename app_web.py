@@ -11,19 +11,11 @@ import requests
 import streamlit as st
 import joblib
 
-# Cargar el modelo de IA al iniciar Streamlit
-@st.cache_resource
-def cargar_modelo_ia():
-    try:
-        return joblib.load("modelo_entrenado.pkl")
-    except Exception:
-        return None
-
-paquete_ia = cargar_modelo_ia()
 # =====================================================================
 # 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
+
 # Insertar meta etiqueta de verificación para Google Search Console
 st.markdown(
     """
@@ -33,6 +25,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 st.markdown(
     """
     <style>
@@ -77,7 +70,7 @@ st.markdown(
 )
 
 # =====================================================================
-# MEJORA IA: DICCIONARIO DE JERARQUÍA DE PLANTELES
+# 2. DICCIONARIO DE JERARQUÍA DE PLANTELES Y CARGA DE MODELO IA
 # =====================================================================
 JERARQUIA_EQUIPOS = {
     "River Plate": 9.5, "Boca Juniors": 9.2, "Racing Club": 8.5,
@@ -94,22 +87,37 @@ JERARQUIA_EQUIPOS = {
 
 def obtener_jerarquia(nombre_equipo):
     """Devuelve la jerarquía del equipo. Si no está mapeado, da un valor promedio."""
+    if not isinstance(nombre_equipo, str):
+        return 6.5
     nombre_clean = nombre_equipo.lower().strip()
     for eq, rating in JERARQUIA_EQUIPOS.items():
         if eq.lower() in nombre_clean or nombre_clean in eq.lower():
             return rating
     return 6.5
 
-# ---------------------------------------------------------------------
-# FUNCIONES AUXILIARES PARA CÁLCULO DE POISSON, MONTE CARLO Y PREDICCIÓN
-# ---------------------------------------------------------------------
+@st.cache_resource
+def cargar_modelo_ia():
+    """Intenta cargar el archivo de modelo guardado (.pkl) generado por el script de entrenamiento."""
+    rutas = ["modelo_entrenado.pkl", os.path.join("datos", "modelo_entrenado.pkl")]
+    for ruta in rutas:
+        if os.path.exists(ruta):
+            try:
+                return joblib.load(ruta)
+            except Exception:
+                pass
+    return None
+
+paquete_ia = cargar_modelo_ia()
+
+# =====================================================================
+# 3. FUNCIONES MATEMÁTICAS Y DE SIMULACIÓN
+# =====================================================================
 def poisson_prob(lmbda, k):
     if lmbda <= 0:
         return 1.0 if k == 0 else 0.0
     return (math.pow(lmbda, k) * math.exp(-lmbda)) / math.factorial(k)
 
 def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
-    """Simula el partido N veces usando distribuciones estocásticas de Poisson."""
     rng = np.random.default_rng()
     
     xg_loc_sim = rng.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
@@ -134,13 +142,7 @@ def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
     return prob_loc_mc, prob_emp_mc, prob_vis_mc, goles_totales
 
 def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, prob_vis_target):
-    """
-    Calcula los marcadores exactos usando Poisson, pero los 'calibra' 
-    para que respeten estrictamente los porcentajes 1X2 del modelo principal.
-    """
     scores = {}
-    
-    # 1. Calcular matriz Poisson base pura
     prob_loc_poisson = 0.0
     prob_emp_poisson = 0.0
     prob_vis_poisson = 0.0
@@ -151,17 +153,14 @@ def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, pr
             p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
             poisson_matriz[(i, j)] = p
             
-            # Sumar probabilidades base para saber cuánto pesa cada bloque
             if i > j: prob_loc_poisson += p
             elif i == j: prob_emp_poisson += p
             else: prob_vis_poisson += p
 
-    # 2. Crear factores de corrección para alinear con tus probabilidades 1X2
     factor_loc = (prob_loc_target / 100.0) / max(0.0001, prob_loc_poisson)
     factor_emp = (prob_emp_target / 100.0) / max(0.0001, prob_emp_poisson)
     factor_vis = (prob_vis_target / 100.0) / max(0.0001, prob_vis_poisson)
 
-    # 3. Aplicar la corrección a cada resultado exacto
     for (i, j), p in poisson_matriz.items():
         if i > j:
             p_ajustada = p * factor_loc
@@ -172,7 +171,6 @@ def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, pr
             
         scores[f"{i} - {j}"] = p_ajustada * 100
 
-    # 4. Ordenar y sacar el Top 5
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     top_5 = sorted_scores[:5]
 
@@ -182,7 +180,6 @@ def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, pr
     return top_5, prob_otro
 
 def calcular_mercados_adicionales(xg_loc, xg_vis):
-    """Calcula Over/Under 2.5 goles y Ambos Anotan (BTTS) usando Poisson."""
     prob_under_2_5 = 0.0
     prob_btts = 0.0
 
@@ -201,7 +198,6 @@ def calcular_mercados_adicionales(xg_loc, xg_vis):
     return prob_over_2_5, prob_under_2_5, prob_btts
 
 def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
-    """Calcula el índice de impredecibilidad y caos del encuentro (0-100%)."""
     xg_total = xg_loc + xg_vis
     vol_goles = min(40.0, (xg_total / 3.5) * 40.0)
     deb_def = 100.0 - ((stats_loc["Fortaleza"] + stats_vis["Fortaleza"]) / 2.0)
@@ -223,14 +219,7 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
-# ---------------------------------------------------------------------
-# NUEVAS FUNCIONES: HISTORIAL H2H Y RENDERIZADO VISUAL
-# ---------------------------------------------------------------------
 def obtener_historial_directo(equipo_a, equipo_b):
-    """
-    Genera un historial simulado determinista de los últimos 5 partidos entre ambos.
-    Devuelve lista con 'G' (Ganó A), 'E' (Empate), 'P' (Perdió A).
-    """
     semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
     seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
     
@@ -277,7 +266,63 @@ def render_h2h_pills(historial, local, visitante):
     html += "</div>"
     return html
 
-def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[]):
+# =====================================================================
+# 4. MOTOR DE PREDICCIÓN (IA O MODELO ESTADÍSTICO DE RESPALDO)
+# =====================================================================
+def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[], paquete_ia=None):
+    jer_loc = obtener_jerarquia(local)
+    jer_vis = obtener_jerarquia(visitante)
+
+    pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
+    pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
+
+    pts_u5_loc_ajustado = pts_u5_loc * (jer_vis / 10.0)
+    pts_u5_vis_ajustado = pts_u5_vis * (jer_loc / 10.0)
+
+    # Si tenemos un modelo .pkl cargado, intentamos predecir directamente con IA
+    if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
+        mapa = paquete_ia["mapa_equipos"]
+        modelo = paquete_ia["modelo"]
+        features_req = paquete_ia.get("features", [])
+
+        if local in mapa and visitante in mapa:
+            data_dict = {
+                "local_cod": mapa[local],
+                "visitante_cod": mapa[visitante],
+                "local_jerarquia": jer_loc,
+                "visitante_jerarquia": jer_vis,
+                "dif_jerarquia": jer_loc - jer_vis,
+                "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
+                "local_gc_5": 1.0,
+                "local_pts_5": pts_u5_loc / 5.0,
+                "local_pts_ajustados_5": pts_u5_loc_ajustado / 5.0,
+                "visita_gf_5": stats_vis.get("GF", 1.0) / max(1, stats_vis.get("PJ", 1)),
+                "visita_gc_5": 1.0,
+                "visita_pts_5": pts_u5_vis / 5.0,
+                "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
+            }
+            if features_req:
+                row_input = pd.DataFrame([{col: data_dict.get(col, 0) for col in features_req}])
+            else:
+                row_input = pd.DataFrame([data_dict])
+
+            try:
+                probs = modelo.predict_proba(row_input)[0]
+                clases = list(modelo.classes_)
+                
+                idx_loc = clases.index(1) if 1 in clases else 0
+                idx_emp = clases.index(0) if 0 in clases else 1
+                idx_vis = clases.index(2) if 2 in clases else 2
+
+                prob_loc = float(probs[idx_loc]) * 100.0
+                prob_empate = float(probs[idx_emp]) * 100.0
+                prob_vis = float(probs[idx_vis]) * 100.0
+
+                return prob_loc, prob_empate, prob_vis, True
+            except Exception:
+                pass
+
+    # Resguardo: Algoritmo estadístico heurístico
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -289,19 +334,8 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     prom_loc = ((pts_loc / pj_loc) * 0.4) + (xg_proyectado_local * 0.4)
     prom_vis = ((pts_vis / pj_vis) * 0.4) + (xg_proyectado_visi * 0.4)
 
-    pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
-    pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
-
-    # --- MEJORA IA INYECTADA: Ajuste de racha por fuerza del rival ---
-    jer_loc = obtener_jerarquia(local)
-    jer_vis = obtener_jerarquia(visitante)
-
-    pts_u5_loc_ajustado = pts_u5_loc * (jer_vis / 10.0)
-    pts_u5_vis_ajustado = pts_u5_vis * (jer_loc / 10.0)
-
     factor_forma_loc = 0.85 + (pts_u5_loc_ajustado / 15.0) * 0.30
     factor_forma_vis = 0.85 + (pts_u5_vis_ajustado / 15.0) * 0.30
-    # -----------------------------------------------------------------
 
     prom_loc *= factor_forma_loc
     prom_vis *= factor_forma_vis
@@ -330,9 +364,7 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     balance_h2h = victorias_h2h - derrotas_h2h
     bono_historial = balance_h2h * 0.025 
 
-    # --- MEJORA IA INYECTADA: Bono por diferencia de Jerarquía ---
     bono_jerarquia = (jer_loc - jer_vis) * 0.04
-    # -------------------------------------------------------------
 
     prom_loc_ajustado = prom_loc_ajustado * (1.0 + ajuste_h2h + bono_historial + bono_jerarquia)
     prom_vis_ajustado = prom_vis_ajustado * (1.0 - ajuste_h2h - bono_historial - bono_jerarquia)
@@ -356,7 +388,7 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
         prob_loc = resto / 2
         prob_vis = resto / 2
 
-    return prob_loc, prob_empate, prob_vis
+    return prob_loc, prob_empate, prob_vis, False
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
@@ -385,9 +417,9 @@ def buscar_equipo(nombre_buscado, lista_equipos):
             return eq
     return None
 
-# ---------------------------------------------------------------------
-# SCRAPING AUTOMÁTICO - PROMIEDOS
-# ---------------------------------------------------------------------
+# =====================================================================
+# 5. SCRAPING AUTOMÁTICO
+# =====================================================================
 @st.cache_data(ttl=3600)
 def obtener_estadisticas_promiedos(equipos_disponibles):
     url = "https://www.promiedos.com.ar/primera"
@@ -401,7 +433,6 @@ def obtener_estadisticas_promiedos(equipos_disponibles):
         response = requests.get(url, headers=headers, timeout=15)
         response.encoding = 'utf-8'
         
-        # Evitamos que la app muera si promiedos se cae
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
             tabla = soup.find("table", id="posiciones")
@@ -502,10 +533,10 @@ def consolidar_estadisticas(equipo, df, stats_torneo, xg_proyectado):
         "Corners": corners,
         "Fortaleza": fortaleza,
         "Pts_U5": pts_u5,
+        "PJ": pj,
     }
 
 def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
-    # --- MEJORA IA INYECTADA: Se agregó "Jerarquía Plantel" al Radar ---
     categories = [
         "Goles a Favor", "xG Proyectado", "Posesión (%)", 
         "Vallas Invictas", "Tiros al Arco", "Eficacia Pases", 
@@ -520,7 +551,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     max_pa = 100
     max_fd = 100
     max_forma = 15.0
-    max_jer = 10.0 # Valor máximo de jerarquía
+    max_jer = 10.0
 
     jer_loc = obtener_jerarquia(loc_name)
     jer_vis = obtener_jerarquia(vis_name)
@@ -573,21 +604,21 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     )
     return fig
 
-# ---------------------------------------------------------------------
-# ENCABEZADO CON LOGO
-# ---------------------------------------------------------------------
+# =====================================================================
+# 6. INTERFAZ Y ENCABEZADO
+# =====================================================================
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
     st.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=110)
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG, FORMA RECIENTE Y PROMIEDOS DATA</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">MOTOR DE PREDICCIÓN CON xG, IA APRENDIZAJE CONTINUO Y DATA OFICIAL</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
 # =====================================================================
-# CARGA Y PROCESAMIENTO DE DATOS
+# 7. CARGA DE DATOS Y MOTOR PRINCIPAL
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
@@ -620,9 +651,7 @@ if os.path.exists(RUTA_CSV):
     
     stats_torneo = obtener_estadisticas_promiedos(lista_equipos)
 
-    # -----------------------------------------------------------------
     # AGENDA DEL DÍA AUTOMÁTICA
-    # -----------------------------------------------------------------
     st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>", unsafe_allow_html=True)
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
 
@@ -634,16 +663,12 @@ if os.path.exists(RUTA_CSV):
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
 
-    # -----------------------------------------------------------------
-    # TABLA DE POSICIONES SIEMPRE VISIBLE
-    # -----------------------------------------------------------------
+    # TABLA DE POSICIONES
     st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
-    # -----------------------------------------------------------------
-    # MOTOR DE PREDICCIÓN MANUAL
-    # -----------------------------------------------------------------
+    # MOTOR DE PREDICCIÓN
     st.markdown("<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>", unsafe_allow_html=True)
 
     if len(lista_equipos) >= 2:
@@ -670,16 +695,24 @@ if os.path.exists(RUTA_CSV):
 
             historial_h2h = obtener_historial_directo(local, visitante)
 
-            prob_loc, prob_empate, prob_vis = realizar_prediccion(
-                local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=FACTOR_LOCALIA, historial_h2h=historial_h2h
+            prob_loc, prob_empate, prob_vis, es_ia = realizar_prediccion(
+                local, visitante, df, stats_loc, stats_vis, 
+                xg_proyectado_local, xg_proyectado_visi, 
+                factor_localia=FACTOR_LOCALIA, 
+                historial_h2h=historial_h2h, 
+                paquete_ia=paquete_ia
             )
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
             
-            st.markdown(f"<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
+            if es_ia:
+                st.success("Predicción ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
+            else:
+                st.info("Predicción ejecutada mediante el Motor Estadístico Avanzado de Resguardo")
+
+            st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
 
-            # --- MEJORA IA INYECTADA EN UI: Mostrar jerarquías explícitamente ---
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
                 jer_local_ui = obtener_jerarquia(local)
@@ -687,7 +720,6 @@ if os.path.exists(RUTA_CSV):
             with col_xg2:
                 jer_visita_ui = obtener_jerarquia(visitante)
                 st.info(f"Jerarquía: **{jer_visita_ui}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
-            # ----------------------------------------------------------------------
 
             m1, m2, m3 = st.columns(3)
             m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
@@ -698,13 +730,13 @@ if os.path.exists(RUTA_CSV):
             c_b1, c_b2, c_b3 = st.columns(3)
             with c_b1:
                 st.markdown("<p style='color: #00ffcc;'>Local</p>", unsafe_allow_html=True)
-                st.progress(int(prob_loc) / 100)
+                st.progress(min(1.0, max(0.0, prob_loc / 100.0)))
             with c_b2:
                 st.markdown("<p style='color: #cbd5e1;'>Empate</p>", unsafe_allow_html=True)
-                st.progress(int(prob_empate) / 100)
+                st.progress(min(1.0, max(0.0, prob_empate / 100.0)))
             with c_b3:
                 st.markdown("<p style='color: #ff3366;'>Visitante</p>", unsafe_allow_html=True)
-                st.progress(int(prob_vis) / 100)
+                st.progress(min(1.0, max(0.0, prob_vis / 100.0)))
 
             st.markdown("---")
 
@@ -757,7 +789,6 @@ if os.path.exists(RUTA_CSV):
 
             st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
             
-            # ---> AQUÍ ESTÁ LA LÍNEA CORREGIDA QUE CONECTA EL 1X2 CON LOS MARCADORES EXACTOS <---
             top_5_marcadores, prob_otro = calcular_top_resultados(
                 xg_proyectado_local, 
                 xg_proyectado_visi, 
