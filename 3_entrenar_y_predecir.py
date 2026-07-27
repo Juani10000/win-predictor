@@ -1,11 +1,14 @@
+import os
+import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.calibration import CalibratedClassifierCV
 
-print("Entrenando modelo avanzado con Jerarquía, Ajuste por Rival y Decaimiento Temporal...")
+print("Iniciando entrenamiento continuo del Win Predictor (XGBoost + Calibración)...")
 
 # =====================================================================
-# 1. DICCIONARIO Y FUNCIÓN DE JERARQUÍA DE PLANTELES
+# 1. JERARQUÍA DE PLANTELES
 # =====================================================================
 JERARQUIA_EQUIPOS = {
     "River Plate": 9.5, "Boca Juniors": 9.2, "Racing Club": 8.5,
@@ -29,35 +32,33 @@ def obtener_jerarquia(nombre_equipo):
             return rating
     return 6.5
 
-
 # =====================================================================
-# 2. CARGA Y PROCESAMIENTO DE DATOS
+# 2. CARGA Y PREPARACIÓN DE VARIABLES (FEATURE ENGINEERING)
 # =====================================================================
-df = pd.read_csv("datos/datos_procesados.csv")
+ruta_csv = "datos/datos_procesados.csv"
+if not os.path.exists(ruta_csv):
+    ruta_csv = "datos_procesados.csv"
 
-# Asignar Jerarquía de Plantel
+df = pd.read_csv(ruta_csv)
+
+# Generación de variables avanzadas
 df["local_jerarquia"] = df["Local"].apply(obtener_jerarquia)
 df["visitante_jerarquia"] = df["Visitante"].apply(obtener_jerarquia)
+df["dif_jerarquia"] = df["local_jerarquia"] - df["visitante_jerarquia"]
 
-# Ajuste de Racha por Rival
 df["local_pts_ajustados_5"] = df["local_pts_5"] * (df["visitante_jerarquia"] / 10.0)
 df["visita_pts_ajustados_5"] = df["visita_pts_5"] * (df["local_jerarquia"] / 10.0)
 
-# =====================================================================
-# ---> NUEVO: DECAIMIENTO TEMPORAL (TIME DECAY) <---
-# Creamos un array exponencial que va de -3 a 0. 
-# Al aplicarle np.exp(), nos da pesos que van desde ~0.05 hasta 1.0
-# Asumimos que el CSV está ordenado cronológicamente (los últimos son los más nuevos)
-# =====================================================================
+# Decaimiento temporal (dar más peso a los partidos recientes)
 pesos_temporales = np.exp(np.linspace(-3, 0, len(df)))
 df["peso_temporal"] = pesos_temporales
 
-# 3. Definir las variables explicativas (Features) y el objetivo (Target)
 features = [
     "local_cod",
     "visitante_cod",
     "local_jerarquia",
     "visitante_jerarquia",
+    "dif_jerarquia",
     "local_gf_5",
     "local_gc_5",
     "local_pts_ajustados_5",
@@ -71,97 +72,36 @@ y = df["resultado_num"]
 pesos = df["peso_temporal"]
 
 # =====================================================================
-# 4. ENTRENAR EL MODELO
-# Le pasamos el argumento sample_weight para que aplique el decaimiento
+# 3. ENTRENAMIENTO CON XGBOOST Y CALIBRACIÓN
 # =====================================================================
-modelo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
-modelo.fit(X, y, sample_weight=pesos)
+modelo_base = XGBClassifier(
+    n_estimators=150,
+    max_depth=4,
+    learning_rate=0.05,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    random_state=42,
+    eval_metric="mlogloss"
+)
 
-print("Modelo entrenado y calibrado correctamente con Time Decay.")
+# Calibración de probabilidades para que no sea extremadamente conservador
+modelo_calibrado = CalibratedClassifierCV(estimator=modelo_base, method="sigmoid", cv=3)
+modelo_calibrado.fit(X, y, sample_weight=pesos)
 
-# Lista de equipos
+print("Modelo XGBoost entrenado y calibrado con éxito.")
+
+# =====================================================================
+# 4. GUARDAR EL MODELO PARA LA APP WEB
+# =====================================================================
 equipos_unicos = sorted(pd.concat([df["Local"], df["Visitante"]]).unique())
 mapa_equipos = {equipo: i for i, equipo in enumerate(equipos_unicos)}
 
-# Función para calcular la racha más reciente de un equipo
-def obtener_racha_actual(equipo):
-    partidos = df[(df["Local"] == equipo) | (df["Visitante"] == equipo)].tail(5)
-    if len(partidos) == 0:
-        return 1.0, 1.0, 1.0
+paquete_modelo = {
+    "modelo": modelo_calibrado,
+    "mapa_equipos": mapa_equipos,
+    "features": features,
+    "jerarquia_dict": JERARQUIA_EQUIPOS
+}
 
-    gf, gc, pts = 0, 0, 0
-    for _, row in partidos.iterrows():
-        if row["Local"] == equipo:
-            gf += row["Goles_Local"]
-            gc += row["Goles_Visitante"]
-            if row["Resultado"] == "L":
-                pts += 3
-            elif row["Resultado"] == "E":
-                pts += 1
-        else:
-            gf += row["Goles_Visitante"]
-            gc += row["Goles_Local"]
-            if row["Resultado"] == "V":
-                pts += 3
-            elif row["Resultado"] == "E":
-                pts += 1
-
-    n = len(partidos)
-    return gf / n, gc / n, pts / n
-
-def predecir_partido(local, visitante):
-    if local not in mapa_equipos or visitante not in mapa_equipos:
-        print("Uno o ambos equipos no existen en la base de datos.")
-        return
-
-    l_gf, l_gc, l_pts = obtener_racha_actual(local)
-    v_gf, v_gc, v_pts = obtener_racha_actual(visitante)
-
-    jer_local = obtener_jerarquia(local)
-    jer_visita = obtener_jerarquia(visitante)
-
-    # Puntos ajustados por la jerarquía del rival
-    l_pts_ajustado = l_pts * (jer_visita / 10.0)
-    v_pts_ajustado = v_pts * (jer_local / 10.0)
-
-    partido_nuevo = pd.DataFrame(
-        [
-            {
-                "local_cod": mapa_equipos[local],
-                "visitante_cod": mapa_equipos[visitante],
-                "local_jerarquia": jer_local,
-                "visitante_jerarquia": jer_visita,
-                "local_gf_5": l_gf,
-                "local_gc_5": l_gc,
-                "local_pts_ajustados_5": l_pts_ajustado,
-                "visita_gf_5": v_gf,
-                "visita_gc_5": v_gc,
-                "visita_pts_ajustados_5": v_pts_ajustado,
-            }
-        ]
-    )
-
-    # Predecir
-    prediccion = modelo.predict(partido_nuevo)[0]
-    probs = modelo.predict_proba(partido_nuevo)[0]
-
-    res_txt = {
-        1: f"Gana {local} (Local)",
-        0: "Empate",
-        2: f"Gana {visitante} (Visitante)",
-    }
-
-    print(f"\nPronóstico Avanzado: {local} vs {visitante}")
-    print(f"Jerarquía Plantel -> {local}: {jer_local} | {visitante}: {jer_visita}")
-    print(f"Racha Local ({local}): {l_pts:.1f} pts/partido (Ajustado por Rival: {l_pts_ajustado:.2f})")
-    print(f"Racha Visitante ({visitante}): {v_pts:.1f} pts/partido (Ajustado por Rival: {v_pts_ajustado:.2f})")
-    print(f"Resultado esperado: {res_txt[prediccion]}")
-    print("Probabilidades realistas del Modelo (con Time Decay):")
-
-    clases = modelo.classes_
-    mapa_clases = {0: "Empate", 1: f"Gana {local}", 2: f"Gana {visitante}"}
-    for idx, c in enumerate(clases):
-        print(f"   - {mapa_clases.get(c, c)}: {probs[idx]*100:.1f}%")
-
-if __name__ == "__main__":
-    predecir_partido("Boca Juniors", "Independiente Rivadavia")
+joblib.dump(paquete_modelo, "modelo_entrenado.pkl")
+print("Modelo exportado correctamente a 'modelo_entrenado.pkl'.")
