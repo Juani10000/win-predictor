@@ -2,38 +2,39 @@ name: Reentrenamiento Automático de IA
 
 on:
   schedule:
+    # Se ejecuta automáticamente todos los lunes a las 03:00 AM (UTC)
     - cron: '0 3 * * 1'
-  workflow_dispatch:
+  workflow_dispatch: # Activa el botón "Run workflow" para ejecutarlo manualmente
 
 jobs:
   entrenar-ia:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar el codigo
+      - name: 📥 Descargar el código del repositorio
         uses: actions/checkout@v3
 
-      - name: Preparar Python
+      - name: 🐍 Preparar entorno de Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Instalar dependencias
+      - name: 📦 Instalar dependencias necesarias
         run: |
           pip install --upgrade pip
-          pip install lxml html5lib
+          pip install lxml html5lib xgboost
           pip install -r requirements.txt
 
-      - name: Reentrenar IA
+      - name: 🚀 Ejecutar Pipeline completo (Datos + Procesamiento + Entrenamiento)
         run: |
           python 1_obtener_datos.py
           python 2_preparar_datos.py
           python 3_entrenar_y_predecir.py
 
-      - name: Guardar cambios
+      - name: 💾 Guardar modelo y datos actualizados en GitHub
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
           git add .
-          git commit -m "🤖 Actualizacion automatica de IA" || echo "Sin cambios"
+          git commit -m "🤖 Actualización automática de IA y datos" || echo "Sin cambios para guardar"
           git push
