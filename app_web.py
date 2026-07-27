@@ -9,7 +9,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
-
 import joblib
 
 # Cargar el modelo de IA al iniciar Streamlit
