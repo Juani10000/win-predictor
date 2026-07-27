@@ -300,7 +300,11 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
                 "visita_gc_5": 1.0,
                 "visita_pts_5": pts_u5_vis / 5.0,
                 "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
+                "local_xG_prom_5": xg_proyectado_local,
+                "visita_xG_prom_5": xg_proyectado_visi,
+                "dif_xG_prom_5": xg_proyectado_local - xg_proyectado_visi
             }
+            
             if features_req:
                 row_input = pd.DataFrame([{col: data_dict.get(col, 0) for col in features_req}])
             else:
@@ -322,7 +326,7 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # Resguardo: Algoritmo estadístico heurístico
+    # Resguardo: Algoritmo estadístico heurístico (se ejecuta si la IA falla o no existe)
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
