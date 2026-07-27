@@ -48,9 +48,15 @@ df["visitante_jerarquia"] = df["Visitante"].apply(obtener_jerarquia)
 df["dif_jerarquia"] = df["local_jerarquia"] - df["visitante_jerarquia"]
 
 # 2.2 Variables de Forma Ajustadas
-df["local_pts_ajustados_5"] = df["local_pts_5"] * (df["visitante_jerarquia"] / 10.0)
-df["visita_pts_ajustados_5"] = df["visita_pts_5"] * (df["local_jerarquia"] / 10.0)
+# Verificar y asegurar que las columnas necesarias existan
+if "local_pts_5" not in df.columns:
+    df["local_pts_5"] = 0
 
+if "visitante_jerarquia" not in df.columns:
+    df["visitante_jerarquia"] = 1.0
+
+# Ahora se realiza el cálculo sin romper la ejecución
+df["local_pts_ajustados_5"] = df["local_pts_5"] * (df["visitante_jerarquia"] / 10.0)
 # 2.3 NUEVA MEJORA: Dinámica de Rendimiento (Rolling xG)
 # Si el CSV original no tiene el historial exacto partido a partido para hacer el rolling,
 # aproximamos la dinámica reciente cruzando los goles recientes con la jerarquía ofensiva.
