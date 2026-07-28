@@ -814,7 +814,7 @@ if os.path.exists(RUTA_CSV):
     # =====================================================================
     # SECCIÓN: MÉTRICAS DE EFECTIVIDAD Y PERFORMANCE DEL MODELO
     # =====================================================================
-    st.markdown("<h3 style='color: #cbd5e1;'>🎯 Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #cbd5e1;'> Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
 
     df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
     
@@ -822,7 +822,7 @@ if os.path.exists(RUTA_CSV):
         finalizados = df_ef[df_ef["Estado"] == "Finalizado"].copy()
         
         if finalizados.empty:
-            st.info("🤖 **Agente Autónomo Activo**: Las predicciones de hoy se han guardado. En cuanto finalicen los partidos, se descargarán los resultados y verás la efectividad aquí.")
+            st.info(" **Agente Autónomo Activo**: Las predicciones de hoy se han guardado. En cuanto finalicen los partidos, se descargarán los resultados y verás la efectividad aquí.")
         else:
             finalizados["res_real_1x2"] = np.where(finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
                                           np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate"))
