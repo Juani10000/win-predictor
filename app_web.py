@@ -12,15 +12,17 @@ import streamlit as st
 import joblib
 
 # =====================================================================
-# 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
+# 1. CONFIGURACIÓN Y MEJORAS SEO (BÚSQUEDAS EN GOOGLE)
 # =====================================================================
-st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
+# CAMBIO 1: Título de pestaña más atractivo para Google
+st.set_page_config(page_title="Win Predictor | Predicciones de Fútbol Argentino", layout="wide")
 
-# Insertar meta etiqueta de verificación para Google Search Console
+# CAMBIO 2: Agregamos meta-descripción oculta para el buscador y tu código de verificación
 st.markdown(
     """
     <head>
         <meta name="google-site-verification" content="nGtul4qMmIIjYUn" />
+        <meta name="description" content="Win Predictor: Las mejores predicciones con Inteligencia Artificial para el fútbol argentino. Estadísticas de partidos de la Liga Profesional y pronósticos deportivos." />
     </head>
     """,
     unsafe_allow_html=True
@@ -69,8 +71,20 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# CAMBIO 3: Un párrafo visible estratégico para que Google lea de qué trata tu página
+st.markdown(
+    """
+    <p style='color: #cbd5e1; font-size: 14px; text-align: left;'>
+    Tu plataforma de <strong>predicciones con Inteligencia Artificial</strong> para el <strong>fútbol argentino</strong>. 
+    Analizamos la <strong>Liga Profesional</strong> ofreciendo las mejores <strong>estadísticas de partidos</strong> y <strong>pronósticos deportivos</strong> precisos.
+    </p>
+    """,
+    unsafe_allow_html=True
+)
+
 # =====================================================================
 # 2. DICCIONARIO DE JERARQUÍA DE PLANTELES Y CARGA DE MODELO IA
+# (A partir de acá, dejá tu código original tal cual está)
 # =====================================================================
 JERARQUIA_EQUIPOS = {
     "River Plate": 9.5, "Boca Juniors": 9.2, "Racing Club": 8.5,
