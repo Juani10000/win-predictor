@@ -418,7 +418,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
     return None
 
 # =====================================================================
-# 5. SCRAPING AUTOMÁTICO Y GESTIÓN DE HISTORIAL DE EFECTIVIDAD
+# 5. SCRAPING DE PROMIEDOS Y ESPN
 # =====================================================================
 @st.cache_data(ttl=3600)
 def obtener_estadisticas_promiedos(equipos_disponibles):
@@ -488,26 +488,6 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
     except Exception:
         pass
     return partidos_hoy
-
-def cargar_historial_predicciones(directorio):
-    """Carga el CSV de historial de predicciones o genera datos iniciales de demostración."""
-    ruta_historial = os.path.join(directorio, "historial_predicciones.csv")
-    if os.path.exists(ruta_historial):
-        try:
-            return pd.read_csv(ruta_historial)
-        except Exception:
-            pass
-            
-    data_demo = {
-        "Fecha": ["2026-03-01", "2026-03-01", "2026-03-02", "2026-03-02", "2026-03-03", "2026-03-03", "2026-03-04", "2026-03-04", "2026-03-05", "2026-03-05"],
-        "Local": ["River Plate", "Racing Club", "Vélez Sarsfield", "Estudiantes", "Lanús", "Huracán", "Talleres", "Boca Juniors", "Argentinos Juniors", "Godoy Cruz"],
-        "Visitante": ["Boca Juniors", "Independiente", "Talleres", "Gimnasia LP", "Banfield", "San Lorenzo", "Belgrano", "Rosario Central", "Platense", "Newell's"],
-        "Prediccion": ["Local", "Local", "Empate", "Local", "Empate", "Local", "Local", "Local", "Empate", "Local"],
-        "Resultado_Real": ["Local", "Empate", "Empate", "Local", "Visitante", "Local", "Local", "Local", "Empate", "Empate"],
-        "Prob_Asignada": [54.2, 42.1, 36.5, 61.0, 34.8, 48.5, 52.0, 58.4, 35.0, 45.2],
-        "Acierto": [1, 0, 1, 1, 0, 1, 1, 1, 1, 0]
-    }
-    return pd.DataFrame(data_demo)
 
 def consolidar_estadisticas(equipo, df, stats_torneo, xg_proyectado):
     row = df[df["Equipo"] == equipo].iloc[0]
@@ -625,7 +605,145 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     return fig
 
 # =====================================================================
-# 6. INTERFAZ Y ENCABEZADO
+# 6. MOTOR DE AGENTE AUTÓNOMO PARA EVALUACIÓN
+# =====================================================================
+DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
+RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
+
+def inicializar_historial():
+    """Crea la estructura del archivo CSV si no existe o lo repara si es muy viejo."""
+    columnas_requeridas = [
+        "ID", "Fecha", "Local", "Visitante", "Prob_Loc", "Prob_Emp", "Prob_Vis",
+        "Prediccion_1X2", "Prob_Over25", "Prob_BTTS", "Corners_Est", 
+        "Goles_Local_Real", "Goles_Visita_Real", "Corners_Reales", "Estado"
+    ]
+    if not os.path.exists(RUTA_HISTORIAL):
+        df_base = pd.DataFrame(columns=columnas_requeridas)
+        df_base.to_csv(RUTA_HISTORIAL, index=False)
+    else:
+        try:
+            df = pd.read_csv(RUTA_HISTORIAL)
+            hubo_cambio = False
+            if "Estado" not in df.columns:
+                df["Estado"] = "Finalizado"
+                hubo_cambio = True
+            for col in columnas_requeridas:
+                if col not in df.columns:
+                    df[col] = np.nan
+                    hubo_cambio = True
+            if hubo_cambio:
+                df.to_csv(RUTA_HISTORIAL, index=False)
+        except Exception:
+            pass
+
+def borrar_historial():
+    """Borra el archivo histórico para limpiar datos de pruebas viejas."""
+    if os.path.exists(RUTA_HISTORIAL):
+        os.remove(RUTA_HISTORIAL)
+        inicializar_historial()
+
+def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_ia, lista_equipos):
+    """
+    Función silenciosa que:
+    1. Revisa los partidos que estaban 'Pendientes' y les busca el resultado en ESPN.
+    2. Registra los partidos de hoy como 'Pendientes' con sus predicciones calculadas.
+    """
+    inicializar_historial()
+    try:
+        df_hist = pd.read_csv(RUTA_HISTORIAL)
+    except Exception:
+        return False, 0
+        
+    hubo_cambios = False
+    
+    # === PASO 1: EXTRAER RESULTADOS REALES DE PARTIDOS PENDIENTES ===
+    if "Estado" in df_hist.columns:
+        pendientes = df_hist[df_hist["Estado"] == "Pendiente"]
+        if not pendientes.empty:
+            fechas_pendientes = pendientes["Fecha"].unique()
+            for fecha in fechas_pendientes:
+                fecha_api = fecha.replace("-", "")
+                try:
+                    url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_api}"
+                    r = requests.get(url, timeout=10)
+                    if r.status_code == 200:
+                        eventos = r.json().get("events", [])
+                        for ev in eventos:
+                            if ev.get("status", {}).get("type", {}).get("completed", False):
+                                comps = ev["competitions"][0]["competitors"]
+                                n_loc = comps[0]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[1]["team"]["name"]
+                                n_vis = comps[1]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[0]["team"]["name"]
+                                
+                                t_loc = buscar_equipo(n_loc, lista_equipos)
+                                t_vis = buscar_equipo(n_vis, lista_equipos)
+                                
+                                match_idx = df_hist[(df_hist["Local"] == t_loc) & (df_hist["Visitante"] == t_vis) & (df_hist["Estado"] == "Pendiente")].index
+                                if len(match_idx) > 0:
+                                    idx = match_idx[0]
+                                    df_hist.at[idx, "Goles_Local_Real"] = int(comps[0]["score"] if comps[0]["homeAway"] == "home" else comps[1]["score"])
+                                    df_hist.at[idx, "Goles_Visita_Real"] = int(comps[1]["score"] if comps[0]["homeAway"] == "home" else comps[0]["score"])
+                                    
+                                    # Extracción de Córners Reales
+                                    c_totales = 9 # Promedio base si ESPN no lo provee
+                                    try:
+                                        r_sum = requests.get(f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/summary?event={ev['id']}", timeout=5)
+                                        if r_sum.status_code == 200:
+                                            cc = 0
+                                            for t in r_sum.json().get("boxscore", {}).get("teams", []):
+                                                for st_item in t.get("statistics", []):
+                                                    if "corner" in st_item.get("name", "").lower():
+                                                        cc += int(st_item.get("displayValue", 0))
+                                            if cc > 0: 
+                                                c_totales = cc
+                                    except Exception: pass
+                                    
+                                    df_hist.at[idx, "Corners_Reales"] = c_totales
+                                    df_hist.at[idx, "Estado"] = "Finalizado"
+                                    hubo_cambios = True
+                except Exception: pass
+
+    # === PASO 2: GUARDAR LAS PREDICCIONES DE LOS PARTIDOS DE HOY ===
+    nuevos = 0
+    fecha_hoy = datetime.date.today().strftime("%Y-%m-%d")
+    for p in partidos_del_dia:
+        loc, vis = p["Local"], p["Visitante"]
+        pid = f"{datetime.date.today().strftime('%Y%m%d')}_{loc[:3].upper()}_{vis[:3].upper()}"
+        
+        if pid not in df_hist["ID"].values and loc in df_datos["Equipo"].values and vis in df_datos["Equipo"].values:
+            xl_base = float(df_datos[df_datos["Equipo"] == loc].iloc[0].get("xG", 1.25))
+            xv_base = float(df_datos[df_datos["Equipo"] == vis].iloc[0].get("xG", 1.10))
+            xgl = round(xl_base * 1.15, 2)
+            xgv = round(xv_base * 0.925, 2)
+            
+            sl = consolidar_estadisticas(loc, df_datos, stats_torneo, xgl)
+            sv = consolidar_estadisticas(vis, df_datos, stats_torneo, xgv)
+            h2h = obtener_historial_directo(loc, vis)
+            
+            pl, pe, pv, _ = realizar_prediccion(loc, vis, df_datos, sl, sv, xgl, xgv, 0.15, h2h, paquete_ia)
+            po25, _, pbtts = calcular_mercados_adicionales(xgl, xgv)
+            corn_est = round(sl["Corners"] + sv["Corners"], 1)
+            
+            p1x2 = "Local" if pl > pe and pl > pv else "Visitante" if pv > pl and pv > pe else "Empate"
+            
+            n_fila = pd.DataFrame([{
+                "ID": pid, "Fecha": fecha_hoy, "Local": loc, "Visitante": vis,
+                "Prob_Loc": round(pl, 1), "Prob_Emp": round(pe, 1), "Prob_Vis": round(pv, 1),
+                "Prediccion_1X2": p1x2, "Prob_Over25": round(po25, 1), "Prob_BTTS": round(pbtts, 1),
+                "Corners_Est": round(corn_est, 1),
+                "Goles_Local_Real": np.nan, "Goles_Visita_Real": np.nan, "Corners_Reales": np.nan,
+                "Estado": "Pendiente"
+            }])
+            df_hist = pd.concat([df_hist, n_fila], ignore_index=True)
+            nuevos += 1
+            hubo_cambios = True
+
+    if hubo_cambios:
+        df_hist.to_csv(RUTA_HISTORIAL, index=False)
+        
+    return hubo_cambios, nuevos
+
+# =====================================================================
+# 7. INTERFAZ Y ENCABEZADO
 # =====================================================================
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
@@ -638,7 +756,7 @@ with col_titulo:
 st.markdown("---")
 
 # =====================================================================
-# 7. CARGA DE DATOS Y MOTOR PRINCIPAL
+# 8. CARGA DE DATOS Y MOTOR PRINCIPAL
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_CSV = os.path.join(DIRECTORIO_APP, "datos_procesados.csv")
@@ -671,14 +789,19 @@ if os.path.exists(RUTA_CSV):
     
     stats_torneo = obtener_estadisticas_promiedos(lista_equipos)
 
-    # AGENDA DEL DÍA AUTOMÁTICA
-    st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy</h3>", unsafe_allow_html=True)
+    # AGENDA DEL DÍA AUTOMÁTICA Y AGENTE AUTÓNOMO
+    st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy (Agente Autónomo)</h3>", unsafe_allow_html=True)
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
+    
+    # === EJECUTAR AGENTE ===
+    procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df, stats_torneo, paquete_ia, lista_equipos)
 
     if partidos_del_dia:
         for partido in partidos_del_dia:
             st.markdown(f"**{partido['Hora']} hs** | **{partido['Local']}** vs **{partido['Visitante']}**")
-            st.divider()
+        if nuevos > 0:
+            st.success(f"🤖 El Agente guardó {nuevos} predicciones nuevas para hoy.")
+        st.divider()
     else:
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
@@ -691,65 +814,74 @@ if os.path.exists(RUTA_CSV):
     # =====================================================================
     # SECCIÓN: MÉTRICAS DE EFECTIVIDAD Y PERFORMANCE DEL MODELO
     # =====================================================================
-    df_historial = cargar_historial_predicciones(DIRECTORIO_APP)
+    st.markdown("<h3 style='color: #cbd5e1;'>🎯 Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
+    
+    with st.expander("⚙️ Opciones de Administrador (Resetear Historial)", expanded=False):
+        st.warning("Si ves partidos viejos o datos incorrectos de pruebas anteriores, podés limpiar la base de datos acá.")
+        if st.button("🗑️ Borrar Todo el Historial y Empezar de Cero"):
+            borrar_historial()
+            st.success("Historial borrado con éxito. La app registrará de nuevo desde los partidos de hoy.")
+            st.rerun()
 
-    if not df_historial.empty and "Acierto" in df_historial.columns:
-        st.markdown("<h3 style='color: #cbd5e1;'>🎯 Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
+    df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
+    
+    if not df_ef.empty and "Estado" in df_ef.columns:
+        finalizados = df_ef[df_ef["Estado"] == "Finalizado"].copy()
         
-        total_partidos = len(df_historial)
-        aciertos_totales = int(df_historial["Acierto"].sum())
-        porcentaje_acierto = (aciertos_totales / total_partidos) * 100 if total_partidos > 0 else 0
-
-        # Filtro de predicciones con alta confianza (>50% de probabilidad asignada)
-        alta_confianza = df_historial[df_historial["Prob_Asignada"] >= 50.0]
-        if not alta_confianza.empty:
-            acc_alta_confianza = (alta_confianza["Acierto"].sum() / len(alta_confianza)) * 100
+        if finalizados.empty:
+            st.info("🤖 **Agente Autónomo Activo**: Las predicciones de hoy se han guardado. En cuanto finalicen los partidos, se descargarán los resultados y verás la efectividad aquí.")
         else:
-            acc_alta_confianza = 0.0
+            finalizados["res_real_1x2"] = np.where(finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
+                                          np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate"))
+            finalizados["acierto_1x2"] = (finalizados["Prediccion_1X2"] == finalizados["res_real_1x2"]).astype(int)
+            
+            finalizados["over25_real"] = ((finalizados["Goles_Local_Real"] + finalizados["Goles_Visita_Real"]) > 2.5).astype(int)
+            finalizados["pred_over25"] = (finalizados["Prob_Over25"] >= 50.0).astype(int)
+            finalizados["acierto_o25"] = (finalizados["pred_over25"] == finalizados["over25_real"]).astype(int)
 
-        # Tarjetas de Métricas de Rendimiento
-        col_e1, col_e2, col_e3, col_e4 = st.columns(4)
-        with col_e1:
-            st.metric(label="Partidos Evaluados", value=f"{total_partidos}")
-        with col_e2:
-            st.metric(label="Efectividad General (1X2)", value=f"{porcentaje_acierto:.1f}%")
-        with col_e3:
-            st.metric(label="Acierto Alta Confianza (>50%)", value=f"{acc_alta_confianza:.1f}%")
-        with col_e4:
-            st.metric(label="Aciertos Totales", value=f"{aciertos_totales} / {total_partidos}")
+            finalizados["btts_real"] = ((finalizados["Goles_Local_Real"] > 0) & (finalizados["Goles_Visita_Real"] > 0)).astype(int)
+            finalizados["pred_btts"] = (finalizados["Prob_BTTS"] >= 50.0).astype(int)
+            finalizados["acierto_btts"] = (finalizados["pred_btts"] == finalizados["btts_real"]).astype(int)
 
-        # Gráfico de Evolución de Efectividad Acumulada
-        df_historial["Efectividad_Acumulada"] = (df_historial["Acierto"].cumsum() / (np.arange(len(df_historial)) + 1)) * 100
-        
-        fig_efectividad = go.Figure()
-        fig_efectividad.add_trace(go.Scatter(
-            x=list(range(1, total_partidos + 1)),
-            y=df_historial["Efectividad_Acumulada"],
-            mode='lines+markers',
-            name='Porcentaje de Acierto',
-            line=dict(color='#00ffcc', width=3),
-            marker=dict(size=7, color='#00f3ff'),
-            hovertemplate="Partido N°%{x}<br>Efectividad: %{y:.1f}%<extra></extra>"
-        ))
-        fig_efectividad.update_layout(
-            title="Curva de Evolución del Porcentaje de Acierto (%)",
-            xaxis_title="Número de Partidos Analizados",
-            yaxis_title="Porcentaje Acumulado de Acierto (%)",
-            yaxis=dict(range=[0, 100], gridcolor="#1e293b"),
-            xaxis=dict(gridcolor="#1e293b"),
-            paper_bgcolor="#070b14",
-            plot_bgcolor="#111827",
-            font=dict(color="#cbd5e1"),
-            margin=dict(t=40, b=40, l=40, r=40)
-        )
-        st.plotly_chart(fig_efectividad, use_container_width=True)
+            finalizados["error_corners"] = abs(finalizados["Corners_Est"] - finalizados["Corners_Reales"])
 
-        with st.expander("📋 Ver registro detallado de las últimas predicciones evaluadas"):
-            df_mostrar = df_historial[["Fecha", "Local", "Visitante", "Prediccion", "Resultado_Real", "Prob_Asignada", "Acierto"]].tail(10).copy()
-            df_mostrar.columns = ["Fecha", "Local", "Visitante", "Predicción Modelo", "Resultado Real", "% Confianza", "Acierto (1/0)"]
-            st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Acierto 1X2", f"{(finalizados['acierto_1x2'].mean()*100):.1f}%", f"{len(finalizados)} Analizados")
+            c2.metric("Acierto Over 2.5", f"{(finalizados['acierto_o25'].mean()*100):.1f}%")
+            c3.metric("Acierto Ambos Anotan", f"{(finalizados['acierto_btts'].mean()*100):.1f}%")
+            c4.metric("Error en Córners", f"±{finalizados['error_corners'].mean():.1f} ud.")
+            
+            finalizados["Efectividad_Acumulada"] = (finalizados["acierto_1x2"].cumsum() / (np.arange(len(finalizados)) + 1)) * 100
+            
+            fig_efectividad = go.Figure()
+            fig_efectividad.add_trace(go.Scatter(
+                x=list(range(1, len(finalizados) + 1)),
+                y=finalizados["Efectividad_Acumulada"],
+                mode='lines+markers',
+                name='Porcentaje de Acierto',
+                line=dict(color='#00ffcc', width=3),
+                marker=dict(size=7, color='#00f3ff'),
+                hovertemplate="Partido N°%{x}<br>Efectividad: %{y:.1f}%<extra></extra>"
+            ))
+            fig_efectividad.update_layout(
+                title="Curva de Evolución del Porcentaje de Acierto (%)",
+                xaxis_title="Número de Partidos Analizados",
+                yaxis_title="Porcentaje Acumulado de Acierto (%)",
+                yaxis=dict(range=[0, 100], gridcolor="#1e293b"),
+                xaxis=dict(gridcolor="#1e293b"),
+                paper_bgcolor="#070b14",
+                plot_bgcolor="#111827",
+                font=dict(color="#cbd5e1"),
+                margin=dict(t=40, b=40, l=40, r=40)
+            )
+            st.plotly_chart(fig_efectividad, use_container_width=True)
 
-        st.markdown("---")
+            with st.expander("📋 Ver registro detallado de las evaluaciones autónomas"):
+                df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Goles_Local_Real", "Goles_Visita_Real", "Corners_Est", "Corners_Reales"]].tail(10)
+                st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+    else:
+        st.info("Inicializando motor de efectividad... A la espera de resultados.")
+    st.markdown("---")
 
     # =====================================================================
     # MOTOR DE PREDICCIÓN
