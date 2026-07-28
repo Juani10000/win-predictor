@@ -1,21 +1,18 @@
-import os
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-import joblib  # Librería para guardar el cerebro de la IA
+import joblib  # Librería agregada SOLO para guardar el modelo
+import os
 
 print("🧠 Entrenando modelo avanzado con rachas y prevención de sobreajuste...")
 
-# --- ARREGLO DE RUTA (Para que GitHub Actions no tire FileNotFoundError) ---
-# Esto obliga al script a buscar la carpeta "datos" exactamente donde está guardado este código
-directorio_actual = os.path.dirname(os.path.abspath(__file__))
-archivo_csv = os.path.join(directorio_actual, "datos", "datos_procesados.csv")
+archivo_csv = "datos/datos_procesados.csv"
 
+# Chequeo rápido de seguridad
 if not os.path.exists(archivo_csv):
-    print(f"❌ ERROR: No se encontró el archivo en: {archivo_csv}")
-    print("💡 Chequeá que el script 2 se esté ejecutando antes en GitHub Actions para crearlo.")
+    print(f"❌ ERROR: No se encontró el archivo '{archivo_csv}'.")
+    print("💡 Asegurate de que el script 2 se haya ejecutado primero para que la IA tenga datos para leer.")
     exit(1)
-# ---------------------------------------------------------------------------
 
 # 1. Cargar los datos procesados con rachas
 df = pd.read_csv(archivo_csv)
@@ -40,11 +37,10 @@ modelo.fit(X, y)
 
 print("✅ Modelo entrenado y calibrado correctamente.")
 
-# --- GUARDAR EL MODELO PARA QUE LA WEB LO USE (Automatización) ---
-ruta_modelo = os.path.join(directorio_actual, "modelo_entrenado.pkl")
-joblib.dump(modelo, ruta_modelo)
-print(f"💾 ¡Modelo guardado exitosamente en '{ruta_modelo}'!")
-# -----------------------------------------------------------------
+# --- LÍNEA AGREGADA: GUARDAMOS EL MODELO PARA QUE SE ACTUALICE SOLO ---
+joblib.dump(modelo, "modelo_entrenado.pkl")
+print("💾 ¡Modelo guardado exitosamente en 'modelo_entrenado.pkl'!")
+# ----------------------------------------------------------------------
 
 # Lista de equipos
 equipos_unicos = sorted(pd.concat([df["Local"], df["Visitante"]]).unique())
