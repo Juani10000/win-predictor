@@ -815,13 +815,6 @@ if os.path.exists(RUTA_CSV):
     # SECCIÓN: MÉTRICAS DE EFECTIVIDAD Y PERFORMANCE DEL MODELO
     # =====================================================================
     st.markdown("<h3 style='color: #cbd5e1;'>🎯 Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
-    
-    with st.expander("⚙️ Opciones de Administrador (Resetear Historial)", expanded=False):
-        st.warning("Si ves partidos viejos o datos incorrectos de pruebas anteriores, podés limpiar la base de datos acá.")
-        if st.button("🗑️ Borrar Todo el Historial y Empezar de Cero"):
-            borrar_historial()
-            st.success("Historial borrado con éxito. La app registrará de nuevo desde los partidos de hoy.")
-            st.rerun()
 
     df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
     
