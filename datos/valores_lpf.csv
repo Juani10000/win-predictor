@@ -1,0 +1,904 @@
+Equipo,Jugador,Valor_Millones,Estado
+CA River Plate,Santiago Beltrán,9.0,Disponible
+CA River Plate,Ezequiel Centurión,1.5,Disponible
+CA River Plate,Lautaro Rivero,7.0,Disponible
+CA River Plate,Lucas Martínez Quarta,4.5,Disponible
+CA River Plate,Tobías Ramírez,3.5,Lesionado
+CA River Plate,Juan Carlos Portillo,3.2,Lesionado
+CA River Plate,Nicolás Otamendi,1.0,Disponible
+CA River Plate,Germán Pezzella,0.5,Disponible
+CA River Plate,Ulises Giménez,0.0,Disponible
+CA River Plate,Matías Viña,3.5,Disponible
+CA River Plate,Marcos Acuña,1.0,Disponible
+CA River Plate,Gonzalo Montiel,4.5,Disponible
+CA River Plate,Fabricio Bustos,2.0,Disponible
+CA River Plate,Giovanni González,2.0,Disponible
+CA River Plate,Aníbal Moreno,8.0,Disponible
+CA River Plate,Kevin Castaño,5.0,Disponible
+CA River Plate,Fausto Vera,4.5,Disponible
+CA River Plate,Lucas Silva,0.3,Disponible
+CA River Plate,Mauro Arambarri,8.0,Disponible
+CA River Plate,Matías Galarza,4.0,Disponible
+CA River Plate,Giuliano Galoppo,3.5,Disponible
+CA River Plate,Lautaro Pereyra,0.175,Disponible
+CA River Plate,Kendry Páez,8.0,Disponible
+CA River Plate,Tomás Galván,4.0,Disponible
+CA River Plate,Santiago Lencina,2.0,Disponible
+CA River Plate,Juan Cruz Meza,1.8,Disponible
+CA River Plate,Ian Subiabre,3.5,Disponible
+CA River Plate,Ángel Correa,8.0,Disponible
+CA River Plate,Lucas Beltrán,8.0,Disponible
+CA River Plate,Facundo Colidio,5.0,Disponible
+CA River Plate,Maximiliano Salas,4.5,Disponible
+CA River Plate,Sebastián Driussi,4.5,Lesionado
+CA River Plate,Rafael Santos Borré,3.5,Disponible
+CA River Plate,Agustín Ruberto,1.7,Lesionado
+CA River Plate,Joaquín Freitas,1.0,Disponible
+CA Boca Juniors,Álvaro Montero,2.5,Disponible
+CA Boca Juniors,Leandro Brey,1.5,Disponible
+CA Boca Juniors,Agustín Marchesín,0.5,Lesionado
+CA Boca Juniors,Javier García,0.025,Disponible
+CA Boca Juniors,Lautaro Di Lollo,7.0,Disponible
+CA Boca Juniors,Ayrton Costa,5.0,Disponible
+CA Boca Juniors,Marco Pellegrino,3.5,Disponible
+CA Boca Juniors,Nicolás Figal,0.25,Disponible
+CA Boca Juniors,Agustín Heredia,0.075,Disponible
+CA Boca Juniors,Lautaro Blanco,4.0,Disponible
+CA Boca Juniors,Malcom Braida,2.5,Disponible
+CA Boca Juniors,Marcelo Saracchi,2.0,Disponible
+CA Boca Juniors,Leandro Lozano,4.0,Disponible
+CA Boca Juniors,Juan Barinaga,2.8,Disponible
+CA Boca Juniors,Marcelo Weigandt,1.7,Disponible
+CA Boca Juniors,Milton Delgado,10.0,Disponible
+CA Boca Juniors,Santiago Ascacíbar,5.5,Disponible
+CA Boca Juniors,Leandro Paredes,5.0,Disponible
+CA Boca Juniors,Tomás Belmonte,3.0,Disponible
+CA Boca Juniors,Mauricio Benítez,2.5,Disponible
+CA Boca Juniors,Rodrigo Battaglia,0.5,Disponible
+CA Boca Juniors,Camilo Rey Domenech,0.4,Disponible
+CA Boca Juniors,Williams Alarcón,3.0,Disponible
+CA Boca Juniors,Juan Ramírez,0.15,Disponible
+CA Boca Juniors,Tomás Aranda,9.0,Disponible
+CA Boca Juniors,Carlos Palacios,3.0,Disponible
+CA Boca Juniors,Sebastián Villa,6.0,Disponible
+CA Boca Juniors,Kevin Zenón,3.5,Disponible
+CA Boca Juniors,Alan Velasco,2.8,Disponible
+CA Boca Juniors,Exequiel Zeballos,7.0,Disponible
+CA Boca Juniors,Ángel Romero,0.6,Disponible
+CA Boca Juniors,Gonzalo Gelini,0.25,Disponible
+CA Boca Juniors,Iker Zufiaurre,0.2,Disponible
+CA Boca Juniors,Miguel Merentiel,4.5,Disponible
+CA Boca Juniors,Adam Bareiro,4.0,Disponible
+CA Boca Juniors,Milton Giménez,2.5,Lesionado
+Racing Club,Facundo Cambeses,5.0,Disponible
+Racing Club,Matías Tagliamonte,1.5,Disponible
+Racing Club,Francisco Gómez,0.0,Disponible
+Racing Club,Marco Di Césare,6.0,Disponible
+Racing Club,Nazareno Colombo,2.8,Disponible
+Racing Club,Agustín García Basso,0.3,Disponible
+Racing Club,Marcos Rojo,0.125,Disponible
+Racing Club,Gonzalo Escudero,0.05,Disponible
+Racing Club,Alfonso Espino,0.9,Disponible
+Racing Club,Gastón Martirena,4.0,Disponible
+Racing Club,Ezequiel Cannavo,3.0,Disponible
+Racing Club,Tobías Rubio,0.3,Disponible
+Racing Club,Santiago Sosa,8.0,Disponible
+Racing Club,Ulises Ortegoza,1.8,Disponible
+Racing Club,Matías Kranevitter,0.6,Disponible
+Racing Club,Alan Forneris,0.6,Disponible
+Racing Club,Ignacio Rodríguez,1.0,Disponible
+Racing Club,Valentín Carboni,7.5,Lesionado
+Racing Club,Matko Miljevic,4.0,Disponible
+Racing Club,Baltasar Rodríguez,4.0,Disponible
+Racing Club,Matías Zaracho,3.5,Disponible
+Racing Club,Adrián Fernández,0.7,Disponible
+Racing Club,Gonzalo Sosa,0.15,Disponible
+Racing Club,Tomás Conechny,2.5,Disponible
+Racing Club,Duván Vergara,2.3,Disponible
+Racing Club,Santiago Solari,3.2,Disponible
+Racing Club,Adrián Martínez,2.8,Disponible
+Racing Club,Damián Pizarro,2.0,Disponible
+Racing Club,Lautaro Díaz,1.5,Disponible
+Racing Club,Elías Torres,1.0,Disponible
+Racing Club,Tomás Pérez,0.3,Disponible
+CA Rosario Central,Conan Ledesma,1.5,Disponible
+CA Rosario Central,Axel Werner,0.4,Disponible
+CA Rosario Central,Damián Fernández,0.0,Disponible
+CA Rosario Central,Ignacio Ovando,6.0,Disponible
+CA Rosario Central,Gastón Ávila,3.5,Disponible
+CA Rosario Central,Juan Giménez,2.0,Lesionado
+CA Rosario Central,Facundo Mallo,1.0,Disponible
+CA Rosario Central,Sebastián Zaracho,0.6,Disponible
+CA Rosario Central,Juan Cruz Komar,0.5,Disponible
+CA Rosario Central,Luca Raffin,0.15,Disponible
+CA Rosario Central,Agustín Sández,2.5,Disponible
+CA Rosario Central,Alexis Soto,1.2,Disponible
+CA Rosario Central,Emanuel Coronel,2.7,Disponible
+CA Rosario Central,Ulises Ciccioli,0.6,Disponible
+CA Rosario Central,Franco Ibarra,6.0,Disponible
+CA Rosario Central,Vicente Pizarro,4.5,Disponible
+CA Rosario Central,Federico Navarro,2.0,Disponible
+CA Rosario Central,Pol Fernández,0.35,Disponible
+CA Rosario Central,Santiago Segovia,0.225,Disponible
+CA Rosario Central,Jáminton Campaz,5.5,Disponible
+CA Rosario Central,Giovanni Cantizano,1.0,Disponible
+CA Rosario Central,Franco Cervi,0.6,Disponible
+CA Rosario Central,Julián Fernández,3.8,Disponible
+CA Rosario Central,Ángel Di María,1.8,Disponible
+CA Rosario Central,Gaspar Duarte,0.9,Disponible
+CA Rosario Central,Tomás Badaloni,4.0,Disponible
+CA Rosario Central,Enzo Copetti,2.5,Disponible
+CA Rosario Central,Fabricio Oviedo,0.225,Disponible
+CA Rosario Central,Marco Ruben,0.025,Disponible
+Club Estudiantes de La Plata,Fernando Muslera,0.7,Disponible
+Club Estudiantes de La Plata,Fabricio Iacovich,0.5,Disponible
+Club Estudiantes de La Plata,Rodrigo Borzone,0.0,Disponible
+Club Estudiantes de La Plata,Tomás Palacios,6.0,Disponible
+Club Estudiantes de La Plata,Santiago Núñez,2.0,Disponible
+Club Estudiantes de La Plata,Leandro González Pírez,0.35,Disponible
+Club Estudiantes de La Plata,Valente Pierani,0.2,Disponible
+Club Estudiantes de La Plata,Santiago Flores,0.1,Disponible
+Club Estudiantes de La Plata,Ramiro Funes Mori,0.025,Disponible
+Club Estudiantes de La Plata,Santiago Arzamendia,2.3,Lesionado
+Club Estudiantes de La Plata,Gastón Benedetti,2.0,Disponible
+Club Estudiantes de La Plata,Eros Mancuso,3.0,Disponible
+Club Estudiantes de La Plata,Eric Meza,2.5,Disponible
+Club Estudiantes de La Plata,Gabriel Neves,1.3,Disponible
+Club Estudiantes de La Plata,Ezequiel Piovi,0.8,Disponible
+Club Estudiantes de La Plata,Mikel Amondarain,3.5,Disponible
+Club Estudiantes de La Plata,Alexis Castro,1.2,Disponible
+Club Estudiantes de La Plata,Bautista Kociubinski,0.35,Disponible
+Club Estudiantes de La Plata,Lucas Cornejo,0.0,Disponible
+Club Estudiantes de La Plata,Facundo Farías,2.5,Disponible
+Club Estudiantes de La Plata,José Sosa,0.05,Disponible
+Club Estudiantes de La Plata,Edwuin Cetré,3.5,Disponible
+Club Estudiantes de La Plata,Brian Aguirre,3.5,Disponible
+Club Estudiantes de La Plata,Joaquín Tobio Burgos,1.8,Disponible
+Club Estudiantes de La Plata,Alexis Manyoma,1.2,Disponible
+Club Estudiantes de La Plata,Tiago Palacios,4.5,Disponible
+Club Estudiantes de La Plata,Fabricio Pérez,2.0,Disponible
+Club Estudiantes de La Plata,Mauro Méndez,2.5,Disponible
+Club Estudiantes de La Plata,Adolfo Gaich,1.0,Disponible
+Club Estudiantes de La Plata,Luciano Giménez,0.3,Disponible
+Club Estudiantes de La Plata,Guido Carrillo,0.3,Disponible
+Club Estudiantes de La Plata,Lucas Alario,0.25,Disponible
+Club Estudiantes de La Plata,Franco Domínguez,0.05,Disponible
+CA Talleres,Ezequiel Unsain,2.0,Disponible
+CA Talleres,Santino Barbi,0.2,Disponible
+CA Talleres,Santiago Fernández,4.5,Disponible
+CA Talleres,Román Riquelme,1.7,Disponible
+CA Talleres,Valentín Fascendini,1.3,Disponible
+CA Talleres,Rodrigo Guth,1.2,Disponible
+CA Talleres,Matías Catalán,0.5,Disponible
+CA Talleres,José Luis Palomino,0.3,Disponible
+CA Talleres,Juan Gabriel Rodríguez,0.25,Disponible
+CA Talleres,Alexandro Maidana,2.5,Disponible
+CA Talleres,Gabriel Báez,0.6,Disponible
+CA Talleres,Augusto Schott,1.2,Disponible
+CA Talleres,Alex Vigo,0.6,Disponible
+CA Talleres,Tomás Olmos,0.15,Disponible
+CA Talleres,Timoteo Chamorro,0.025,Disponible
+CA Talleres,Matías Galarza,5.5,Disponible
+CA Talleres,Juan Sforza,1.3,Disponible
+CA Talleres,Federico Fattori,0.6,Disponible
+CA Talleres,Martín Río,1.8,Disponible
+CA Talleres,Mateo Cáceres,0.7,Disponible
+CA Talleres,Matías Gómez,0.075,Lesionado
+CA Talleres,Franco Cristaldo,3.5,Disponible
+CA Talleres,Giovanni Baroni,2.5,Disponible
+CA Talleres,Jeremías Gallard,0.025,Disponible
+CA Talleres,Rick,2.2,Disponible
+CA Talleres,Valentín Depietri,0.5,Disponible
+CA Talleres,Diego Valoyes,1.5,Disponible
+CA Talleres,Ignacio Alastra,0.05,Disponible
+CA Talleres,Emiliano Chiavassa,0.025,Disponible
+CA Talleres,Ronaldo Martínez,4.0,Disponible
+CA Talleres,Bruno Barticciotto,2.0,Disponible
+CA Talleres,Valentín Dávila,1.5,Disponible
+CA San Lorenzo de Almagro,Orlando Gill,7.5,Disponible
+CA San Lorenzo de Almagro,José Devecchi,0.4,Disponible
+CA San Lorenzo de Almagro,Facundo Altamirano,0.375,Disponible
+CA San Lorenzo de Almagro,Mateo Clemente,0.0,Disponible
+CA San Lorenzo de Almagro,Gastón Hernández,3.5,Lesionado
+CA San Lorenzo de Almagro,Lautaro Montenegro,1.0,Disponible
+CA San Lorenzo de Almagro,Daniel Herrera,0.9,Lesionado
+CA San Lorenzo de Almagro,Franco Lorenzon,0.225,Disponible
+CA San Lorenzo de Almagro,Guzmán Corujo,0.2,Disponible
+CA San Lorenzo de Almagro,Maximiliano Zelaya,0.0,Disponible
+CA San Lorenzo de Almagro,Alejo Córdoba,0.0,Disponible
+CA San Lorenzo de Almagro,Mathías De Ritis,1.0,Disponible
+CA San Lorenzo de Almagro,Teo Rodríguez Pagano,0.4,Disponible
+CA San Lorenzo de Almagro,Ezequiel Herrera,2.5,Disponible
+CA San Lorenzo de Almagro,Nahuel Arias,0.3,Disponible
+CA San Lorenzo de Almagro,Ignacio Perruzzi,2.5,Disponible
+CA San Lorenzo de Almagro,Nicolás Tripichio,2.0,Disponible
+CA San Lorenzo de Almagro,Gonzalo Abrego,1.5,Disponible
+CA San Lorenzo de Almagro,Manuel Insaurralde,1.0,Disponible
+CA San Lorenzo de Almagro,Mauricio Cardillo,0.45,Disponible
+CA San Lorenzo de Almagro,Juan Rattalino,0.2,Disponible
+CA San Lorenzo de Almagro,Francisco Perruzzi,0.2,Disponible
+CA San Lorenzo de Almagro,Facundo Gulli,2.5,Disponible
+CA San Lorenzo de Almagro,Nahuel Barrios,0.9,Disponible
+CA San Lorenzo de Almagro,Matías Reali,1.5,Disponible
+CA San Lorenzo de Almagro,Gregorio Rodríguez,0.7,Disponible
+CA San Lorenzo de Almagro,Agustín Ladstatter,0.4,Disponible
+CA San Lorenzo de Almagro,Juan Pablo Álvarez,0.25,Disponible
+CA San Lorenzo de Almagro,Ezequiel Cerutti,0.15,Lesionado
+CA San Lorenzo de Almagro,Alexis Cuello,5.0,Disponible
+CA San Lorenzo de Almagro,Rodrigo Auzmendi,3.0,Disponible
+CA San Lorenzo de Almagro,Facundo Bruera,1.8,Disponible
+CA San Lorenzo de Almagro,Gustavo del Prete,0.9,Disponible
+CA San Lorenzo de Almagro,Diego Herazo,0.4,Disponible
+CA San Lorenzo de Almagro,Branco Salinardi,0.3,Disponible
+CA San Lorenzo de Almagro,Matías Hernández,0.05,Disponible
+CA Lanús,Nahuel Losada,3.0,Disponible
+CA Lanús,Franco Petroli,1.8,Disponible
+CA Lanús,Lautaro Morales,0.55,Disponible
+CA Lanús,José Canale,2.2,Disponible
+CA Lanús,Ronaldo Dejesús,1.3,Disponible
+CA Lanús,Gonzalo Pérez,1.2,Disponible
+CA Lanús,Carlos Izquierdoz,0.375,Disponible
+CA Lanús,Luciano Romero,0.1,Disponible
+CA Lanús,Sasha Marcich,3.0,Disponible
+CA Lanús,Octavio Ontivero,0.175,Disponible
+CA Lanús,Tomás Guidara,1.2,Disponible
+CA Lanús,Nicolás Morgantini,0.2,Disponible
+CA Lanús,Agustín Medina,4.5,Disponible
+CA Lanús,Agustín Cardozo,2.5,Lesionado
+CA Lanús,Felipe Peña Biafore,1.7,Disponible
+CA Lanús,Raúl Loaiza,0.4,Lesionado
+CA Lanús,Facundo Pérez,0.6,Disponible
+CA Lanús,Facundo Sánchez,0.05,Disponible
+CA Lanús,Ramiro Carrera,1.0,Disponible
+CA Lanús,Matías Sepúlveda,1.2,Disponible
+CA Lanús,Marcelino Moreno,4.5,Disponible
+CA Lanús,Franco Watson,0.6,Disponible
+CA Lanús,Dylan Aquino,3.5,Disponible
+CA Lanús,Lucas Besozzi,0.35,Disponible
+CA Lanús,Eduardo Salvio,0.75,Disponible
+CA Lanús,Alexis Segovia,0.225,Disponible
+CA Lanús,Yoshan Valois,1.3,Disponible
+CA Lanús,Allan Wlk,1.0,Disponible
+CA Lanús,Walter Bou,0.75,Lesionado
+CA Lanús,Thomás De Martis,0.125,Disponible
+CA Lanús,Jeremías Chavero,0.075,Disponible
+CA Independiente,Santiago Mele,2.0,Disponible
+CA Independiente,Rodrigo Rey,1.0,Disponible
+CA Independiente,Joaquín Blázquez,0.15,Disponible
+CA Independiente,Lucas Lavagnino,0.0,Disponible
+CA Independiente,Kevin Lomónaco,8.0,Disponible
+CA Independiente,Sebastián Valdez,1.5,Disponible
+CA Independiente,Juan Fedorco,0.7,Disponible
+CA Independiente,Facundo Zabala,1.8,Disponible
+CA Independiente,Jonathan De Irastorza,0.125,Disponible
+CA Independiente,Santiago Arias,1.2,Disponible
+CA Independiente,Leonardo Godoy,1.2,Disponible
+CA Independiente,David Martínez,1.2,Disponible
+CA Independiente,Rodrigo Fernández Cedrés,0.6,Disponible
+CA Independiente,Iván Marcone,0.4,Disponible
+CA Independiente,Federico Mancuello,0.05,Disponible
+CA Independiente,Joel Medina,0.05,Disponible
+CA Independiente,Lautaro Millán,2.5,Disponible
+CA Independiente,Luciano Cabral,1.0,Disponible
+CA Independiente,Mateo Pérez Curci,1.0,Disponible
+CA Independiente,Matías Abaldo,5.0,Disponible
+CA Independiente,Facundo Valdez,0.2,Disponible
+CA Independiente,Rodrigo Márquez,0.1,Disponible
+CA Independiente,Santiago Montiel,3.8,Disponible
+CA Independiente,Maximiliano Gutiérrez,3.0,Disponible
+CA Independiente,Maximiliano Meza,0.7,Disponible
+CA Independiente,Ignacio Pussetto,1.3,Disponible
+CA Independiente,Gabriel Ávalos,0.75,Disponible
+CA Independiente,Felipe Tempone,0.1,Disponible
+AA Argentinos Juniors,Brayan Cortés,2.0,Disponible
+AA Argentinos Juniors,Gonzalo Siri,0.25,Disponible
+AA Argentinos Juniors,Diego Rodríguez,0.2,Disponible
+AA Argentinos Juniors,Agustín Mangiaut,0.0,Disponible
+AA Argentinos Juniors,Francisco Álvarez,4.5,Disponible
+AA Argentinos Juniors,Franco Paredes,0.35,Disponible
+AA Argentinos Juniors,Érik Godoy,0.3,Disponible
+AA Argentinos Juniors,Santino Gianini,0.0,Disponible
+AA Argentinos Juniors,Claudio Bravo,0.6,Disponible
+AA Argentinos Juniors,Sebastián Prieto,0.275,Disponible
+AA Argentinos Juniors,Kevin Coronel,0.2,Disponible
+AA Argentinos Juniors,Luciano Sánchez,0.05,Disponible
+AA Argentinos Juniors,Santiago Silveira,0.0,Disponible
+AA Argentinos Juniors,Kevin Gutiérrez,3.0,Disponible
+AA Argentinos Juniors,Gino Infantino,0.35,Disponible
+AA Argentinos Juniors,Lucas Gómez,0.15,Disponible
+AA Argentinos Juniors,Joaquín Gho,1.8,Lesionado
+AA Argentinos Juniors,Alan Lescano,7.5,Disponible
+AA Argentinos Juniors,Hernán López Muñoz,5.0,Disponible
+AA Argentinos Juniors,Nicolás Oroz,1.0,Disponible
+AA Argentinos Juniors,Gabriel Florentín,0.5,Disponible
+AA Argentinos Juniors,Facundo Carrizo,0.025,Disponible
+AA Argentinos Juniors,Emiliano Viveros,0.8,Disponible
+AA Argentinos Juniors,Tomás Molina,2.5,Disponible
+AA Argentinos Juniors,Matías Giménez,1.7,Lesionado
+AA Argentinos Juniors,Facundo Jainikoski,1.2,Disponible
+AA Argentinos Juniors,Iván Morales,1.0,Disponible
+AA Argentinos Juniors,Gastón Verón,1.0,Disponible
+AA Argentinos Juniors,Diego Porcel,0.8,Disponible
+AA Argentinos Juniors,Ryoga Kida,0.1,Disponible
+AA Argentinos Juniors,Alan Alcaraz,0.0,Disponible
+AA Argentinos Juniors,Gastón Bouhier,0.0,Disponible
+CA Tigre,Felipe Zenobio,3.5,Disponible
+CA Tigre,Alan Barrionuevo,1.8,Disponible
+CA Tigre,Gonzalo Requena,1.2,Disponible
+CA Tigre,Joaquín Laso,0.2,Disponible
+CA Tigre,Ramón Arias,0.2,Disponible
+CA Tigre,Tomás Fernández,0.025,Disponible
+CA Tigre,Nahuel Banegas,0.75,Disponible
+CA Tigre,Federico Álvarez,0.5,Disponible
+CA Tigre,Juan Villalba,0.3,Disponible
+CA Tigre,Ángelo Marchese,0.025,Disponible
+CA Tigre,Martín Garay,0.8,Disponible
+CA Tigre,Valentín Moreno,0.5,Disponible
+CA Tigre,Guillermo Soto,0.3,Disponible
+CA Tigre,Luciano Minniti,0.0,Disponible
+CA Tigre,Bruno Leyes,2.3,Disponible
+CA Tigre,Jalil Elías,1.8,Disponible
+CA Tigre,Joaquín Mosqueira,1.2,Disponible
+CA Tigre,Jabes Saralegui,3.0,Disponible
+CA Tigre,Santiago González,2.3,Disponible
+CA Tigre,Simón Rivero,0.3,Lesionado
+CA Tigre,Sebastián Medina,0.35,Disponible
+CA Tigre,Elías Cabrera,1.8,Disponible
+CA Tigre,Tiago Serrago,1.7,Disponible
+CA Tigre,Gonzalo Martínez,0.5,Disponible
+CA Tigre,Santiago López,2.0,Disponible
+CA Tigre,Manuel Fernández,0.05,Disponible
+CA Tigre,David Romero,5.0,Disponible
+CA Tigre,Ignacio Russo,4.0,Disponible
+CA Tigre,Alfio Oviedo,0.3,Disponible
+CA Vélez Sarsfield,Tomás Marchiori,2.0,Disponible
+CA Vélez Sarsfield,Álvaro Busso,0.1,Disponible
+CA Vélez Sarsfield,Emanuel Mammana,2.5,Disponible
+CA Vélez Sarsfield,Aarón Quirós,1.8,Disponible
+CA Vélez Sarsfield,Lisandro Magallán,1.0,Disponible
+CA Vélez Sarsfield,Thiago Silvero,0.3,Disponible
+CA Vélez Sarsfield,Leo Cristaldo,0.0,Disponible
+CA Vélez Sarsfield,Elías Gómez,1.2,Disponible
+CA Vélez Sarsfield,Lautaro Cano,0.25,Disponible
+CA Vélez Sarsfield,Joaquín Vaquero,0.025,Disponible
+CA Vélez Sarsfield,Demián Domínguez,0.0,Disponible
+CA Vélez Sarsfield,Joaquín García,3.0,Disponible
+CA Vélez Sarsfield,Jano Gordon,1.0,Lesionado
+CA Vélez Sarsfield,Claudio Baeza,1.6,Disponible
+CA Vélez Sarsfield,Tobías Andrada,9.0,Disponible
+CA Vélez Sarsfield,Lucas Robertone,2.0,Disponible
+CA Vélez Sarsfield,Rodrigo Aliendro,0.325,Disponible
+CA Vélez Sarsfield,Diego Valdés,2.8,Disponible
+CA Vélez Sarsfield,Manuel Lanzini,0.9,Disponible
+CA Vélez Sarsfield,Maximiliano Porcel,0.075,Disponible
+CA Vélez Sarsfield,Matías Arias,0.05,Disponible
+CA Vélez Sarsfield,Dilan Godoy,0.7,Disponible
+CA Vélez Sarsfield,Matías Pellegrini,1.7,Disponible
+CA Vélez Sarsfield,Álex Verón,0.25,Disponible
+CA Vélez Sarsfield,Florián Monzón,2.5,Disponible
+CS Independiente Rivadavia,Nicolás Bolcato,2.2,Disponible
+CS Independiente Rivadavia,Ramiro Macagno,0.45,Lesionado
+CS Independiente Rivadavia,Emmanuel Gómez Riga,0.1,Disponible
+CS Independiente Rivadavia,Sheyko Studer,6.0,Disponible
+CS Independiente Rivadavia,Alejo Osella,1.2,Disponible
+CS Independiente Rivadavia,Leonard Costa,1.0,Disponible
+CS Independiente Rivadavia,Iván Villalba,0.8,Disponible
+CS Independiente Rivadavia,Santiago Cena,0.0,Disponible
+CS Independiente Rivadavia,Juan Elordi,0.4,Disponible
+CS Independiente Rivadavia,Luciano Gómez,0.7,Disponible
+CS Independiente Rivadavia,Ezequiel Bonifacio,0.1,Disponible
+CS Independiente Rivadavia,Leonel Bucca,0.7,Disponible
+CS Independiente Rivadavia,Stefano Moreyra,0.6,Disponible
+CS Independiente Rivadavia,Kevin Vázquez,0.225,Disponible
+CS Independiente Rivadavia,José Florentín,2.2,Disponible
+CS Independiente Rivadavia,Tomás Bottari,1.8,Disponible
+CS Independiente Rivadavia,Matías Fernández,3.0,Disponible
+CS Independiente Rivadavia,Gonzalo Ríos,2.0,Disponible
+CS Independiente Rivadavia,Luis Sequeira,0.5,Disponible
+CS Independiente Rivadavia,Diego Crego,0.25,Disponible
+CS Independiente Rivadavia,Rodrigo Atencio,2.0,Disponible
+CS Independiente Rivadavia,Alessandro Riep,0.35,Disponible
+CS Independiente Rivadavia,Álex Arce,3.5,Disponible
+CS Independiente Rivadavia,Fabrizio Sartori,3.5,Disponible
+CS Independiente Rivadavia,Victorio Ramis,0.1,Disponible
+CA Platense,Juan Pablo Cozzani,3.2,Disponible
+CA Platense,Brian Bustos,0.5,Disponible
+CA Platense,Nicolás Sumavil,0.4,Disponible
+CA Platense,Ignacio Vázquez,2.5,Disponible
+CA Platense,Eugenio Raggio,1.2,Disponible
+CA Platense,Santiago Quirós,0.6,Disponible
+CA Platense,Mateo Mendía,0.3,Disponible
+CA Platense,Gonzalo Goñi,0.3,Lesionado
+CA Platense,Victor Cuesta,0.2,Disponible
+CA Platense,Tomás Silva,2.0,Disponible
+CA Platense,Celías Ingenthron,0.125,Disponible
+CA Platense,Juan Ignacio Saborido,1.7,Disponible
+CA Platense,Agustín Lagos,0.5,Disponible
+CA Platense,Maximiliano Amarfil,2.0,Disponible
+CA Platense,Iván Gómez,1.0,Disponible
+CA Platense,Felipe Bussio,0.4,Disponible
+CA Platense,Pablo Ferreira,0.35,Disponible
+CA Platense,Martín Barrios,0.3,Disponible
+CA Platense,Santiago Dalmasso,0.1,Disponible
+CA Platense,Franco Zapiola,1.5,Disponible
+CA Platense,Leonardo Heredia,1.2,Disponible
+CA Platense,Bautista Merlini,0.4,Disponible
+CA Platense,Franco Minerva,0.35,Disponible
+CA Platense,Guido Mainero,2.0,Disponible
+CA Platense,Juan Carlos Gauto,1.0,Disponible
+CA Platense,Nicolás Retamar,0.8,Disponible
+CA Platense,Manuel Tucker,0.05,Disponible
+CA Platense,Tomás Nasif,1.2,Lesionado
+CA Platense,Nicolás López,0.8,Disponible
+CA Platense,Gonzalo Lencina,0.6,Disponible
+CA Platense,Augusto Lotti,0.5,Disponible
+CA Platense,Héctor Bobadilla,0.45,Disponible
+CA Newell's Old Boys,Josué Reinatti,1.2,Disponible
+CA Newell's Old Boys,Gabriel Arias,0.2,Disponible
+CA Newell's Old Boys,Oscar Salomón,1.5,Disponible
+CA Newell's Old Boys,Ian Glavinovich,1.2,Disponible
+CA Newell's Old Boys,Lautaro Giannetti,1.2,Disponible
+CA Newell's Old Boys,Saúl Salcedo,1.0,Disponible
+CA Newell's Old Boys,Bruno Cabrera,0.7,Lesionado
+CA Newell's Old Boys,Nicolás Goitea,0.3,Disponible
+CA Newell's Old Boys,Jeronimo Russo,1.0,Disponible
+CA Newell's Old Boys,Martín Luciano,0.1,Disponible
+CA Newell's Old Boys,Martín Ortega,1.0,Disponible
+CA Newell's Old Boys,Armando Méndez,0.9,Disponible
+CA Newell's Old Boys,Alejo Montero,0.6,Lesionado
+CA Newell's Old Boys,Franco Escobar,0.6,Disponible
+CA Newell's Old Boys,Luca Regiardo,1.7,Disponible
+CA Newell's Old Boys,Valentino Acuña,1.5,Disponible
+CA Newell's Old Boys,Rodrigo Herrera,1.5,Disponible
+CA Newell's Old Boys,Juan Ignacio Méndez,0.4,Disponible
+CA Newell's Old Boys,Marcelo Esponda,0.225,Disponible
+CA Newell's Old Boys,David Sotelo,0.2,Disponible
+CA Newell's Old Boys,Jerónimo Gómez Mattar,2.0,Disponible
+CA Newell's Old Boys,Facundo Guch,1.7,Disponible
+CA Newell's Old Boys,Alan Soñora,0.3,Disponible
+CA Newell's Old Boys,Fabricio Tirado,0.05,Disponible
+CA Newell's Old Boys,Walter Núñez,0.9,Disponible
+CA Newell's Old Boys,Walter Mazzantti,2.2,Disponible
+CA Newell's Old Boys,Matías Cóccaro,2.0,Disponible
+CA Newell's Old Boys,Ignacio Ramírez,1.5,Disponible
+CA Newell's Old Boys,Francisco Scarpeccio,0.15,Disponible
+CA Belgrano,Thiago Cardozo,3.2,Disponible
+CA Belgrano,Manuel Vicentini,0.075,Disponible
+CA Belgrano,Matías Daniele,0.0,Disponible
+CA Belgrano,Alexis Maldonado,1.0,Disponible
+CA Belgrano,Federico Ricca,0.8,Disponible
+CA Belgrano,Leonardo Morales,0.6,Disponible
+CA Belgrano,Lisandro López,0.3,Disponible
+CA Belgrano,Álvaro Ocampo,0.075,Disponible
+CA Belgrano,Juan Velázquez,1.7,Disponible
+CA Belgrano,Adrián Spörle,0.3,Disponible
+CA Belgrano,Alcides Benítez,1.8,Disponible
+CA Belgrano,Agustín Falcón,0.1,Disponible
+CA Belgrano,Santiago Longo,2.5,Disponible
+CA Belgrano,Adrián Sánchez,3.0,Disponible
+CA Belgrano,Lucas Zelarayán,2.8,Disponible
+CA Belgrano,Francisco González Metilli,2.0,Disponible
+CA Belgrano,Franco Vázquez,0.6,Disponible
+CA Belgrano,Ramiro Hernandes,0.3,Disponible
+CA Belgrano,Jeremías Lucco,0.15,Disponible
+CA Belgrano,Ramiro Tulián,0.05,Disponible
+CA Belgrano,Gonzalo Zelarayán,0.025,Disponible
+CA Belgrano,Emiliano Rigoni,1.0,Disponible
+CA Belgrano,Agustín Melano,0.0,Disponible
+CA Belgrano,Nicolás Fernández,3.0,Disponible
+CA Belgrano,Lucas Passerini,1.5,Disponible
+CA Belgrano,Lautaro Gutiérrez,0.25,Disponible
+Club de Gimnasia y Esgrima La Plata,Nelson Insfrán,2.0,Disponible
+Club de Gimnasia y Esgrima La Plata,Harlen Castillo,0.35,Disponible
+Club de Gimnasia y Esgrima La Plata,Julián Kadijevic,0.05,Disponible
+Club de Gimnasia y Esgrima La Plata,Renzo Giampaoli,2.0,Disponible
+Club de Gimnasia y Esgrima La Plata,Enzo Martínez,1.3,Disponible
+Club de Gimnasia y Esgrima La Plata,Gonzalo Errecalde,0.175,Disponible
+Club de Gimnasia y Esgrima La Plata,Germán Conti,0.15,Disponible
+Club de Gimnasia y Esgrima La Plata,Diego Mastrángelo,0.075,Disponible
+Club de Gimnasia y Esgrima La Plata,Juan Cortazzo,0.05,Disponible
+Club de Gimnasia y Esgrima La Plata,Pedro Silva Torrejón,1.2,Disponible
+Club de Gimnasia y Esgrima La Plata,Matías Melluso,0.2,Disponible
+Club de Gimnasia y Esgrima La Plata,Alexis Steimbach,2.2,Disponible
+Club de Gimnasia y Esgrima La Plata,Bautista Barros Schelotto,0.15,Disponible
+Club de Gimnasia y Esgrima La Plata,Fabricio Corbalán,0.075,Disponible
+Club de Gimnasia y Esgrima La Plata,Nicolás Barros Schelotto,6.0,Disponible
+Club de Gimnasia y Esgrima La Plata,Ignacio Miramón,1.5,Disponible
+Club de Gimnasia y Esgrima La Plata,Mateo Seoane,0.45,Disponible
+Club de Gimnasia y Esgrima La Plata,Facundo Di Biasi,0.3,Lesionado
+Club de Gimnasia y Esgrima La Plata,Augusto Max,0.1,Disponible
+Club de Gimnasia y Esgrima La Plata,Nacho Fernández,0.225,Disponible
+Club de Gimnasia y Esgrima La Plata,Juan Pérez,0.15,Disponible
+Club de Gimnasia y Esgrima La Plata,Leandro Mamut,0.05,Disponible
+Club de Gimnasia y Esgrima La Plata,Santiago Villarreal,0.05,Disponible
+Club de Gimnasia y Esgrima La Plata,Jeremías Merlo,0.7,Disponible
+Club de Gimnasia y Esgrima La Plata,Lucas Janson,0.2,Disponible
+Club de Gimnasia y Esgrima La Plata,Manuel Panaro,2.0,Disponible
+Club de Gimnasia y Esgrima La Plata,Maximiliano Zalazar,0.375,Disponible
+Club de Gimnasia y Esgrima La Plata,Franco Torres,0.3,Disponible
+Club de Gimnasia y Esgrima La Plata,Marcelo Torres,2.8,Lesionado
+Club de Gimnasia y Esgrima La Plata,Agustín Auzmendi,1.2,Disponible
+Club de Gimnasia y Esgrima La Plata,Ivo Mammini,0.25,Disponible
+Club de Gimnasia y Esgrima La Plata,Jorge de Asís,0.05,Disponible
+CSD Defensa y Justicia,Matías Borgogno,2.8,Disponible
+CSD Defensa y Justicia,Lautaro Amadé,0.3,Disponible
+CSD Defensa y Justicia,Damián Fernández,1.8,Disponible
+CSD Defensa y Justicia,David Martínez,0.9,Disponible
+CSD Defensa y Justicia,Emiliano Amor,0.45,Disponible
+CSD Defensa y Justicia,Samuel Lucero,0.25,Disponible
+CSD Defensa y Justicia,Nazareno Roselli,0.15,Disponible
+CSD Defensa y Justicia,Fernando Román,0.45,Disponible
+CSD Defensa y Justicia,Darío Cáceres,0.2,Disponible
+CSD Defensa y Justicia,Ayrton Portillo,1.0,Disponible
+CSD Defensa y Justicia,Lucas Souto,0.4,Disponible
+CSD Defensa y Justicia,Julián López,0.8,Disponible
+CSD Defensa y Justicia,César Pérez,3.0,Disponible
+CSD Defensa y Justicia,Santiago Sosa,2.0,Disponible
+CSD Defensa y Justicia,Éver Banega,0.4,Disponible
+CSD Defensa y Justicia,Agustín Hausch,0.4,Disponible
+CSD Defensa y Justicia,Aarón Molinas,3.5,Disponible
+CSD Defensa y Justicia,Santiago Toloza,0.35,Disponible
+CSD Defensa y Justicia,Rubén Botta,0.275,Disponible
+CSD Defensa y Justicia,Mateo Aguiar,0.225,Disponible
+CSD Defensa y Justicia,Nicolás Palavecino,0.15,Disponible
+CSD Defensa y Justicia,Leandro Fernández,0.3,Disponible
+CSD Defensa y Justicia,Domingo Blanco,1.0,Disponible
+CSD Defensa y Justicia,Facundo Altamira,0.75,Disponible
+CSD Defensa y Justicia,David Barbona,0.45,Disponible
+CSD Defensa y Justicia,Juan Gutiérrez,2.0,Disponible
+CSD Defensa y Justicia,David Fernández,0.275,Disponible
+CSD Defensa y Justicia,Luciano González,0.05,Disponible
+Instituto ACC,Marcos Ledesma,0.8,Disponible
+Instituto ACC,Lautaro Maldonado,0.025,Disponible
+Instituto ACC,Emanuel Sittaro,0.025,Disponible
+Instituto ACC,Fernando Alarcón,1.3,Disponible
+Instituto ACC,Leonel Mosevich,0.75,Disponible
+Instituto ACC,Jonatan Galván,0.325,Disponible
+Instituto ACC,Agustín Massaccesi,0.2,Disponible
+Instituto ACC,Agustín Bravo,0.05,Disponible
+Instituto ACC,Diego Sosa,0.8,Disponible
+Instituto ACC,Andrés Meli,0.35,Disponible
+Instituto ACC,Iván Erquiaga,0.2,Disponible
+Instituto ACC,Giuliano Cerato,1.2,Disponible
+Instituto ACC,Hernán de la Fuente,0.3,Disponible
+Instituto ACC,Gustavo Abregú,0.6,Disponible
+Instituto ACC,Joaquín Medina,0.0,Disponible
+Instituto ACC,Gastón Lodico,3.8,Disponible
+Instituto ACC,Wílder Viera,0.75,Disponible
+Instituto ACC,Franco Moyano,0.7,Lesionado
+Instituto ACC,Alex Luna,4.0,Disponible
+Instituto ACC,Jeremías Lázaro,0.2,Disponible
+Instituto ACC,Matías Gallardo,0.075,Disponible
+Instituto ACC,Ignacio Rossi,0.025,Disponible
+Instituto ACC,Jonás Acevedo,0.45,Disponible
+Instituto ACC,Luca Rafaelli,0.4,Lesionado
+Instituto ACC,Lorenzo Albarracín,0.025,Lesionado
+Instituto ACC,Jhon Córdoba,1.2,Disponible
+Instituto ACC,Matías Tissera,0.6,Disponible
+Instituto ACC,Nicolás Guerra,0.4,Disponible
+Instituto ACC,Facundo Suárez,0.4,Lesionado
+Instituto ACC,Matías Fonseca,0.35,Disponible
+Instituto ACC,Jonathan Dellarossa,0.125,Disponible
+CA Huracán,Sebastián Meza,0.45,Disponible
+CA Huracán,Hernán Galíndez,0.3,Disponible
+CA Huracán,Nazareno Durán,0.0,Disponible
+CA Huracán,Lucas Carrizo,0.8,Disponible
+CA Huracán,Hugo Nervo,0.225,Disponible
+CA Huracán,Mauro Villar,0.175,Disponible
+CA Huracán,Nehuén Paz,0.175,Disponible
+CA Huracán,Fabio Pereyra,0.15,Disponible
+CA Huracán,Máximo Palazzo,0.125,Disponible
+CA Huracán,Daniel Zabala,0.1,Disponible
+CA Huracán,César Ibáñez,2.5,Disponible
+CA Huracán,Leandro Lescano,0.175,Disponible
+CA Huracán,Lucas Blondel,1.5,Disponible
+CA Huracán,Federico Vera,1.0,Disponible
+CA Huracán,Ignacio Campo,0.3,Disponible
+CA Huracán,Emmanuel Ojeda,0.6,Disponible
+CA Huracán,Lautaro Mora,0.025,Disponible
+CA Huracán,Leonardo Gil,0.375,Disponible
+CA Huracán,Facundo Kalinger,0.35,Disponible
+CA Huracán,Santiago Luján,0.1,Disponible
+CA Huracán,Facundo Waller,1.7,Disponible
+CA Huracán,Thaiel Peralta,1.0,Disponible
+CA Huracán,Óscar Romero,0.7,Disponible
+CA Huracán,Óscar Cortés,2.5,Disponible
+CA Huracán,Alejandro Martínez,0.6,Disponible
+CA Huracán,Juan Bisanz,1.5,Disponible
+CA Huracán,Leonardo Sequeira,0.35,Disponible
+CA Huracán,Jordy Caicedo,2.0,Disponible
+CA Unión (Santa Fe),Matías Mansilla,2.5,Disponible
+CA Unión (Santa Fe),Federico Gomes Gerth,0.1,Lesionado
+CA Unión (Santa Fe),Lucas Meuli,0.0,Disponible
+CA Unión (Santa Fe),Maizon Rodríguez,2.0,Disponible
+CA Unión (Santa Fe),Juan Pablo Ludueña,1.3,Disponible
+CA Unión (Santa Fe),Bruno Pittón,0.25,Disponible
+CA Unión (Santa Fe),Lautaro Vargas,3.5,Disponible
+CA Unión (Santa Fe),Juan Pintado,1.0,Disponible
+CA Unión (Santa Fe),Lucas Menossi,0.125,Disponible
+CA Unión (Santa Fe),Emilio Giaccone,0.025,Disponible
+CA Unión (Santa Fe),Brahian Cuello,0.7,Disponible
+CA Unión (Santa Fe),Augusto Solari,0.125,Disponible
+CA Unión (Santa Fe),Julián Palacios,2.5,Disponible
+CA Unión (Santa Fe),Mauro Luna Diale,0.45,Disponible
+CA Unión (Santa Fe),Ignacio Malcorra,0.25,Disponible
+CA Unión (Santa Fe),Santiago Grella,0.025,Disponible
+CA Unión (Santa Fe),Franco Fragapane,0.45,Disponible
+CA Unión (Santa Fe),José Vanetta,0.025,Disponible
+CA Unión (Santa Fe),Misael Aguirre,0.2,Lesionado
+CA Unión (Santa Fe),Marcelo Estigarribia,1.0,Disponible
+CA Unión (Santa Fe),Eric Ramírez,0.6,Disponible
+CA Unión (Santa Fe),Agustín Colazo,0.35,Disponible
+CA Unión (Santa Fe),Cristian Tarragona,0.2,Disponible
+CA Barracas Central,Juan Espínola,0.7,Disponible
+CA Barracas Central,Marcelo Miño,0.35,Disponible
+CA Barracas Central,Juan Pablo Insúa,0.0,Disponible
+CA Barracas Central,Kevin Jappert,2.3,Disponible
+CA Barracas Central,Nicolás Demartini,1.0,Disponible
+CA Barracas Central,Nicolás Capraro,0.75,Disponible
+CA Barracas Central,Yonatthan Rak,0.2,Disponible
+CA Barracas Central,Fernando Tobio,0.125,Disponible
+CA Barracas Central,Gastón Campi,0.125,Disponible
+CA Barracas Central,Rodrigo Insúa,2.0,Disponible
+CA Barracas Central,Elías Pereyra,0.4,Disponible
+CA Barracas Central,Damián Martínez,0.1,Lesionado
+CA Barracas Central,Rafael Barrios,0.075,Disponible
+CA Barracas Central,Yeison Gordillo,0.1,Disponible
+CA Barracas Central,Dardo Miloc,0.075,Disponible
+CA Barracas Central,Carlos Arce,0.025,Disponible
+CA Barracas Central,Iván Guaraz,0.25,Disponible
+CA Barracas Central,Maximiliano Puig,0.025,Disponible
+CA Barracas Central,Gonzalo Maroni,2.0,Disponible
+CA Barracas Central,Tomás Porra,1.2,Disponible
+CA Barracas Central,Iván Tapia,1.2,Disponible
+CA Barracas Central,Rodrigo Bogarín,0.35,Disponible
+CA Barracas Central,Manuel Duarte,0.2,Disponible
+CA Barracas Central,Tomás Lavezzi,0.0,Disponible
+CA Barracas Central,Norberto Briasco,0.2,Disponible
+CA Barracas Central,Enzo Taborda,0.1,Disponible
+CA Barracas Central,Gonzalo Morales,0.9,Disponible
+CA Barracas Central,Jhonatan Candia,0.7,Disponible
+CA Barracas Central,Juan Barbieri,0.175,Disponible
+CA Barracas Central,Wilfredo Rivera,0.1,Disponible
+CA Barracas Central,Lucas Gamba,0.05,Disponible
+CA Banfield,Facundo Sanguinetti,2.5,Disponible
+CA Banfield,Gino Santilli,0.8,Disponible
+CA Banfield,Joaquín Molina,0.0,Disponible
+CA Banfield,Danilo Arboleda,0.8,Disponible
+CA Banfield,Nicolás Meriano,0.4,Disponible
+CA Banfield,Brandon Oviedo,0.15,Disponible
+CA Banfield,Santiago Daniele,0.05,Disponible
+CA Banfield,Ignacio Abraham,1.5,Disponible
+CA Banfield,Juan Luis Alfaro,0.2,Disponible
+CA Banfield,Juan Iribarren,0.05,Disponible
+CA Banfield,Lautaro Ríos,0.45,Disponible
+CA Banfield,Ignacio Pais,0.8,Disponible
+CA Banfield,Santiago Esquivel,0.35,Disponible
+CA Banfield,Lautaro Villegas,0.325,Disponible
+CA Banfield,Lucas Palavecino,0.025,Disponible
+CA Banfield,Santiago López García,1.8,Disponible
+CA Banfield,Tomás Adoryán,0.35,Disponible
+CA Banfield,Neyder Moreno,0.45,Disponible
+CA Banfield,Lautaro Gómez,0.4,Disponible
+CA Banfield,Favio Álvarez,0.05,Disponible
+CA Banfield,Lisandro Piñero,0.4,Disponible
+CA Banfield,David Zalazar,0.3,Disponible
+CA Banfield,Federico Medina,0.2,Disponible
+CA Banfield,Thomas Rodríguez,0.1,Disponible
+CA Banfield,Tiziano Perrotta,2.0,Disponible
+CA Banfield,Bruno Sepúlveda,0.225,Disponible
+CA Banfield,Federico Anselmo,0.1,Disponible
+CA Sarmiento (Junín),Iván Arboleda,0.3,Disponible
+CA Sarmiento (Junín),Thyago Ayala,0.0,Disponible
+CA Sarmiento (Junín),Renzo Orihuela,0.55,Disponible
+CA Sarmiento (Junín),Lucas Suárez,0.4,Disponible
+CA Sarmiento (Junín),Gastón Arturia,0.2,Disponible
+CA Sarmiento (Junín),Agustín Seyral,0.15,Disponible
+CA Sarmiento (Junín),Juan Manuel Insaurralde,0.075,Disponible
+CA Sarmiento (Junín),Joel Godoy,0.6,Lesionado
+CA Sarmiento (Junín),Gabriel Díaz,0.45,Disponible
+CA Sarmiento (Junín),Nicolás Pasquini,0.15,Disponible
+CA Sarmiento (Junín),Thiago Santamaría,0.8,Disponible
+CA Sarmiento (Junín),Juan Manuel Cabrera,0.15,Disponible
+CA Sarmiento (Junín),Jeremías Vallejos,0.05,Disponible
+CA Sarmiento (Junín),Manuel García,0.7,Disponible
+CA Sarmiento (Junín),Carlos Villalba,0.45,Disponible
+CA Sarmiento (Junín),Elián Giménez,0.4,Disponible
+CA Sarmiento (Junín),Mauricio Martínez,0.375,Disponible
+CA Sarmiento (Junín),Cristian Zabala,0.9,Disponible
+CA Sarmiento (Junín),Santiago Salle,0.9,Disponible
+CA Sarmiento (Junín),Osmar Giménez,0.7,Disponible
+CA Sarmiento (Junín),Julián Mavilla,0.25,Disponible
+CA Sarmiento (Junín),Jonatan Gómez,0.075,Disponible
+CA Sarmiento (Junín),Gastón González,0.9,Disponible
+CA Sarmiento (Junín),Yair Arismendi,0.175,Disponible
+CA Sarmiento (Junín),Jhon Rentería,0.5,Disponible
+CA Sarmiento (Junín),Julián Contrera,0.5,Disponible
+CA Sarmiento (Junín),Junior Marabel,2.2,Disponible
+CA Sarmiento (Junín),Jonathan Herrera,0.3,Disponible
+CA Sarmiento (Junín),Pablo Magnin,0.1,Disponible
+CA Sarmiento (Junín),Diego Churín,0.075,Disponible
+CA Sarmiento (Junín),Alexis González,0.05,Disponible
+CA Sarmiento (Junín),Brandon Márquez,0.025,Disponible
+CA Gimnasia y Esgrima (Mendoza),Lautaro Petruchi,0.15,Disponible
+CA Gimnasia y Esgrima (Mendoza),César Rigamonti,0.05,Disponible
+CA Gimnasia y Esgrima (Mendoza),Imanol González,0.7,Lesionado
+CA Gimnasia y Esgrima (Mendoza),Germán Guiffrey,0.4,Disponible
+CA Gimnasia y Esgrima (Mendoza),Diego Mondino,0.3,Disponible
+CA Gimnasia y Esgrima (Mendoza),Ezequiel Muñoz,0.075,Disponible
+CA Gimnasia y Esgrima (Mendoza),Lautaro Carrera,0.075,Disponible
+CA Gimnasia y Esgrima (Mendoza),Gerónimo Patritti,0.0,Disponible
+CA Gimnasia y Esgrima (Mendoza),Franco Saavedra,0.35,Lesionado
+CA Gimnasia y Esgrima (Mendoza),Matías Recalde,0.15,Disponible
+CA Gimnasia y Esgrima (Mendoza),Luciano Paredes,0.45,Disponible
+CA Gimnasia y Esgrima (Mendoza),Juan Franco,0.125,Disponible
+CA Gimnasia y Esgrima (Mendoza),Ismael Cortéz,0.125,Disponible
+CA Gimnasia y Esgrima (Mendoza),Fermín Antonini,0.175,Disponible
+CA Gimnasia y Esgrima (Mendoza),Tomás O'Connor,0.7,Disponible
+CA Gimnasia y Esgrima (Mendoza),Julián Ceballos,0.45,Disponible
+CA Gimnasia y Esgrima (Mendoza),Nahuel Barboza,0.15,Disponible
+CA Gimnasia y Esgrima (Mendoza),Tomás Ortiz,0.125,Disponible
+CA Gimnasia y Esgrima (Mendoza),Esteban Fernández,0.15,Disponible
+CA Gimnasia y Esgrima (Mendoza),Facundo Lencioni,2.0,Disponible
+CA Gimnasia y Esgrima (Mendoza),Blas Armoa,0.35,Disponible
+CA Gimnasia y Esgrima (Mendoza),Brian Andrada,0.15,Disponible
+CA Gimnasia y Esgrima (Mendoza),Ulises Sánchez,1.8,Disponible
+CA Gimnasia y Esgrima (Mendoza),Ignacio Sabatini,0.175,Disponible
+CA Gimnasia y Esgrima (Mendoza),Luciano Cingolani,0.075,Disponible
+CA Gimnasia y Esgrima (Mendoza),Nicolás Romano,0.1,Disponible
+CA Gimnasia y Esgrima (Mendoza),Agustín Módica,1.5,Disponible
+CA Gimnasia y Esgrima (Mendoza),Santiago Rodríguez,0.8,Disponible
+CA Gimnasia y Esgrima (Mendoza),Nicolás Ferreyra,0.35,Disponible
+CA Gimnasia y Esgrima (Mendoza),Valentino Simoni,0.35,Disponible
+Club Atlético Tucumán,Luis Ingolotti,1.0,Disponible
+Club Atlético Tucumán,Tomás Durso,0.65,Disponible
+Club Atlético Tucumán,Patricio Albornoz,0.0,Disponible
+Club Atlético Tucumán,Clever Ferreira,1.0,Disponible
+Club Atlético Tucumán,Gianluca Ferrari,0.35,Disponible
+Club Atlético Tucumán,Gastón Suso,0.275,Lesionado
+Club Atlético Tucumán,Luciano Vallejo,0.05,Disponible
+Club Atlético Tucumán,Juan Infante,0.4,Disponible
+Club Atlético Tucumán,Ignacio Galván,0.275,Disponible
+Club Atlético Tucumán,Ramiro Paunero,0.0,Disponible
+Club Atlético Tucumán,Maximiliano Villa,0.375,Disponible
+Club Atlético Tucumán,Leonel Di Plácido,0.2,Disponible
+Club Atlético Tucumán,Moisés Brandán,0.075,Disponible
+Club Atlético Tucumán,Kevin Ortiz,1.3,Disponible
+Club Atlético Tucumán,Julián Fernández,0.4,Disponible
+Club Atlético Tucumán,Leonel Vega,0.025,Disponible
+Club Atlético Tucumán,Ezequiel Ham,0.6,Disponible
+Club Atlético Tucumán,Ezequiel Godoy,0.0,Disponible
+Club Atlético Tucumán,Renzo Tesuri,1.0,Disponible
+Club Atlético Tucumán,Gabriel Compagnucci,0.125,Disponible
+Club Atlético Tucumán,Martín Benítez,0.4,Disponible
+Club Atlético Tucumán,Lautaro Godoy,0.3,Disponible
+Club Atlético Tucumán,Franco Nicola,0.5,Disponible
+Club Atlético Tucumán,Nicolás Laméndola,0.8,Disponible
+Club Atlético Tucumán,Lucas Román,0.2,Disponible
+Club Atlético Tucumán,Facundo Pimienta,0.0,Disponible
+Club Atlético Tucumán,Leandro Díaz,0.4,Disponible
+Club Atlético Tucumán,Ramiro Ruiz Rodríguez,0.4,Disponible
+Club Atlético Tucumán,Gabriel Abeldaño,0.225,Disponible
+Club Atlético Tucumán,Alexis Canelo,0.15,Disponible
+Club Atlético Tucumán,Manuel Brondo,0.025,Disponible
+Club Deportivo Riestra,Ignacio Arce,0.8,Disponible
+Club Deportivo Riestra,Marino Arzamendia,0.2,Disponible
+Club Deportivo Riestra,Iván López,0.0,Disponible
+Club Deportivo Riestra,Facundo Miño,0.8,Disponible
+Club Deportivo Riestra,Cristian Paz,0.5,Disponible
+Club Deportivo Riestra,Juan Randazzo,0.3,Disponible
+Club Deportivo Riestra,Ignacio Gariglio,0.275,Disponible
+Club Deportivo Riestra,Carlos Quintana,0.075,Disponible
+Club Deportivo Riestra,Eric Tovo,0.05,Disponible
+Club Deportivo Riestra,Yeison Murillo,0.025,Disponible
+Club Deportivo Riestra,Pedro Ramírez,0.8,Disponible
+Club Deportivo Riestra,Rodrigo Gallo,0.25,Disponible
+Club Deportivo Riestra,Nicolás Sansotre,0.3,Disponible
+Club Deportivo Riestra,Mariano Bracamonte,0.1,Disponible
+Club Deportivo Riestra,Nicolás Watson,0.6,Disponible
+Club Deportivo Riestra,Yonatan Goitía,0.325,Disponible
+Club Deportivo Riestra,Matías García,0.3,Disponible
+Club Deportivo Riestra,Pablo Monje,0.6,Disponible
+Club Deportivo Riestra,Milton Céliz,0.2,Disponible
+Club Deportivo Riestra,Braian Sánchez,0.1,Disponible
+Club Deportivo Riestra,Mauro Smarra,0.1,Disponible
+Club Deportivo Riestra,Thiago Lauro,0.01,Disponible
+Club Deportivo Riestra,Ángel Almada,0.2,Disponible
+Club Deportivo Riestra,Ángel Stringa,0.1,Disponible
+Club Deportivo Riestra,Gabriel Obredor,0.175,Disponible
+Club Deportivo Riestra,Antony Alonso,1.0,Disponible
+Club Deportivo Riestra,Alexander Díaz,0.8,Disponible
+Club Deportivo Riestra,Nicolás Benegas,0.45,Disponible
+Club Deportivo Riestra,Agustín Graneros,0.45,Disponible
+Club Deportivo Riestra,Gonzalo Flores,0.2,Disponible
+Club Deportivo Riestra,Tomás González,0.15,Disponible
+CA Central Córdoba (SdE),Alan Aguerre,0.175,Disponible
+CA Central Córdoba (SdE),Javier Vallejos,0.0,Disponible
+CA Central Córdoba (SdE),Alejandro Maciel,0.35,Disponible
+CA Central Córdoba (SdE),Facundo Mansilla,0.35,Disponible
+CA Central Córdoba (SdE),Agustín Quiroga,0.3,Disponible
+CA Central Córdoba (SdE),Felipe Aguilar,0.2,Disponible
+CA Central Córdoba (SdE),Yuri Casermeiro,0.175,Disponible
+CA Central Córdoba (SdE),Juan Pablo Pignani,0.125,Disponible
+CA Central Córdoba (SdE),Lucas Bernabéu,0.0,Disponible
+CA Central Córdoba (SdE),Leonardo Marchi,0.025,Disponible
+CA Central Córdoba (SdE),Santiago Moyano,0.6,Disponible
+CA Central Córdoba (SdE),Fernando Martínez,0.225,Disponible
+CA Central Córdoba (SdE),José Gómez,0.15,Disponible
+CA Central Córdoba (SdE),Matías Vera,0.35,Disponible
+CA Central Córdoba (SdE),Tiago Cravero,0.25,Disponible
+CA Central Córdoba (SdE),Lucas González,1.3,Disponible
+CA Central Córdoba (SdE),Fernando Juárez,0.6,Lesionado
+CA Central Córdoba (SdE),Juan Cardozo,0.2,Disponible
+CA Central Córdoba (SdE),Marco Iacobellis,0.175,Disponible
+CA Central Córdoba (SdE),Horacio Tijanovich,0.25,Disponible
+CA Central Córdoba (SdE),Joaquín Flores,0.05,Disponible
+CA Central Córdoba (SdE),Diego Barrera,0.8,Disponible
+CA Central Córdoba (SdE),Ezequiel Naya,0.4,Disponible
+CA Central Córdoba (SdE),Michael Santos,0.35,Disponible
+CA Central Córdoba (SdE),Lucas Varaldo,0.25,Disponible
+CA Central Córdoba (SdE),Alan Daian Laprida,0.1,Disponible
+CA Central Córdoba (SdE),Bautista Gerez,0.025,Disponible
+CA Aldosivi,Lucas Acosta,0.6,Disponible
+CA Aldosivi,Ignacio Chicco,0.25,Disponible
+CA Aldosivi,Sebastián Moyano,0.075,Lesionado
+CA Aldosivi,Nicolás Zalazar,0.8,Disponible
+CA Aldosivi,Santiago Moya,0.3,Disponible
+CA Aldosivi,Joaquín Pombo,0.3,Disponible
+CA Aldosivi,Néstor Breitenbruch,0.25,Disponible
+CA Aldosivi,Leonardo Sigali,0.05,Disponible
+CA Aldosivi,Federico Laurelli,0.025,Disponible
+CA Aldosivi,Lucas Rodríguez,0.175,Disponible
+CA Aldosivi,Guillermo Enrique,0.7,Disponible
+CA Aldosivi,Rodrigo González,0.375,Disponible
+CA Aldosivi,Elías López,0.225,Disponible
+CA Aldosivi,Nicolás Linares,0.4,Disponible
+CA Aldosivi,Esteban Rolón,0.275,Disponible
+CA Aldosivi,Franco Leys,0.125,Disponible
+CA Aldosivi,Roberto Bochi,0.025,Disponible
+CA Aldosivi,Federico Gino,0.15,Disponible
+CA Aldosivi,Matías Morello,0.075,Disponible
+CA Aldosivi,Martín García,0.075,Disponible
+CA Aldosivi,Lucas Castro,0.125,Disponible
+CA Aldosivi,Lautaro Chávez,0.05,Disponible
+CA Aldosivi,Nico Gaitán,0.0,Disponible
+CA Aldosivi,Matías Godoy,0.45,Disponible
+CA Aldosivi,Alan Sosa,0.275,Disponible
+CA Aldosivi,Agustín Palavecino,0.25,Disponible
+CA Aldosivi,Tomás Fernández,0.325,Disponible
+CA Aldosivi,Natanael Guzmán,0.175,Disponible
+CA Aldosivi,Nicolás Cordero,0.3,Disponible
+CA Aldosivi,Bautista Dadín,0.25,Disponible
+CA Aldosivi,Andrés Chávez,0.05,Disponible
+AA Estudiantes (Río Cuarto),Lucas Bruera,0.45,Disponible
+AA Estudiantes (Río Cuarto),Agustín Lastra,0.2,Disponible
+AA Estudiantes (Río Cuarto),Francisco Gualtieri,0.0,Disponible
+AA Estudiantes (Río Cuarto),Juan Antonini,0.25,Disponible
+AA Estudiantes (Río Cuarto),Matías Valenti,0.2,Disponible
+AA Estudiantes (Río Cuarto),Gonzalo Maffini,0.15,Disponible
+AA Estudiantes (Río Cuarto),Sergio Ojeda,0.05,Disponible
+AA Estudiantes (Río Cuarto),Lucas Baños,0.0,Disponible
+AA Estudiantes (Río Cuarto),Facundo Cobos,0.15,Disponible
+AA Estudiantes (Río Cuarto),Fernando Rodríguez,0.0,Disponible
+AA Estudiantes (Río Cuarto),Valentín Fenoglio,0.2,Lesionado
+AA Estudiantes (Río Cuarto),Raúl Lozano,0.2,Disponible
+AA Estudiantes (Río Cuarto),Matías Ruiz Díaz,0.175,Lesionado
+AA Estudiantes (Río Cuarto),Gonzalo González,0.0,Disponible
+AA Estudiantes (Río Cuarto),Siro Rosané,0.6,Disponible
+AA Estudiantes (Río Cuarto),Alejandro Cabrera,0.25,Disponible
+AA Estudiantes (Río Cuarto),Francisco Romero,0.35,Disponible
+AA Estudiantes (Río Cuarto),Nicolás Talpone,0.275,Disponible
+AA Estudiantes (Río Cuarto),Gabriel Alanís,0.35,Disponible
+AA Estudiantes (Río Cuarto),Tomás González,0.45,Disponible
+AA Estudiantes (Río Cuarto),Ezequiel Forclaz,0.2,Disponible
+AA Estudiantes (Río Cuarto),Francesco Lo Celso,0.025,Disponible
+AA Estudiantes (Río Cuarto),Mauro Valiente,0.175,Disponible
+AA Estudiantes (Río Cuarto),Ibrahim Hesar,0.1,Disponible
+AA Estudiantes (Río Cuarto),Juan Garro,0.1,Disponible
+AA Estudiantes (Río Cuarto),Mateo Bajamich,0.6,Disponible
+AA Estudiantes (Río Cuarto),Martín Garnerone,0.35,Disponible
+AA Estudiantes (Río Cuarto),Lucas González,0.2,Lesionado
+AA Estudiantes (Río Cuarto),Yeison Moreno,0.2,Disponible
+AA Estudiantes (Río Cuarto),Javier Ferreira,0.05,Disponible
+AA Estudiantes (Río Cuarto),Mauro Molina,0.025,Disponible
+AA Estudiantes (Río Cuarto),Ramón Ábila,0.025,Disponible
