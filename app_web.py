@@ -21,7 +21,7 @@ st.set_page_config(page_title="Win Predictor | Predicciones de Fútbol Argentino
 st.markdown(
     """
     <head>
-        <meta name="google-site-verification" content="nGtul4qMmIIjYUn" />
+        <meta name="google-site-verification" content="0EUVT9B2_M0gvbZ_moMnJXl" />
         <meta name="description" content="Win Predictor: Las mejores predicciones con Inteligencia Artificial para el fútbol argentino. Estadísticas de partidos de la Liga Profesional y pronósticos deportivos." />
     </head>
     """,
