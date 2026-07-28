@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+import joblib  # <-- LÍNEA AGREGADA 1: Librería para guardar archivos
 
 print("🧠 Entrenando modelo avanzado con rachas y prevención de sobreajuste...")
 
@@ -24,6 +25,10 @@ y = df["resultado_num"]
 # 3. Entrenar el modelo limitando la profundidad para EVITAR el 100% de sobreajuste
 modelo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
 modelo.fit(X, y)
+
+# <-- LÍNEA AGREGADA 2 y 3: Guardamos el cerebro de la IA para que la web lo lea
+joblib.dump(modelo, "modelo_entrenado.pkl")
+print("💾 Modelo guardado exitosamente en 'modelo_entrenado.pkl'")
 
 print("✅ Modelo entrenado y calibrado correctamente.")
 
