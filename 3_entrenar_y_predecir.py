@@ -1,12 +1,24 @@
+import os
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-import joblib  # <-- LÍNEA AGREGADA 1: Librería para guardar archivos
+import joblib  # Librería para guardar el cerebro de la IA
 
 print("🧠 Entrenando modelo avanzado con rachas y prevención de sobreajuste...")
 
+# --- ARREGLO DE RUTA (Para que GitHub Actions no tire FileNotFoundError) ---
+# Esto obliga al script a buscar la carpeta "datos" exactamente donde está guardado este código
+directorio_actual = os.path.dirname(os.path.abspath(__file__))
+archivo_csv = os.path.join(directorio_actual, "datos", "datos_procesados.csv")
+
+if not os.path.exists(archivo_csv):
+    print(f"❌ ERROR: No se encontró el archivo en: {archivo_csv}")
+    print("💡 Chequeá que el script 2 se esté ejecutando antes en GitHub Actions para crearlo.")
+    exit(1)
+# ---------------------------------------------------------------------------
+
 # 1. Cargar los datos procesados con rachas
-df = pd.read_csv("datos/datos_procesados.csv")
+df = pd.read_csv(archivo_csv)
 
 # 2. Definir las variables explicativas (Features) y el objetivo (Target)
 features = [
@@ -26,11 +38,13 @@ y = df["resultado_num"]
 modelo = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
 modelo.fit(X, y)
 
-# <-- LÍNEA AGREGADA 2 y 3: Guardamos el cerebro de la IA para que la web lo lea
-joblib.dump(modelo, "modelo_entrenado.pkl")
-print("💾 Modelo guardado exitosamente en 'modelo_entrenado.pkl'")
-
 print("✅ Modelo entrenado y calibrado correctamente.")
+
+# --- GUARDAR EL MODELO PARA QUE LA WEB LO USE (Automatización) ---
+ruta_modelo = os.path.join(directorio_actual, "modelo_entrenado.pkl")
+joblib.dump(modelo, ruta_modelo)
+print(f"💾 ¡Modelo guardado exitosamente en '{ruta_modelo}'!")
+# -----------------------------------------------------------------
 
 # Lista de equipos
 equipos_unicos = sorted(pd.concat([df["Local"], df["Visitante"]]).unique())
