@@ -12,18 +12,29 @@ import streamlit as st
 import joblib
 
 # =====================================================================
-# 1. CONFIGURACIÓN Y MEJORAS SEO (BÚSQUEDAS EN GOOGLE)
+# 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
 # =====================================================================
-# CAMBIO 1: Título de pestaña más atractivo para Google
-st.set_page_config(page_title="Win Predictor | Predicciones de Fútbol Argentino", layout="wide")
+st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
-# CAMBIO 2: Agregamos meta-descripción oculta para el buscador y tu código de verificación
+# Insertar etiquetas de Google Tag Manager y Google Search Console
 st.markdown(
     """
     <head>
-        <meta name="google-site-verification" content="0EUVT9B2_M0gvbZ_moMnJXlbwB2z" />
-        <meta name="description" content="Win Predictor: Las mejores predicciones con Inteligencia Artificial para el fútbol argentino. Estadísticas de partidos de la Liga Profesional y pronósticos deportivos." />
+        <!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5TQHXHZ5');</script>
+<!-- End Google Tag Manager -->
     </head>
+    
+    <body>
+       <!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5TQHXHZ5"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+    </body>
     """,
     unsafe_allow_html=True
 )
