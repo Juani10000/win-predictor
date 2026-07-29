@@ -1,70 +1,61 @@
 import os
 import pandas as pd
-import cloudscraper
+import requests
 import random
-import io
-import re
 
 def obtener_tabla_anual():
-    print("⏳ Buscando la Tabla de Posiciones en Promiedos usando Cloudscraper...")
+    print("⏳ Buscando la Tabla de Posiciones desde la API de ESPN...")
     
     df_resultado = None
     
-    # INTENTO 1: Extracción en vivo usando cloudscraper para saltar el antibot
+    # INTENTO 1: Extracción en vivo usando la API pública de ESPN (Sin bloqueos en GitHub/Nube)
     try:
-        url_promiedos = "https://www.promiedos.com.ar/league/liga-profesional/hc"
-        
-        # Creamos el scraper que emula un navegador real
-        scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'chrome',
-                'platform': 'windows',
-                'desktop': True
-            }
-        )
-        
-        res = scraper.get(url_promiedos, timeout=15)
-        res.encoding = 'utf-8'
+        url_espn = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        }
+        res = requests.get(url_espn, headers=headers, timeout=15)
         
         if res.status_code == 200:
-            # Leemos todas las tablas del HTML
-            tablas = pd.read_html(io.StringIO(res.text))
+            data = res.json()
+            filas = []
             
-            for t in tablas:
-                if isinstance(t.columns, pd.MultiIndex):
-                    t.columns = [c[-1] for c in t.columns]
+            # Recorremos la tabla de posiciones del JSON de ESPN
+            for entry in data.get("children", [])[0].get("standings", {}).get("entries", []):
+                equipo_nombre = entry.get("team", {}).get("displayName", "")
+                stats = {s.get("name"): s.get("value") for s in entry.get("stats", [])}
                 
-                t.columns = [str(c).strip().upper() for c in t.columns]
+                pts = int(stats.get("points", 0))
+                pj = int(stats.get("gamesPlayed", 0))
+                pg = int(stats.get("wins", 0))
+                pe = int(stats.get("ties", 0))
+                pp = int(stats.get("losses", 0))
+                gf = int(stats.get("pointsFor", 0))
+                gc = int(stats.get("pointsAgainst", 0))
                 
-                # Buscamos la columna de equipo y puntos
-                col_eq = next((c for c in t.columns if any(k in c for k in ["EQUIPO", "CLUB", "TEAM"])), None)
-                col_pts = next((c for c in t.columns if c in ["PTS", "PTS.", "PUNTOS", "PT"]), None)
-                
-                if not col_eq and len(t.columns) >= 2:
-                    col_eq = t.columns[1]
-                if not col_pts and len(t.columns) >= 3:
-                    col_pts = t.columns[2]
-                
-                if col_eq and col_pts and len(t) >= 15:
-                    t = t.rename(columns={col_eq: "Equipo", col_pts: "Pts"})
-                    t_filt = t.dropna(subset=["Equipo"]).copy()
-                    
-                    # Limpiar filas basura si el encabezado se repite
-                    t_filt = t_filt[~t_filt["Equipo"].astype(str).str.upper().isin(["EQUIPO", "CLUB", "PTS"])]
-                    
-                    if len(t_filt) >= 20:
-                        df_resultado = t_filt
-                        print("✅ ¡ÉXITO! Tabla extraída EN VIVO desde Promiedos.")
-                        break
+                filas.append({
+                    "Equipo": equipo_nombre,
+                    "Puntos": pts,
+                    "PJ": pj,
+                    "PG": pg,
+                    "PE": pe,
+                    "PP": pp,
+                    "GF": gf,
+                    "GC": gc
+                })
+            
+            if len(filas) >= 20:
+                df_resultado = pd.DataFrame(filas)
+                print("✅ ¡ÉXITO! Tabla extraída EN VIVO desde ESPN.")
         else:
-            print(f"⚠️ Promiedos respondió con código HTTP: {res.status_code}")
+            print(f"⚠️ ESPN respondió con código HTTP: {res.status_code}")
             
     except Exception as e:
-        print(f"⚠️ Aviso: Falló la conexión a Promiedos ({e}).")
+        print(f"⚠️ Aviso: Falló la conexión a ESPN ({e}).")
 
-    # INTENTO 2: Respaldo en caso de que falle la conexión local
+    # INTENTO 2: Respaldo en caso de caída extrema
     if df_resultado is None:
-        print("🔄 No se pudo obtener la tabla online. Cargando datos de respaldo...")
+        print("🔄 Cargando datos de respaldo...")
         equipos = [
             "Independiente Rivadavia", "Argentinos Juniors", "Estudiantes (LP)", "Boca Juniors", "River Plate", 
             "Belgrano", "Vélez Sarsfield", "Rosario Central", "Talleres (C)", "Gimnasia (LP)", "Independiente", 
@@ -76,24 +67,8 @@ def obtener_tabla_anual():
         datos_respaldo = []
         puntos = 34
         for i, eq in enumerate(equipos):
-            datos_respaldo.append({"Equipo": eq, "Pts": max(5, puntos - int(i*0.9)), "PJ": 16, "PG": 8, "PE": 5, "PP": 3, "GF": 20, "GC": 15})
+            datos_respaldo.append({"Equipo": eq, "Puntos": max(5, puntos - int(i*0.9)), "PJ": 16, "PG": 8, "PE": 5, "PP": 3, "GF": 20, "GC": 15})
         df_resultado = pd.DataFrame(datos_respaldo)
-
-    # LIMPIEZA Y ESTANDARIZACIÓN DE COLUMNAS
-    mapeo = {}
-    for col in df_resultado.columns:
-        cl = str(col).lower()
-        if "equipo" in cl: mapeo[col] = "Equipo"
-        elif "pts" in cl or "puntos" in cl: mapeo[col] = "Puntos"
-        elif cl in ["pj", "j", "pjug"]: mapeo[col] = "PJ"
-        elif cl in ["pg", "g", "gan"]: mapeo[col] = "PG"
-        elif cl in ["pe", "e", "emp"]: mapeo[col] = "PE"
-        elif cl in ["pp", "p", "per"]: mapeo[col] = "PP"
-        elif cl in ["gf", "g.f."]: mapeo[col] = "GF"
-        elif cl in ["gc", "g.c."]: mapeo[col] = "GC"
-
-    df_resultado = df_resultado.rename(columns=mapeo)
-    df_resultado["Equipo"] = df_resultado["Equipo"].astype(str).str.replace(r'^\d+\s*[-.]*\s*', '', regex=True).str.strip()
 
     # ================================================================
     # 🎯 DICCIONARIO DE CORRECCIONES EXACTAS (TUS REGLAS)
@@ -102,14 +77,12 @@ def obtener_tabla_anual():
         # Reglas para Gimnasia de La Plata
         "Gimnasia": "Gimnasia (LP)",
         "Gimnasia y Esgrima de La Plata": "Gimnasia (LP)",
-        "Gimnasia y Esgrima (LP)": "Gimnasia (LP)",
         "Gimnasia La Plata": "Gimnasia (LP)",
         "Gimnasia LP": "Gimnasia (LP)",
         
         # Reglas para Gimnasia de Mendoza
         "Gimnasia (Mendoza)": "Gimnasia (M)",
         "Gimnasia y Esgrima de Mendoza": "Gimnasia (M)",
-        "Gimnasia y Esgrima (M)": "Gimnasia (M)",
         "Gimnasia Mendoza": "Gimnasia (M)",
         "Gimnasia Mza": "Gimnasia (M)",
         
@@ -124,14 +97,7 @@ def obtener_tabla_anual():
     df_resultado["Equipo"] = df_resultado["Equipo"].replace(correcciones_equipos)
     # ================================================================
 
-    # Formateo de columnas numéricas
-    cols_num = ["Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
-    for c in cols_num:
-        if c in df_resultado.columns:
-            df_resultado[c] = pd.to_numeric(df_resultado[c], errors='coerce').fillna(0).astype(int)
-        else:
-            df_resultado[c] = 0
-
+    # Columnas calculadas para tu modelo
     df_resultado["Victorias"] = df_resultado["PG"]
     df_resultado["Empates"] = df_resultado["PE"]
     df_resultado["Derrotas"] = df_resultado["PP"]
@@ -144,7 +110,7 @@ def obtener_tabla_anual():
     df_resultado = df_resultado.sort_values(by="Puntos", ascending=False).reset_index(drop=True)
 
     df_resultado.to_csv("datos_procesados.csv", index=False, encoding="utf-8-sig")
-    print(f"🎉 Proceso completado: Tabla Anual guardada con {len(df_resultado)} equipos en datos_procesados.csv.")
+    print(f"🎉 Proceso completado: Tabla guardada con {len(df_resultado)} equipos en datos_procesados.csv.")
 
 if __name__ == "__main__":
     obtener_tabla_anual()
