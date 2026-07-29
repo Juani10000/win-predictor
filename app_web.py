@@ -3,7 +3,6 @@ import math
 import os
 import re
 import hashlib
-from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -85,7 +84,6 @@ JERARQUIA_EQUIPOS = {
 }
 
 def obtener_jerarquia(nombre_equipo):
-    """Devuelve la jerarquía del equipo. Si es ascendido o no está mapeado, le asigna un promedio base (6.5)."""
     if not isinstance(nombre_equipo, str):
         return 6.5
     nombre_clean = nombre_equipo.lower().strip()
@@ -96,7 +94,6 @@ def obtener_jerarquia(nombre_equipo):
 
 @st.cache_resource
 def cargar_modelo_ia():
-    """Carga el modelo (.pkl) de Inteligencia Artificial si existe en el directorio."""
     rutas = ["modelo_entrenado.pkl", os.path.join("datos", "modelo_entrenado.pkl")]
     for ruta in rutas:
         if os.path.exists(ruta):
@@ -109,111 +106,70 @@ def cargar_modelo_ia():
 paquete_ia = cargar_modelo_ia()
 
 # =====================================================================
-# 3. TABLA ANUAL OFICIAL EN VIVO (PROMIEDOS / ESPN FALLBACK)
+# 3. EXTRAER GRUPOS/ZONAS EN VIVO DESDE ESPN
 # =====================================================================
 @st.cache_data(ttl=1800)
-def obtener_tabla_en_vivo_promiedos():
-    """Extrae la Tabla Anual Oficial acumulada directamente desde Promiedos."""
-    equipos_lista = []
-    
-    # INTENTO 1: Scraping directo de la Tabla Anual de Promiedos
+def obtener_grupos_en_vivo_espn():
+    """Obtiene la tabla de posiciones dividida por Zonas/Grupos directamente de la API de ESPN."""
+    url = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
+    grupos = {}
+
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        url_promiedos = "https://www.promiedos.com.ar/primera"
-        r = requests.get(url_promiedos, headers=headers, timeout=8)
-        
+        r = requests.get(url, timeout=10)
         if r.status_code == 200:
-            soup = BeautifulSoup(r.text, "html.parser")
-            tablas = soup.find_all("table")
-            
-            for tabla in tablas:
-                # Identificamos la tabla acumulada
-                if "Anual" in tabla.text or "PJ" in tabla.text:
-                    filas = tabla.find_all("tr")
-                    for fila in filas[1:]:
-                        cols = [td.text.strip() for td in fila.find_all(["td", "th"])]
-                        if len(cols) >= 8:
-                            nombre_eq = cols[1]
-                            nombre_eq = re.sub(r'^\d+\s*', '', nombre_eq).strip()
-                            try:
-                                pts = int(cols[2])
-                                pj = int(cols[3])
-                                gf = int(cols[7]) if len(cols) > 7 else 15
-                                gc = int(cols[8]) if len(cols) > 8 else 15
-                                
-                                pj_safe = max(1, pj)
-                                xg_est = round((gf / pj_safe) * 0.95, 2)
-                                
-                                equipos_lista.append({
-                                    "Equipo": nombre_eq,
-                                    "Puntos": pts,
-                                    "PJ": pj,
-                                    "GF": gf,
-                                    "GC": gc,
-                                    "xG": max(0.80, xg_est)
-                                })
-                            except ValueError:
-                                continue
-                    if len(equipos_lista) >= 20:
-                        break
+            data = r.json()
+            children = data.get("children", [])
+
+            if not children and "standings" in data:
+                children = [data]
+
+            for idx, grupo in enumerate(children):
+                nombre_grupo = grupo.get("name", f"Grupo {chr(65 + idx)}")
+                entries = grupo.get("standings", {}).get("entries", [])
+                
+                lista_equipos_grupo = []
+                for entry in entries:
+                    nombre = entry.get("team", {}).get("displayName", "")
+                    if not nombre:
+                        continue
+
+                    stats_raw = entry.get("stats", [])
+                    stats_map = {s.get("name"): s.get("value", 0) for s in stats_raw}
+
+                    pj = int(stats_map.get("gamesPlayed", 0))
+                    gf = int(stats_map.get("pointsFor", 0))
+                    gc = int(stats_map.get("pointsAgainst", 0))
+                    pts = int(stats_map.get("points", 0))
+
+                    pj_safe = max(1, pj)
+                    xg_est = round((gf / pj_safe) * 0.95, 2)
+
+                    lista_equipos_grupo.append({
+                        "Equipo": nombre,
+                        "Puntos": pts,
+                        "PJ": pj,
+                        "GF": gf,
+                        "GC": gc,
+                        "DG": gf - gc,
+                        "xG": max(0.80, xg_est)
+                    })
+
+                df_grupo = pd.DataFrame(lista_equipos_grupo)
+                if not df_grupo.empty:
+                    df_grupo = df_grupo.sort_values(
+                        by=["Puntos", "DG", "GF"],
+                        ascending=[False, False, False]
+                    ).drop(columns=["DG"]).reset_index(drop=True)
+
+                grupos[nombre_grupo] = df_grupo
+
     except Exception:
         pass
 
-    # INTENTO 2: Resguardo (Fallback) en caso de caída
-    if not equipos_lista:
-        url_espn = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
-        tabla_acumulada = {}
-        try:
-            r = requests.get(url_espn, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
-                children = data.get("children", [])
-                if not children and "standings" in data:
-                    children = [data]
-
-                for grupo in children:
-                    entries = grupo.get("standings", {}).get("entries", [])
-                    for entry in entries:
-                        nombre = entry.get("team", {}).get("displayName", "")
-                        if not nombre: continue
-                        stats_raw = entry.get("stats", [])
-                        stats_map = {s.get("name"): s.get("value", 0) for s in stats_raw}
-                        
-                        pj = int(stats_map.get("gamesPlayed", 0))
-                        gf = int(stats_map.get("pointsFor", 0))
-                        gc = int(stats_map.get("pointsAgainst", 0))
-                        pts = int(stats_map.get("points", 0))
-                        
-                        if nombre in tabla_acumulada:
-                            tabla_acumulada[nombre]["Puntos"] += pts
-                            tabla_acumulada[nombre]["PJ"] += pj
-                            tabla_acumulada[nombre]["GF"] += gf
-                            tabla_acumulada[nombre]["GC"] += gc
-                        else:
-                            tabla_acumulada[nombre] = {"Equipo": nombre, "Puntos": pts, "PJ": pj, "GF": gf, "GC": gc}
-
-                for eq, datos in tabla_acumulada.items():
-                    pj_safe = max(1, datos["PJ"])
-                    xg_est = round((datos["GF"] / pj_safe) * 0.95, 2)
-                    datos["xG"] = max(0.80, xg_est)
-                    equipos_lista.append(datos)
-        except Exception:
-            pass
-
-    df_resultado = pd.DataFrame(equipos_lista)
-    if not df_resultado.empty:
-        df_resultado["DG"] = df_resultado["GF"] - df_resultado["GC"]
-        df_resultado = df_resultado.sort_values(
-            by=["Puntos", "DG", "GF"], 
-            ascending=[False, False, False]
-        ).drop(columns=["DG"]).reset_index(drop=True)
-
-    return df_resultado
+    return grupos
 
 # =====================================================================
-# 4. FUNCIONES MATEMÁTICAS Y DE SIMULACIÓN
+# 4. FUNCIONES MATEMÁTICAS Y DE SIMULACIÓN COMPLETAS
 # =====================================================================
 def poisson_prob(lmbda, k):
     if lmbda <= 0:
@@ -265,18 +221,13 @@ def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, pr
     factor_vis = (prob_vis_target / 100.0) / max(0.0001, prob_vis_poisson)
 
     for (i, j), p in poisson_matriz.items():
-        if i > j:
-            p_ajustada = p * factor_loc
-        elif i == j:
-            p_ajustada = p * factor_emp
-        else:
-            p_ajustada = p * factor_vis
-
+        if i > j: p_ajustada = p * factor_loc
+        elif i == j: p_ajustada = p * factor_emp
+        else: p_ajustada = p * factor_vis
         scores[f"{i} - {j}"] = p_ajustada * 100
 
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     top_5 = sorted_scores[:5]
-
     prob_top_5 = sum(p for _, p in top_5)
     prob_otro = max(0.0, 100.0 - prob_top_5)
 
@@ -424,7 +375,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # Motor heurístico alternativo
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -464,7 +414,7 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     victorias_h2h = historial_h2h.count('G')
     derrotas_h2h = historial_h2h.count('P')
     balance_h2h = victorias_h2h - derrotas_h2h
-    bono_historial = balance_h2h * 0.025 
+    bono_historial = balance_h2h * 0.025
 
     bono_jerarquia = (jer_loc - jer_vis) * 0.04
 
@@ -504,7 +454,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
     return None
 
 # =====================================================================
-# 6. SCRAPING / CONSULTA DE PARTIDOS DEL DÍA
+# 6. SCRAPING / CONSULTA DE PARTIDOS DEL DÍA Y AGENTE AUTÓNOMO
 # =====================================================================
 @st.cache_data(ttl=1800)
 def obtener_partidos_hoy_auto(equipos_disponibles):
@@ -671,7 +621,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
 
     hubo_cambios = False
 
-    # PASO 1: EXTRAER RESULTADOS REALES DE PARTIDOS PENDIENTES
+    # EXTRAER RESULTADOS REALES DE PARTIDOS PENDIENTES
     if "Estado" in df_hist.columns:
         pendientes = df_hist[df_hist["Estado"] == "Pendiente"]
         if not pendientes.empty:
@@ -716,7 +666,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
                                     hubo_cambios = True
                 except Exception: pass
 
-    # PASO 2: GUARDAR LAS PREDICCIONES DE LOS PARTIDOS DE HOY
+    # GUARDAR PREDICCIONES DE HOY
     nuevos = 0
     fecha_hoy = datetime.date.today().strftime("%Y-%m-%d")
     for p in partidos_del_dia:
@@ -757,7 +707,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
     return hubo_cambios, nuevos
 
 # =====================================================================
-# 8. INTERFAZ PRINCIPAL STREAMLIT
+# 8. INTERFAZ PRINCIPAL STREAMLIT COMPLETA
 # =====================================================================
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
@@ -765,21 +715,21 @@ with col_logo:
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">TABLA ANUAL ACUMULADA Y DATOS EN VIVO DESDE PROMIEDOS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">TABLAS DIVIDIDAS POR ZONAS Y DATOS EN VIVO DESDE ESPN</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
-# CARGA DE TABLA Y EQUIPOS EN VIVO
-df = obtener_tabla_en_vivo_promiedos()
+grupos = obtener_grupos_en_vivo_espn()
 
-if not df.empty:
-    lista_equipos = sorted(df["Equipo"].unique())
+if grupos:
+    df_unificado = pd.concat(grupos.values(), ignore_index=True)
+    lista_equipos = sorted(df_unificado["Equipo"].unique())
 
-    # AGENDA DEL DÍA AUTOMÁTICA
+    # AGENDA DEL DÍA AUTOMÁTICA CON AGENTE AUTÓNOMO
     st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy (Agente Autónomo)</h3>", unsafe_allow_html=True)
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
 
-    procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df, paquete_ia, lista_equipos)
+    procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df_unificado, paquete_ia, lista_equipos)
 
     if partidos_del_dia:
         for partido in partidos_del_dia:
@@ -791,9 +741,14 @@ if not df.empty:
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
 
-    # TABLA DE POSICIONES
-    st.markdown("<h3 style='color: #cbd5e1;'>Tabla Anual de Posiciones & xG (Oficial Promiedos)</h3>", unsafe_allow_html=True)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    # TABLAS DE POSICIONES DIVIDIDAS POR GRUPOS/ZONAS
+    st.markdown("<h3 style='color: #cbd5e1;'>Tablas de Posiciones Oficiales por Zonas</h3>", unsafe_allow_html=True)
+    cols_grupos = st.columns(len(grupos))
+    for idx, (nombre_grupo, df_g) in enumerate(grupos.items()):
+        with cols_grupos[idx]:
+            st.markdown(f"<h4 style='color: #00ffcc; text-align: center;'>{nombre_grupo}</h4>", unsafe_allow_html=True)
+            st.dataframe(df_g, use_container_width=True, hide_index=True)
+
     st.markdown("---")
 
     # MÉTRICAS DE EFECTIVIDAD HISTÓRICA
@@ -859,7 +814,7 @@ if not df.empty:
         st.info("Inicializando motor de efectividad... A la espera de resultados.")
     st.markdown("---")
 
-    # MOTOR DE PREDICCIÓN
+    # MOTOR DE PREDICCIÓN COMPLETO
     st.markdown("<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>", unsafe_allow_html=True)
 
     if len(lista_equipos) >= 2:
@@ -872,22 +827,20 @@ if not df.empty:
         if local == visitante:
             st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
         else:
-            row_loc = df[df["Equipo"] == local].iloc[0]
-            row_vis = df[df["Equipo"] == visitante].iloc[0]
-            xg_loc_base = float(row_loc.get("xG", 1.25))
-            xg_vis_base = float(row_vis.get("xG", 1.10))
+            row_loc = df_unificado[df_unificado["Equipo"] == local].iloc[0]
+            row_vis = df_unificado[df_unificado["Equipo"] == visitante].iloc[0]
 
             FACTOR_LOCALIA = 0.15
-            xg_proyectado_local = round(xg_loc_base * (1.0 + FACTOR_LOCALIA), 2)
-            xg_proyectado_visi = round(xg_vis_base * (1.0 - (FACTOR_LOCALIA * 0.5)), 2)
+            xg_proyectado_local = round(float(row_loc.get("xG", 1.25)) * (1.0 + FACTOR_LOCALIA), 2)
+            xg_proyectado_visi = round(float(row_vis.get("xG", 1.10)) * (1.0 - (FACTOR_LOCALIA * 0.5)), 2)
 
-            stats_loc = consolidar_estadisticas(local, df, xg_proyectado_local)
-            stats_vis = consolidar_estadisticas(visitante, df, xg_proyectado_visi)
+            stats_loc = consolidar_estadisticas(local, df_unificado, xg_proyectado_local)
+            stats_vis = consolidar_estadisticas(visitante, df_unificado, xg_proyectado_visi)
 
             historial_h2h = obtener_historial_directo(local, visitante)
 
             prob_loc, prob_empate, prob_vis, es_ia = realizar_prediccion(
-                local, visitante, df, stats_loc, stats_vis, 
+                local, visitante, df_unificado, stats_loc, stats_vis, 
                 xg_proyectado_local, xg_proyectado_visi, 
                 factor_localia=FACTOR_LOCALIA, 
                 historial_h2h=historial_h2h, 
@@ -931,6 +884,7 @@ if not df.empty:
 
             st.markdown("---")
 
+            # ÍNDICE DE VOLATILIDAD Y CAOS
             st.markdown("<h4 style='color: #cbd5e1;'>Índice de Volatilidad & Impredecibilidad</h4>", unsafe_allow_html=True)
             vol_val, vol_cat, vol_col = calcular_indice_volatilidad(xg_proyectado_local, xg_proyectado_visi, stats_loc, stats_vis)
             v_col1, v_col2 = st.columns([1, 2])
@@ -941,6 +895,7 @@ if not df.empty:
 
             st.markdown("---")
 
+            # MERCADOS COMPLEMENTARIOS
             st.markdown("<h4 style='color: #cbd5e1;'>Mercados Complementarios (Proyección Poisson)</h4>", unsafe_allow_html=True)
             prob_over_25, prob_under_25, prob_btts = calcular_mercados_adicionales(xg_proyectado_local, xg_proyectado_visi)
             c_m1, c_m2, c_m3, c_m4 = st.columns(4)
@@ -953,6 +908,7 @@ if not df.empty:
 
             st.markdown("---")
 
+            # SIMULACIÓN MONTE CARLO
             st.markdown("<h4 style='color: #cbd5e1;'>Simulación Estocástica Monte Carlo (10,000 Partidos)</h4>", unsafe_allow_html=True)
             p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(xg_proyectado_local, xg_proyectado_visi)
             c_mc1, c_mc2, c_mc3 = st.columns(3)
@@ -972,21 +928,16 @@ if not df.empty:
 
             st.markdown("---")
 
+            # ANÁLISIS OCTAGONAL RADAR
             st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>", unsafe_allow_html=True)
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
             st.plotly_chart(fig_radar, use_container_width=True)
 
             st.markdown("---")
 
+            # MARCADORES EXACTOS
             st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
-
-            top_5_marcadores, prob_otro = calcular_top_resultados(
-                xg_proyectado_local, 
-                xg_proyectado_visi, 
-                prob_loc,       
-                prob_empate,    
-                prob_vis
-            )
+            top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi, prob_loc, prob_empate, prob_vis)
 
             tabla_marcadores = [
                 {"Ranking": f"#{rank}", "Resultado Exacto (Local - Visitante)": marcador, "Probabilidad": f"{prob:.1f}%"}
@@ -996,4 +947,4 @@ if not df.empty:
             st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
 
 else:
-    st.error("No se pudo obtener la información en vivo. Intente refrescar la página.")
+    st.error("No se pudo obtener la información en vivo desde ESPN. Intente refrescar la página.")
