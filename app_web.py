@@ -1111,4 +1111,4 @@ if os.path.exists(RUTA_CSV):
             st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
 
 else:
-    st.error("Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista.")
+    st.error("Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista.") 
