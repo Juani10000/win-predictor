@@ -267,7 +267,7 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 4. MOTOR DE PREDICCIÓN E IDENTIFICADOR DE EQUIPOS
+# 4. MOTOR DE PREDICCIÓN Y BUSCADOR DE EQUIPOS
 # =====================================================================
 def buscar_equipo(nombre_buscado, lista_equipos):
     if not nombre_buscado or not lista_equipos:
@@ -312,7 +312,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     pts_u5_loc_ajustado = pts_u5_loc * (jer_vis / 10.0)
     pts_u5_vis_ajustado = pts_u5_vis * (jer_loc / 10.0)
 
-    # Si tenemos un modelo .pkl cargado, intentamos predecir directamente con IA
     if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
         mapa = paquete_ia["mapa_equipos"]
         modelo = paquete_ia["modelo"]
@@ -355,7 +354,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # Resguardo: Algoritmo estadístico heurístico
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -424,85 +422,60 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     return prob_loc, prob_empate, prob_vis, False
 
 # =====================================================================
-# 5. SCRAPING Y API OFICIAL DE ESPN EN VIVO (SISTEMA DE TRIPLE ESCUDO)
+# 5. SCRAPING DE PROMIEDOS EN VIVO (URL NUEVA ACTUALIZADA)
 # =====================================================================
 @st.cache_data(ttl=300)
-def obtener_estadisticas_en_vivo(equipos_disponibles):
+def obtener_estadisticas_promiedos(equipos_disponibles):
     """
-    Sistema de Triple Escudo:
-    1. Intenta conectarse a la API de ESPN (JSON Oficial LPF).
-    2. Si falla, intenta conectarse al scraping de Promiedos Primera División con cabeceras blindadas.
-    3. Si falla, intenta con la tabla secundaria de Promiedos Liga Argentina.
+    Extracción en vivo desde la nueva página oficial de Promiedos:
+    https://www.promiedos.com.ar/league/liga-profesional/hc
     """
-    stats_torneo = {}
+    url = "https://www.promiedos.com.ar/league/liga-profesional/hc"
+    stats_promiedos = {}
     
-    # --- ESCUDO 1: API OFICIAL ESPN ARGENTINA ---
-    try:
-        url_espn = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings?season=2026"
-        response = requests.get(url_espn, timeout=8)
-        if response.status_code == 200:
-            data = response.json()
-            if "children" in data and len(data["children"]) > 0:
-                entries = data["children"][0]["standings"]["entries"]
-                for entry in entries:
-                    equipo_raw = entry["team"]["displayName"]
-                    eq_match = buscar_equipo(equipo_raw, equipos_disponibles)
-                    if eq_match:
-                        puntos, pj, gf, gc = 0, 0, 0, 0
-                        for stat in entry["stats"]:
-                            if stat["name"] == "points": puntos = int(stat["value"])
-                            elif stat["name"] == "gamesPlayed": pj = int(stat["value"])
-                            elif stat["name"] == "pointsFor": gf = int(stat["value"])
-                            elif stat["name"] == "pointsAgainst": gc = int(stat["value"])
-                        stats_torneo[eq_match] = {"Puntos": puntos, "PJ": max(1, pj), "GF": gf, "GC": gc}
-                if len(stats_torneo) >= 10:
-                    return stats_torneo, "ESPN API Oficial"
-    except Exception:
-        pass
-
-    # --- ESCUDO 2 Y 3: SCRAPING PROMIEDOS CON CABECERAS ANTI-BOT ---
-    urls_promiedos = [
-        ("https://www.promiedos.com.ar/primera", "Promiedos Primera"),
-        ("https://www.promiedos.com.ar/ligaargentina", "Promiedos LPF")
-    ]
-    headers_blindadas = {
+    headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
         "Referer": "https://www.google.com/"
     }
     
-    for url, fuente_nombre in urls_promiedos:
-        try:
-            response = requests.get(url, headers=headers_blindadas, timeout=10)
-            response.encoding = 'utf-8'
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, "html.parser")
-                tabla = soup.find("table", id="posiciones")
-                if tabla:
-                    filas = tabla.find_all("tr")
-                    for fila in filas[1:]:
-                        celdas = fila.find_all(["td", "th"])
-                        if len(celdas) >= 9:
-                            equipo_raw = celdas[1].get_text(strip=True)
-                            pts_raw = celdas[2].get_text(strip=True)
-                            pj_raw = celdas[3].get_text(strip=True)
-                            gf_raw = celdas[7].get_text(strip=True)
-                            gc_raw = celdas[8].get_text(strip=True)
+    try:
+        response = requests.get(url, headers=headers, timeout=12)
+        response.encoding = 'utf-8'
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            tablas = soup.find_all("table")
+            
+            for tabla in tablas:
+                filas = tabla.find_all("tr")
+                for fila in filas:
+                    celdas = fila.find_all(["td", "th"])
+                    if len(celdas) >= 8:
+                        equipo_raw = celdas[1].get_text(" ", strip=True)
+                        equipo_raw = re.sub(r'^\d+\s*', '', equipo_raw).strip()
+                        
+                        pts_raw = celdas[2].get_text(strip=True)
+                        pj_raw = celdas[3].get_text(strip=True)
+                        gf_raw = celdas[6].get_text(strip=True) if len(celdas) > 6 else "0"
+                        gc_raw = celdas[7].get_text(strip=True) if len(celdas) > 7 else "0"
+
+                        if pts_raw.isdigit() and pj_raw.isdigit():
                             eq_match = buscar_equipo(equipo_raw, equipos_disponibles)
-                            if eq_match and pts_raw.isdigit() and pj_raw.isdigit():
-                                stats_torneo[eq_match] = {
+                            if eq_match:
+                                stats_promiedos[eq_match] = {
                                     "Puntos": int(pts_raw),
                                     "PJ": max(1, int(pj_raw)),
                                     "GF": int(gf_raw) if gf_raw.isdigit() else 0,
                                     "GC": int(gc_raw) if gc_raw.isdigit() else 0,
                                 }
-                    if len(stats_torneo) >= 10:
-                        return stats_torneo, fuente_nombre
-        except Exception:
-            pass
-
-    return stats_torneo, "Local CSV (Resguardo)"
+                if len(stats_promiedos) >= 10:
+                    break
+    except Exception:
+        pass
+        
+    return stats_promiedos
 
 @st.cache_data(ttl=1800)
 def obtener_partidos_hoy_auto(equipos_disponibles):
@@ -613,12 +586,12 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     text_loc = [
         str(stats_loc["GF"]), str(stats_loc["xG"]), f"{stats_loc['Pos']} %",
         str(stats_loc["VI"]), str(stats_loc["TirosArco"]), f"{stats_loc['Pases']} %",
-        f"{stats_loc['Fortaleza']}/100", f"{stats_loc['Pts_U5']} pts", f"{jer_loc:.2f}/10"
+        f"{stats_loc['Fortaleza']}/100", f"{stats_loc['Pts_U5']} pts", f"{jer_loc}/10"
     ]
     text_vis = [
         str(stats_vis["GF"]), str(stats_vis["xG"]), f"{stats_vis['Pos']} %",
         str(stats_vis["VI"]), str(stats_vis["TirosArco"]), f"{stats_vis['Pases']} %",
-        f"{stats_vis['Fortaleza']}/100", f"{stats_vis['Pts_U5']} pts", f"{jer_vis:.2f}/10"
+        f"{stats_vis['Fortaleza']}/100", f"{stats_vis['Pts_U5']} pts", f"{jer_vis}/10"
     ]
 
     fig = go.Figure()
@@ -830,10 +803,12 @@ if os.path.exists(RUTA_CSV):
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     
-    # --- SISTEMA DE RESGUARDO EN VIVO (TRIPLE ESCUDO) ---
-    stats_torneo, fuente_actual = obtener_estadisticas_en_vivo(tuple(lista_equipos))
+    # 1. Extracción en vivo desde la página oficial de Promiedos
+    stats_torneo = obtener_estadisticas_promiedos(tuple(lista_equipos))
 
-    # --- INYECCIÓN EN VIVO DEL DATAFRAME ---
+    # =====================================================================
+    #  ACTUALIZAR Y REORDENAR EL DATAFRAME CON LA DATA EN VIVO DE PROMIEDOS
+    # =====================================================================
     if stats_torneo and len(stats_torneo) > 0:
         for col_req in ["Puntos", "PJ", "GF", "GC", "DG"]:
             if col_req not in df.columns:
@@ -870,12 +845,8 @@ if os.path.exists(RUTA_CSV):
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
 
-    # TABLA DE POSICIONES
+    # TABLA DE POSICIONES EN VIVO
     st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>", unsafe_allow_html=True)
-    if fuente_actual != "Local CSV (Resguardo)":
-        st.success(f"✅ Tabla actualizada EN VIVO desde: **{fuente_actual}**")
-    else:
-        st.warning("⚠️ Sin conexión a APIs externas (Cloudflare bloqueado); mostrando últimos datos guardados del archivo.")
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
