@@ -623,7 +623,7 @@ text_loc = [
         str(stats_loc["VI"]), str(stats_loc["TirosArco"]), f"{stats_loc['Pases']} %",
         f"{stats_loc['Fortaleza']}/100", f"{stats_loc['Pts_U5']} pts", f"{jer_loc:.2f}/10"
     ]
-    text_vis = [
+text_vis = [
         str(stats_vis["GF"]), str(stats_vis["xG"]), f"{stats_vis['Pos']} %",
         str(stats_vis["VI"]), str(stats_vis["TirosArco"]), f"{stats_vis['Pases']} %",
         f"{stats_vis['Fortaleza']}/100", f"{stats_vis['Pts_U5']} pts", f"{jer_vis:.2f}/10"
