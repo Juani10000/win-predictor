@@ -85,15 +85,61 @@ JERARQUIA_EQUIPOS = {
     "Atlético Tucumán": 6.2, "Aldosivi": 5.5, "San Martín (SJ)": 5.5
 }
 
+def obtener_jerarquia_y_bajas(nombre_equipo):
+    """
+    Lee el archivo en vivo de Transfermarkt, calcula los lesionados/suspendidos 
+    y resta su valor de mercado a la jerarquía base del club.
+    """
+    jerarquia_base = 6.5
+    if isinstance(nombre_equipo, str):
+        nombre_clean = nombre_equipo.lower().strip()
+        for eq, rating in JERARQUIA_EQUIPOS.items():
+            if eq.lower() in nombre_clean or nombre_clean in eq.lower():
+                jerarquia_base = rating
+                break
+                
+    ruta_csv = os.path.join("datos", "valores_lpf.csv")
+    factor_lesiones = 1.0
+    bajas = []
+    
+    if os.path.exists(ruta_csv):
+        try:
+            import pandas as pd
+            df_mercado = pd.read_csv(ruta_csv)
+            
+            equipo_csv = None
+            if isinstance(nombre_equipo, str):
+                nombre_clean = nombre_equipo.lower().strip()
+                for eq_csv in df_mercado["Equipo"].unique():
+                    if isinstance(eq_csv, str) and (eq_csv.lower() in nombre_clean or nombre_clean in eq_csv.lower()):
+                        equipo_csv = eq_csv
+                        break
+                        
+            if equipo_csv:
+                df_equipo = df_mercado[df_mercado["Equipo"] == equipo_csv]
+                valor_total = df_equipo["Valor_Millones"].sum()
+                
+                if valor_total > 0:
+                    df_bajas = df_equipo[df_equipo["Estado"] != "Disponible"]
+                    df_disponibles = df_equipo[df_equipo["Estado"] == "Disponible"]
+                    
+                    valor_disponible = df_disponibles["Valor_Millones"].sum()
+                    
+                    for _, fila in df_bajas.iterrows():
+                        if fila["Jugador"] != "Resto_Plantilla":
+                            bajas.append(f"{fila['Jugador']} ({fila['Estado']})")
+                    
+                    factor_lesiones = max(0.50, valor_disponible / valor_total) 
+        except Exception:
+            pass
+            
+    jerarquia_final = jerarquia_base * factor_lesiones
+    return jerarquia_final, bajas
+
 def obtener_jerarquia(nombre_equipo):
-    """Devuelve la jerarquía del equipo. Si no está mapeado, da un valor promedio."""
-    if not isinstance(nombre_equipo, str):
-        return 6.5
-    nombre_clean = nombre_equipo.lower().strip()
-    for eq, rating in JERARQUIA_EQUIPOS.items():
-        if eq.lower() in nombre_clean or nombre_clean in eq.lower():
-            return rating
-    return 6.5
+    """Función puente para que el motor IA original siga funcionando."""
+    jerarquia_final, _ = obtener_jerarquia_y_bajas(nombre_equipo)
+    return jerarquia_final
 
 @st.cache_resource
 def cargar_modelo_ia():
