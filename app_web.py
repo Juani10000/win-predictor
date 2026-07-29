@@ -825,14 +825,14 @@ if os.path.exists(RUTA_CSV):
             s = str(x).strip()
             s_lower = s.lower()
             
-            # Respetar Estudiantes
+            # Preservar Estudiantes
             if "estudiantes" in s_lower:
                 if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]): 
                     return "Estudiantes RC"
                 if any(k in s_lower for k in ["la plata", "(lp)"]): 
                     return "Estudiantes"
             
-            # Respetar expresamente los dos Gimnasia sin borrar paréntesis
+            # Preservar los dos Gimnasia sin borrar los paréntesis
             if "gimnasia" in s_lower:
                 if any(k in s_lower for k in ["mendoza", "(m)"]):
                     return "Gimnasia (M)"
@@ -852,10 +852,10 @@ if os.path.exists(RUTA_CSV):
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     
-    # 1. Scraping en vivo desde Promiedos
+    # 1. Scraping en tiempo real
     stats_torneo = obtener_estadisticas_promiedos(lista_equipos)
 
-    # 2. INYECCIÓN EN VIVO: Actualizamos el DataFrame (df) con las posiciones reales de Promiedos
+    # 2. INYECCIÓN DIRECTA A LA TABLA (ACTUALIZA PUNTOS, PJ, GF, GC DE PROMIEDOS)
     if stats_torneo:
         for eq_nombre, datos_frescos in stats_torneo.items():
             mask = df["Equipo"] == eq_nombre
@@ -865,7 +865,7 @@ if os.path.exists(RUTA_CSV):
                 df.loc[mask, "GF"] = datos_frescos["GF"]
                 df.loc[mask, "GC"] = datos_frescos["GC"]
 
-        # Recalcular xG con PJ actualizado y reordenar por Puntos reales
+        # Recalcular xG y ordenar la tabla según los puntos actualizados
         df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
         if "Puntos" in df.columns:
             df = df.sort_values(by="Puntos", ascending=False).reset_index(drop=True)
@@ -887,11 +887,10 @@ if os.path.exists(RUTA_CSV):
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
 
-    # TABLA DE POSICIONES (AHORA SÍ MUESTRA LOS PUNTOS Y EQUIPOS ACTUALIZADOS)
+    # TABLA DE POSICIONES EN VIVO
     st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
-
     # =====================================================================
     # SECCIÓN: MÉTRICAS DE EFECTIVIDAD Y PERFORMANCE DEL MODELO
     # =====================================================================
