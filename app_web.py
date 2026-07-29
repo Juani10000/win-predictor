@@ -892,7 +892,8 @@ if os.path.exists(RUTA_CSV):
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
- =====================================================================
+
+=====================================================================
     # SECCIÓN: MÉTRICAS DE EFECTIVIDAD Y PERFORMANCE DEL MODELO
     # =====================================================================
     st.markdown("<h3 style='color: #cbd5e1;'> Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
