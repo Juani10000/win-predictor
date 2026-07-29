@@ -892,7 +892,6 @@ if os.path.exists(RUTA_CSV):
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
-
 =====================================================================
     # SECCIÓN: MÉTRICAS DE EFECTIVIDAD Y PERFORMANCE DEL MODELO
     # =====================================================================
