@@ -410,7 +410,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     return fig
 
 # =====================================================================
-# 6. HISTORIAL Y AGENTE AUTÓNOMO (SIN DUPLICADOS)
+# 6. HISTORIAL Y AGENTE AUTÓNOMO (CORRECCIÓN ESTRICTA DE DUPLICADOS)
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
@@ -433,9 +433,9 @@ def inicializar_historial():
                     df_hist[col] = np.nan
                     hubo_cambio = True
             
-            # Limpiar duplicados automáticamente
-            if df_hist.duplicated(subset=['ID']).any():
-                df_hist = df_hist.drop_duplicates(subset=['ID'], keep='first')
+            # DEPURACIÓN ESTRICTA: Eliminar duplicados por (Fecha, Local, Visitante)
+            if df_hist.duplicated(subset=['Fecha', 'Local', 'Visitante']).any():
+                df_hist = df_hist.drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first')
                 hubo_cambio = True
 
             if hubo_cambio:
@@ -458,7 +458,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
         if not pendientes.empty:
             fechas_pendientes = pendientes["Fecha"].unique()
             for fecha in fechas_pendientes:
-                fecha_api = fecha.replace("-", "")
+                fecha_api = str(fecha).replace("-", "")
                 try:
                     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_api}"
                     r = requests.get(url, timeout=10)
@@ -492,14 +492,18 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
                                     hubo_cambios = True
                 except Exception: pass
 
-    # GUARDAR PREDICCIONES HOY
+    # GUARDAR PREDICCIONES HOY (VALIDACIÓN POR TRIPLETA DE CONTROL)
     nuevos = 0
     fecha_hoy = datetime.date.today().strftime("%Y-%m-%d")
+    
+    # Crear set de combinaciones existentes (Fecha, Local, Visitante)
+    existentes = set(zip(df_hist["Fecha"].astype(str), df_hist["Local"].astype(str), df_hist["Visitante"].astype(str)))
+
     for p in partidos_del_dia:
         loc, vis = p["Local"], p["Visitante"]
-        pid = f"{fecha_hoy}_{loc.replace(' ', '')[:4].upper()}_{vis.replace(' ', '')[:4].upper()}"
-
-        if pid not in df_hist["ID"].values and loc in df_datos["Equipo"].values and vis in df_datos["Equipo"].values:
+        
+        if (fecha_hoy, str(loc), str(vis)) not in existentes and loc in df_datos["Equipo"].values and vis in df_datos["Equipo"].values:
+            pid = f"{fecha_hoy}_{loc.replace(' ', '')[:4].upper()}_{vis.replace(' ', '')[:4].upper()}"
             xl_base = float(df_datos[df_datos["Equipo"] == loc].iloc[0].get("xG", 1.25))
             xv_base = float(df_datos[df_datos["Equipo"] == vis].iloc[0].get("xG", 1.10))
             xgl = round(xl_base * 1.15, 2)
@@ -527,17 +531,18 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
                 "Estado": "Pendiente"
             }])
             df_hist = pd.concat([df_hist, n_fila], ignore_index=True)
+            existentes.add((fecha_hoy, str(loc), str(vis)))
             nuevos += 1
             hubo_cambios = True
 
     if hubo_cambios:
-        df_hist = df_hist.drop_duplicates(subset=['ID'], keep='first')
+        df_hist = df_hist.drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first')
         df_hist.to_csv(RUTA_HISTORIAL, index=False)
 
     return hubo_cambios, nuevos
 
 # =====================================================================
-# 7. INTERFAZ STREAMLIT INTEGRAL Y COMPLETA
+# 7. INTERFAZ STREAMLIT INTEGRAL
 # =====================================================================
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
@@ -580,12 +585,13 @@ if grupos:
 
     st.markdown("---")
 
-    # PANEL DE EFECTIVIDAD HISTÓRICA COMPLETA CON EVOLUCIÓN
+    # PANEL DE EFECTIVIDAD HISTÓRICA SIN DUPLICADOS
     st.markdown("<h3 style='color: #cbd5e1;'>Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
     df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
 
     if not df_ef.empty and "Estado" in df_ef.columns:
-        finalizados = df_ef[df_ef["Estado"] == "Finalizado"].drop_duplicates(subset=['ID']).copy()
+        # Deduplicación garantizada a nivel de interfaz por combinación de partido
+        finalizados = df_ef[df_ef["Estado"] == "Finalizado"].drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first').copy()
 
         if finalizados.empty:
             st.info("🤖 **Agente Autónomo Activo**: Las predicciones están guardadas. Cuando finalicen los partidos de la fecha se descargarán los resultados y verás las métricas aquí.")
@@ -607,15 +613,13 @@ if grupos:
             finalizados["pred_btts"] = (finalizados["Prob_BTTS"] >= 50.0).astype(int)
             finalizados["acierto_btts"] = (finalizados["pred_btts"] == finalizados["btts_real"]).astype(int)
 
-            finalizados["error_corners"] = abs(finalizados["Corners_Est"] - finalizados["Corners_Reales"])
-
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Acierto 1X2", f"{(finalizados['acierto_1x2'].mean()*100):.1f}%", f"{len(finalizados)} Evaluados")
             c2.metric("Acierto +/- 2.5 Goles", f"{(finalizados['acierto_o25'].mean()*100):.1f}%")
             c3.metric("Marcador Exacto", f"{(finalizados['acierto_exacto'].mean()*100):.1f}%")
             c4.metric("Acierto Ambos Anotan", f"{(finalizados['acierto_btts'].mean()*100):.1f}%")
 
-            # Gráfico de evolución temporal de efectividad
+            # Gráfico de evolución temporal
             finalizados["Efectividad_Acumulada"] = (finalizados["acierto_1x2"].cumsum() / (np.arange(len(finalizados)) + 1)) * 100
 
             fig_efectividad = go.Figure()
@@ -641,7 +645,7 @@ if grupos:
             )
             st.plotly_chart(fig_efectividad, use_container_width=True)
 
-            with st.expander("📋 Ver registro detallado de las evaluaciones (Sin duplicados)"):
+            with st.expander("📋 Ver registro detallado de las evaluaciones (Depurado sin duplicados)"):
                 df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Marcador_Predicho", "marcador_real", "Prob_Over25", "goles_totales_reales"]].tail(10)
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
