@@ -113,52 +113,77 @@ paquete_ia = cargar_modelo_ia()
 # =====================================================================
 @st.cache_data(ttl=3600)
 def obtener_tabla_en_vivo_espn():
-    """Extrae la tabla oficial y los equipos vigentes directamente de ESPN."""
-    url = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
-    equipos_lista = []
+    """Extrae la Tabla Anual / Acumulada de la Liga Profesional Argentina desde ESPN."""
+    # Agregamos sort=rank:asc para asegurar el ranking general
+    url = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings?sort=rank:asc"
+    
+    # Diccionario para acumular las estadísticas de la tabla anual por equipo
+    tabla_acumulada = {}
     
     try:
         r = requests.get(url, timeout=10)
         if r.status_code == 200:
             data = r.json()
             
-            entries = []
-            if "children" in data and len(data["children"]) > 0:
-                entries = data["children"][0].get("standings", {}).get("entries", [])
-            elif "standings" in data:
-                entries = data["standings"].get("entries", [])
+            # ESPN divide las tablas en 'children' (Zonas o Torneos)
+            children = data.get("children", [])
+            
+            # Si no hay children, buscamos directamente en standings
+            if not children and "standings" in data:
+                children = [data]
+
+            for grupo in children:
+                entries = grupo.get("standings", {}).get("entries", [])
                 
-            for entry in entries:
-                nombre = entry.get("team", {}).get("displayName", "")
-                if not nombre:
-                    continue
+                for entry in entries:
+                    nombre = entry.get("team", {}).get("displayName", "")
+                    if not nombre:
+                        continue
+                        
+                    stats_raw = entry.get("stats", [])
+                    stats_map = {s.get("name"): s.get("value", 0) for s in stats_raw}
                     
-                stats_raw = entry.get("stats", [])
-                stats_map = {s.get("name"): s.get("value", 0) for s in stats_raw}
-                
-                pj = int(stats_map.get("gamesPlayed", 1))
-                gf = int(stats_map.get("pointsFor", 0))
-                gc = int(stats_map.get("pointsAgainst", 0))
-                pts = int(stats_map.get("points", 0))
-                
-                pj_safe = max(1, pj)
-                xg_est = round((gf / pj_safe) * 0.95, 2)
-                xg_final = max(0.80, xg_est)
-                
-                equipos_lista.append({
-                    "Equipo": nombre,
-                    "Puntos": pts,
-                    "PJ": pj,
-                    "GF": gf,
-                    "GC": gc,
-                    "xG": xg_final
-                })
+                    pj = int(stats_map.get("gamesPlayed", 0))
+                    gf = int(stats_map.get("pointsFor", 0))
+                    gc = int(stats_map.get("pointsAgainst", 0))
+                    pts = int(stats_map.get("points", 0))
+                    
+                    # Si el equipo ya existe en el acumulado, sumamos los datos de las fases
+                    if nombre in tabla_acumulada:
+                        tabla_acumulada[nombre]["Puntos"] += pts
+                        tabla_acumulada[nombre]["PJ"] += pj
+                        tabla_acumulada[nombre]["GF"] += gf
+                        tabla_acumulada[nombre]["GC"] += gc
+                    else:
+                        tabla_acumulada[nombre] = {
+                            "Equipo": nombre,
+                            "Puntos": pts,
+                            "PJ": pj,
+                            "GF": gf,
+                            "GC": gc
+                        }
+                        
     except Exception:
         pass
 
+    equipos_lista = []
+    for eq, datos in tabla_acumulada.items():
+        pj_safe = max(1, datos["PJ"])
+        # Cálculo de xG Proyectado sobre la tabla anual
+        xg_est = round((datos["GF"] / pj_safe) * 0.95, 2)
+        datos["xG"] = max(0.80, xg_est)
+        equipos_lista.append(datos)
+
     df_resultado = pd.DataFrame(equipos_lista)
+    
     if not df_resultado.empty:
-        df_resultado = df_resultado.sort_values(by=["Puntos", "GF"], ascending=False).reset_index(drop=True)
+        # Ordenamos por Puntos y Diferencia/Goles a Favor (Criterio Tabla Anual)
+        df_resultado["DG"] = df_resultado["GF"] - df_resultado["GC"]
+        df_resultado = df_resultado.sort_values(
+            by=["Puntos", "DG", "GF"], 
+            ascending=[False, False, False]
+        ).drop(columns=["DG"]).reset_index(drop=True)
+
     return df_resultado
 
 # =====================================================================
