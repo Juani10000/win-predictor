@@ -824,10 +824,28 @@ if os.path.exists(RUTA_CSV):
         def limpiar_nombre_equipo(x):
             s = str(x).strip()
             s_lower = s.lower()
+            
+            # Reglas específicas para Estudiantes
             if "estudiantes" in s_lower:
-                if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]): return "Estudiantes RC"
-                if any(k in s_lower for k in ["la plata", "(lp)"]): return "Estudiantes"
+                if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]): 
+                    return "Estudiantes RC"
+                if any(k in s_lower for k in ["la plata", "(lp)", "estudiantes"]): 
+                    return "Estudiantes"
+            
+            # Reglas específicas para Gimnasia (Evita que se borren los paréntesis)
+            if "gimnasia" in s_lower:
+                if any(k in s_lower for k in ["la plata", "(lp)", "lp"]):
+                    return "Gimnasia (LP)"
+                if any(k in s_lower for k in ["mendoza", "(m)", "m"]):
+                    return "Gimnasia (M)"
+                if "jujuy" in s_lower or "(j)" in s_lower:
+                    return "Gimnasia (Jujuy)"
+                if "tiro" in s_lower:
+                    return "Gimnasia y Tiro"
+
+            # Para otros equipos, limpia corchetes o paréntesis genéricos
             return re.sub(r"\[.*?\]|\(.*?\)", "", s).strip()
+
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
 
     if "xG" not in df.columns and "xG_Favor" not in df.columns:
