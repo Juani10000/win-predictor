@@ -1,0 +1,39 @@
+name: Actualizador de Transfermarkt y Lesiones
+
+on:
+  # Se ejecuta automáticamente todos los días a las 09:00 AM (Hora Argentina / 12:00 UTC)
+  schedule:
+    - cron: '0 12 * * *'
+  
+  # Este botón nos permite ejecutarlo manualmente cuando queramos
+  workflow_dispatch:
+
+jobs:
+  actualizar_datos:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 📦 Instalar librerías necesarias
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests beautifulsoup4
+
+      - name: 🕵️‍♂️ Ejecutar el Scraper de Transfermarkt
+        run: python 6_valores_transfermarkt.py
+
+      - name: 💾 Guardar los datos nuevos en GitHub
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions@github.com'
+          git add datos/valores_lpf.csv
+          # Si hay cambios, los guarda. Si no hay cambios, no hace nada y no tira error.
+          git commit -m "🤖 Actualización automática: Valores y Lesionados LPF" || echo "No hay cambios para guardar"
+          git push
