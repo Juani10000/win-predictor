@@ -109,75 +109,101 @@ def cargar_modelo_ia():
 paquete_ia = cargar_modelo_ia()
 
 # =====================================================================
-# 3. CONEXIÓN EN VIVO A LA API DE ESPN (TABLA Y EQUIPOS DINÁMICOS)
+# 3. TABLA ANUAL OFICIAL EN VIVO (PROMIEDOS / ESPN FALLBACK)
 # =====================================================================
-@st.cache_data(ttl=3600)
-def obtener_tabla_en_vivo_espn():
-    """Extrae la Tabla Anual / Acumulada de la Liga Profesional Argentina desde ESPN."""
-    # Agregamos sort=rank:asc para asegurar el ranking general
-    url = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings?sort=rank:asc"
+@st.cache_data(ttl=1800)
+def obtener_tabla_en_vivo_promiedos():
+    """Extrae la Tabla Anual Oficial acumulada directamente desde Promiedos."""
+    equipos_lista = []
     
-    # Diccionario para acumular las estadísticas de la tabla anual por equipo
-    tabla_acumulada = {}
-    
+    # INTENTO 1: Scraping directo de la Tabla Anual de Promiedos
     try:
-        r = requests.get(url, timeout=10)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        url_promiedos = "https://www.promiedos.com.ar/primera"
+        r = requests.get(url_promiedos, headers=headers, timeout=8)
+        
         if r.status_code == 200:
-            data = r.json()
+            soup = BeautifulSoup(r.text, "html.parser")
+            tablas = soup.find_all("table")
             
-            # ESPN divide las tablas en 'children' (Zonas o Torneos)
-            children = data.get("children", [])
-            
-            # Si no hay children, buscamos directamente en standings
-            if not children and "standings" in data:
-                children = [data]
-
-            for grupo in children:
-                entries = grupo.get("standings", {}).get("entries", [])
-                
-                for entry in entries:
-                    nombre = entry.get("team", {}).get("displayName", "")
-                    if not nombre:
-                        continue
-                        
-                    stats_raw = entry.get("stats", [])
-                    stats_map = {s.get("name"): s.get("value", 0) for s in stats_raw}
-                    
-                    pj = int(stats_map.get("gamesPlayed", 0))
-                    gf = int(stats_map.get("pointsFor", 0))
-                    gc = int(stats_map.get("pointsAgainst", 0))
-                    pts = int(stats_map.get("points", 0))
-                    
-                    # Si el equipo ya existe en el acumulado, sumamos los datos de las fases
-                    if nombre in tabla_acumulada:
-                        tabla_acumulada[nombre]["Puntos"] += pts
-                        tabla_acumulada[nombre]["PJ"] += pj
-                        tabla_acumulada[nombre]["GF"] += gf
-                        tabla_acumulada[nombre]["GC"] += gc
-                    else:
-                        tabla_acumulada[nombre] = {
-                            "Equipo": nombre,
-                            "Puntos": pts,
-                            "PJ": pj,
-                            "GF": gf,
-                            "GC": gc
-                        }
-                        
+            for tabla in tablas:
+                # Identificamos la tabla acumulada
+                if "Anual" in tabla.text or "PJ" in tabla.text:
+                    filas = tabla.find_all("tr")
+                    for fila in filas[1:]:
+                        cols = [td.text.strip() for td in fila.find_all(["td", "th"])]
+                        if len(cols) >= 8:
+                            nombre_eq = cols[1]
+                            nombre_eq = re.sub(r'^\d+\s*', '', nombre_eq).strip()
+                            try:
+                                pts = int(cols[2])
+                                pj = int(cols[3])
+                                gf = int(cols[7]) if len(cols) > 7 else 15
+                                gc = int(cols[8]) if len(cols) > 8 else 15
+                                
+                                pj_safe = max(1, pj)
+                                xg_est = round((gf / pj_safe) * 0.95, 2)
+                                
+                                equipos_lista.append({
+                                    "Equipo": nombre_eq,
+                                    "Puntos": pts,
+                                    "PJ": pj,
+                                    "GF": gf,
+                                    "GC": gc,
+                                    "xG": max(0.80, xg_est)
+                                })
+                            except ValueError:
+                                continue
+                    if len(equipos_lista) >= 20:
+                        break
     except Exception:
         pass
 
-    equipos_lista = []
-    for eq, datos in tabla_acumulada.items():
-        pj_safe = max(1, datos["PJ"])
-        # Cálculo de xG Proyectado sobre la tabla anual
-        xg_est = round((datos["GF"] / pj_safe) * 0.95, 2)
-        datos["xG"] = max(0.80, xg_est)
-        equipos_lista.append(datos)
+    # INTENTO 2: Resguardo (Fallback) en caso de caída
+    if not equipos_lista:
+        url_espn = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
+        tabla_acumulada = {}
+        try:
+            r = requests.get(url_espn, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                children = data.get("children", [])
+                if not children and "standings" in data:
+                    children = [data]
+
+                for grupo in children:
+                    entries = grupo.get("standings", {}).get("entries", [])
+                    for entry in entries:
+                        nombre = entry.get("team", {}).get("displayName", "")
+                        if not nombre: continue
+                        stats_raw = entry.get("stats", [])
+                        stats_map = {s.get("name"): s.get("value", 0) for s in stats_raw}
+                        
+                        pj = int(stats_map.get("gamesPlayed", 0))
+                        gf = int(stats_map.get("pointsFor", 0))
+                        gc = int(stats_map.get("pointsAgainst", 0))
+                        pts = int(stats_map.get("points", 0))
+                        
+                        if nombre in tabla_acumulada:
+                            tabla_acumulada[nombre]["Puntos"] += pts
+                            tabla_acumulada[nombre]["PJ"] += pj
+                            tabla_acumulada[nombre]["GF"] += gf
+                            tabla_acumulada[nombre]["GC"] += gc
+                        else:
+                            tabla_acumulada[nombre] = {"Equipo": nombre, "Puntos": pts, "PJ": pj, "GF": gf, "GC": gc}
+
+                for eq, datos in tabla_acumulada.items():
+                    pj_safe = max(1, datos["PJ"])
+                    xg_est = round((datos["GF"] / pj_safe) * 0.95, 2)
+                    datos["xG"] = max(0.80, xg_est)
+                    equipos_lista.append(datos)
+        except Exception:
+            pass
 
     df_resultado = pd.DataFrame(equipos_lista)
-    
     if not df_resultado.empty:
-        # Ordenamos por Puntos y Diferencia/Goles a Favor (Criterio Tabla Anual)
         df_resultado["DG"] = df_resultado["GF"] - df_resultado["GC"]
         df_resultado = df_resultado.sort_values(
             by=["Puntos", "DG", "GF"], 
@@ -731,7 +757,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
     return hubo_cambios, nuevos
 
 # =====================================================================
-# 8. INTERFAZ PRINCIPAL
+# 8. INTERFAZ PRINCIPAL STREAMLIT
 # =====================================================================
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
@@ -739,12 +765,12 @@ with col_logo:
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">MOTOR AUTÓNOMO CON DATOS EN VIVO DESDE LA API DE ESPN</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">TABLA ANUAL ACUMULADA Y DATOS EN VIVO DESDE PROMIEDOS</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
 # CARGA DE TABLA Y EQUIPOS EN VIVO
-df = obtener_tabla_en_vivo_espn()
+df = obtener_tabla_en_vivo_promiedos()
 
 if not df.empty:
     lista_equipos = sorted(df["Equipo"].unique())
@@ -766,7 +792,7 @@ if not df.empty:
         st.divider()
 
     # TABLA DE POSICIONES
-    st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG (Live ESPN)</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #cbd5e1;'>Tabla Anual de Posiciones & xG (Oficial Promiedos)</h3>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
@@ -970,4 +996,4 @@ if not df.empty:
             st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
 
 else:
-    st.error("No se pudo obtener la información en vivo desde ESPN. Intente refrescar la página en un momento.")
+    st.error("No se pudo obtener la información en vivo. Intente refrescar la página.")
