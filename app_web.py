@@ -104,7 +104,6 @@ def obtener_jerarquia_y_bajas(nombre_equipo):
 
     if os.path.exists(ruta_csv):
         try:
-            import pandas as pd
             df_mercado = pd.read_csv(ruta_csv)
 
             equipo_csv = None
@@ -135,11 +134,6 @@ def obtener_jerarquia_y_bajas(nombre_equipo):
 
     jerarquia_final = round(jerarquia_base * factor_lesiones, 2)
     return jerarquia_final, bajas
-
-def obtener_jerarquia(nombre_equipo):
-    """Función puente para que el motor IA original siga funcionando."""
-    jerarquia_final, _ = obtener_jerarquia_y_bajas(nombre_equipo)
-    return jerarquia_final
 
 def obtener_jerarquia(nombre_equipo):
     """Función puente para que el motor IA original siga funcionando."""
@@ -318,8 +312,79 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 4. MOTOR DE PREDICCIÓN (IA O MODELO ESTADÍSTICO DE RESPALDO)
+# 4. MOTOR DE PREDICCIÓN E IDENTIFICACIÓN AVANZADA DE EQUIPOS
 # =====================================================================
+ALIAS_EQUIPOS = {
+    "river": "River Plate", "river plate": "River Plate",
+    "boca": "Boca Juniors", "boca juniors": "Boca Juniors",
+    "racing": "Racing Club", "racing club": "Racing Club",
+    "san lorenzo": "San Lorenzo",
+    "independiente": "Independiente", "indep'te": "Independiente",
+    "estudiantes": "Estudiantes", "estudiantes lp": "Estudiantes", "estudiantes (lp)": "Estudiantes", "studiantes": "Estudiantes",
+    "estudiantes rc": "Estudiantes RC", "estudiantes (rc)": "Estudiantes RC", "estudiantes rio cuarto": "Estudiantes RC",
+    "talleres": "Talleres", "talleres (c)": "Talleres", "talleres cordoba": "Talleres",
+    "vélez": "Vélez Sarsfield", "velez": "Vélez Sarsfield", "vélez sarsfield": "Vélez Sarsfield", "velez sarsfield": "Vélez Sarsfield",
+    "lanús": "Lanús", "lanus": "Lanús",
+    "huracán": "Huracán", "huracan": "Huracán",
+    "rosario central": "Rosario Central", "rosario ctral": "Rosario Central", "rosario ctr": "Rosario Central",
+    "argentinos": "Argentinos Juniors", "argentinos jrs": "Argentinos Juniors", "arg juniors": "Argentinos Juniors", "argentinos juniors": "Argentinos Juniors",
+    "godoy cruz": "Godoy Cruz",
+    "belgrano": "Belgrano",
+    "newell's": "Newell's", "newells": "Newell's", "newell's old boys": "Newell's",
+    "defensa y justicia": "Defensa y Justicia", "def y justicia": "Defensa y Justicia", "defensa": "Defensa y Justicia",
+    "unión": "Unión", "union": "Unión", "union santa fe": "Unión",
+    "platense": "Platense",
+    "gimnasia lp": "Gimnasia LP", "gimnasia (lp)": "Gimnasia LP", "gimnasia la plata": "Gimnasia LP", "gimnasia": "Gimnasia LP",
+    "gimnasia mza": "Gimnasia (M)", "gimnasia (m)": "Gimnasia (M)", "gimnasia mendoza": "Gimnasia (M)",
+    "instituto": "Instituto", "banfield": "Banfield", "tigre": "Tigre",
+    "barracas central": "Barracas Central", "barracas ctral": "Barracas Central", "barracas": "Barracas Central",
+    "central córdoba": "Central Córdoba", "central cordoba": "Central Córdoba", "central cba (sde)": "Central Córdoba", "central cba": "Central Córdoba",
+    "sarmiento": "Sarmiento", "sarmiento (j)": "Sarmiento",
+    "deportivo riestra": "Deportivo Riestra", "dep riestra": "Deportivo Riestra", "riestra": "Deportivo Riestra",
+    "independiente rivadavia": "Independiente Rivadavia", "ind rivadavia": "Independiente Rivadavia", "indep rivadavia": "Independiente Rivadavia",
+    "atlético tucumán": "Atlético Tucumán", "atletico tucuman": "Atlético Tucumán", "atl tucuman": "Atlético Tucumán", "a tucuman": "Atlético Tucumán",
+    "aldosivi": "Aldosivi",
+    "san martín (sj)": "San Martín (SJ)", "san martin (sj)": "San Martín (SJ)", "s martin (sj)": "San Martín (SJ)", "san martin sj": "San Martín (SJ)"
+}
+
+def buscar_equipo(nombre_buscado, lista_equipos):
+    if not nombre_buscado or not lista_equipos:
+        return None
+
+    s_clean = str(nombre_buscado).strip().lower()
+
+    if s_clean in ALIAS_EQUIPOS:
+        cand = ALIAS_EQUIPOS[s_clean]
+        if cand in lista_equipos:
+            return cand
+
+    s_sin_par = re.sub(r"\[.*?\]|\(.*?\)", "", s_clean).strip()
+    if s_sin_par in ALIAS_EQUIPOS:
+        cand = ALIAS_EQUIPOS[s_sin_par]
+        if cand in lista_equipos:
+            return cand
+
+    for eq in lista_equipos:
+        if s_clean == eq.lower().strip():
+            return eq
+
+    for eq in lista_equipos:
+        eq_clean = eq.lower().strip()
+        if eq_clean in s_clean or s_clean in eq_clean:
+            if "estudiantes" in eq_clean and "estudiantes" in s_clean:
+                es_buscado_rc = "rc" in s_clean or "rio cuarto" in s_clean
+                es_equipo_rc = "rc" in eq_clean or "rio cuarto" in eq_clean
+                if es_buscado_rc != es_equipo_rc:
+                    continue
+            if "gimnasia" in eq_clean and "gimnasia" in s_clean:
+                es_buscado_m = "mza" in s_clean or "(m)" in s_clean or "mendoza" in s_clean
+                es_equipo_m = "mza" in eq_clean or "(m)" in eq_clean or "mendoza" in eq_clean
+                if es_buscado_m != es_equipo_m:
+                    continue
+            return eq
+
+    return None
+
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[], paquete_ia=None):
     jer_loc = obtener_jerarquia(local)
     jer_vis = obtener_jerarquia(visitante)
@@ -330,7 +395,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     pts_u5_loc_ajustado = pts_u5_loc * (jer_vis / 10.0)
     pts_u5_vis_ajustado = pts_u5_vis * (jer_loc / 10.0)
 
-    # Si tenemos un modelo .pkl cargado, intentamos predecir directamente con IA
     if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
         mapa = paquete_ia["mapa_equipos"]
         modelo = paquete_ia["modelo"]
@@ -373,7 +437,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # Resguardo: Algoritmo estadístico heurístico
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -441,76 +504,80 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
 
     return prob_loc, prob_empate, prob_vis, False
 
-def buscar_equipo(nombre_buscado, lista_equipos):
-    nombre_clean = nombre_buscado.lower().strip()
-    if "estudiantes" in nombre_clean:
-        if any(k in nombre_clean for k in ["rio cuarto", "río cuarto"]):
-            for eq in lista_equipos:
-                if "rc" in eq.lower() or "rio cuarto" in eq.lower(): return eq
-        elif any(k in nombre_clean.split() for k in ["la plata", "lp", "estudiantes"]):
-            for eq in lista_equipos:
-                if "estudiantes" in eq.lower() and "rc" not in eq.lower(): return eq
-    elif "gimnasia" in nombre_clean:
-        if "la plata" in nombre_clean or "lp" in nombre_clean.split():
-            for eq in lista_equipos:
-                if "gimnasia" in eq.lower(): return eq
-
-    for eq in lista_equipos:
-        if nombre_clean == eq.lower().strip(): return eq
-
-    for eq in lista_equipos:
-        eq_clean = eq.lower().strip()
-        if nombre_clean in eq_clean or eq_clean in nombre_clean:
-            if "estudiantes" in eq_clean and "estudiantes" in nombre_clean:
-                es_buscado_rc = "rc" in nombre_clean.split() or "rio cuarto" in nombre_clean
-                es_equipo_rc = "rc" in eq_clean or "rio cuarto" in eq_clean
-                if es_buscado_rc != es_equipo_rc: continue
-            return eq
-    return None
-
 # =====================================================================
-# 5. SCRAPING DE PROMIEDOS Y ESPN
+# 5. SCRAPING Y API OFICIAL DE ESPN EN VIVO (ANTI-BLOQUEO PROMIEDOS)
 # =====================================================================
+NORMALIZADOR_ESPN = {
+    "Argentinos Juniors": "Argentinos Juniors",
+    "Atlético Tucumán": "Atlético Tucumán",
+    "Banfield": "Banfield",
+    "Barracas Central": "Barracas Central",
+    "Belgrano": "Belgrano",
+    "Boca Juniors": "Boca Juniors",
+    "Central Córdoba (Santiago del Estero)": "Central Córdoba",
+    "Defensa y Justicia": "Defensa y Justicia",
+    "Deportivo Riestra": "Deportivo Riestra",
+    "Estudiantes de La Plata": "Estudiantes",
+    "Gimnasia La Plata": "Gimnasia LP",
+    "Godoy Cruz": "Godoy Cruz",
+    "Huracán": "Huracán",
+    "Independiente": "Independiente",
+    "Independiente Rivadavia": "Independiente Rivadavia",
+    "Instituto": "Instituto",
+    "Lanús": "Lanús",
+    "Newell's Old Boys": "Newell's",
+    "Platense": "Platense",
+    "Racing Club": "Racing Club",
+    "River Plate": "River Plate",
+    "Rosario Central": "Rosario Central",
+    "San Lorenzo": "San Lorenzo",
+    "Sarmiento": "Sarmiento",
+    "Talleres": "Talleres",
+    "Tigre": "Tigre",
+    "Unión": "Unión",
+    "Vélez Sarsfield": "Vélez Sarsfield",
+    "Aldosivi": "Aldosivi",
+    "San Martín (San Juan)": "San Martín (SJ)"
+}
 
+@st.cache_data(ttl=300)
 def obtener_estadisticas_promiedos(equipos_disponibles):
-    url = "https://www.promiedos.com.ar/primera"
-    stats_promiedos = {}
+    """
+    Obtiene la tabla real y actualizada de la Liga Profesional desde la API pública
+    de ESPN (evita bloqueos 403 de Cloudflare que sufren Promiedos y webs de scraping).
+    """
+    stats_torneo = {}
+    url_espn = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
 
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            "Accept-Language": "es-AR,es;q=0.8"
-        }
-        response = requests.get(url, headers=headers, timeout=15)
-        response.encoding = 'utf-8'
+        res = requests.get(url_espn, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            entries = data["children"][0]["standings"]["entries"]
 
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
-            tabla = soup.find("table", id="posiciones")
+            for entry in entries:
+                nombre_raw = entry["team"]["displayName"]
+                eq_clean = NORMALIZADOR_ESPN.get(nombre_raw, nombre_raw)
+                eq_match = buscar_equipo(eq_clean, equipos_disponibles)
 
-            if tabla:
-                filas = tabla.find_all("tr")
-                for fila in filas[1:]:
-                    celdas = fila.find_all(["td", "th"])
-                    if len(celdas) >= 9:
-                        equipo_raw = celdas[1].get_text(strip=True)
-                        pts_raw = celdas[2].get_text(strip=True)
-                        pj_raw = celdas[3].get_text(strip=True)
-                        gf_raw = celdas[7].get_text(strip=True)
-                        gc_raw = celdas[8].get_text(strip=True)
+                if eq_match:
+                    puntos, pj, gf, gc = 0, 0, 0, 0
+                    for stat in entry["stats"]:
+                        if stat["name"] == "points": puntos = int(stat["value"])
+                        elif stat["name"] == "gamesPlayed": pj = int(stat["value"])
+                        elif stat["name"] == "pointsFor": gf = int(stat["value"])
+                        elif stat["name"] == "pointsAgainst": gc = int(stat["value"])
 
-                        eq_match = buscar_equipo(equipo_raw, equipos_disponibles)
-                        if eq_match:
-                            stats_promiedos[eq_match] = {
-                                "Puntos": int(pts_raw) if pts_raw.isdigit() else 0,
-                                "GF": int(gf_raw) if gf_raw.isdigit() else 0,
-                                "GC": int(gc_raw) if gc_raw.isdigit() else 0,
-                                "PJ": int(pj_raw) if pj_raw.isdigit() else 1,
-                            }
+                    stats_torneo[eq_match] = {
+                        "Puntos": puntos,
+                        "PJ": max(1, pj),
+                        "GF": gf,
+                        "GC": gc
+                    }
     except Exception:
         pass
 
-    return stats_promiedos
+    return stats_torneo
 
 @st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
@@ -663,7 +730,6 @@ DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
 
 def inicializar_historial():
-    """Crea la estructura del archivo CSV si no existe o lo repara si es muy viejo."""
     columnas_requeridas = [
         "ID", "Fecha", "Local", "Visitante", "Prob_Loc", "Prob_Emp", "Prob_Vis",
         "Prediccion_1X2", "Prob_Over25", "Prob_BTTS", "Corners_Est", 
@@ -674,32 +740,26 @@ def inicializar_historial():
         df_base.to_csv(RUTA_HISTORIAL, index=False)
     else:
         try:
-            df = pd.read_csv(RUTA_HISTORIAL)
+            df_h = pd.read_csv(RUTA_HISTORIAL)
             hubo_cambio = False
-            if "Estado" not in df.columns:
-                df["Estado"] = "Finalizado"
+            if "Estado" not in df_h.columns:
+                df_h["Estado"] = "Finalizado"
                 hubo_cambio = True
             for col in columnas_requeridas:
-                if col not in df.columns:
-                    df[col] = np.nan
+                if col not in df_h.columns:
+                    df_h[col] = np.nan
                     hubo_cambio = True
             if hubo_cambio:
-                df.to_csv(RUTA_HISTORIAL, index=False)
+                df_h.to_csv(RUTA_HISTORIAL, index=False)
         except Exception:
             pass
 
 def borrar_historial():
-    """Borra el archivo histórico para limpiar datos de pruebas viejas."""
     if os.path.exists(RUTA_HISTORIAL):
         os.remove(RUTA_HISTORIAL)
         inicializar_historial()
 
 def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_ia, lista_equipos):
-    """
-    Función silenciosa que:
-    1. Revisa los partidos que estaban 'Pendientes' y les busca el resultado en ESPN.
-    2. Registra los partidos de hoy como 'Pendientes' con sus predicciones calculadas.
-    """
     inicializar_historial()
     try:
         df_hist = pd.read_csv(RUTA_HISTORIAL)
@@ -714,7 +774,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
         if not pendientes.empty:
             fechas_pendientes = pendientes["Fecha"].unique()
             for fecha in fechas_pendientes:
-                fecha_api = fecha.replace("-", "")
+                fecha_api = str(fecha).replace("-", "")
                 try:
                     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_api}"
                     r = requests.get(url, timeout=10)
@@ -735,8 +795,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
                                     df_hist.at[idx, "Goles_Local_Real"] = int(comps[0]["score"] if comps[0]["homeAway"] == "home" else comps[1]["score"])
                                     df_hist.at[idx, "Goles_Visita_Real"] = int(comps[1]["score"] if comps[0]["homeAway"] == "home" else comps[0]["score"])
 
-                                    # Extracción de Córners Reales
-                                    c_totales = 9 # Promedio base si ESPN no lo provee
+                                    c_totales = 9
                                     try:
                                         r_sum = requests.get(f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/summary?event={ev['id']}", timeout=5)
                                         if r_sum.status_code == 200:
@@ -794,7 +853,6 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
 
     return hubo_cambios, nuevos
 
-
 # =====================================================================
 # 7. INTERFAZ Y ENCABEZADO
 # =====================================================================
@@ -825,18 +883,16 @@ if os.path.exists(RUTA_CSV):
             s = str(x).strip()
             s_lower = s.lower()
 
-            # Formateo para Estudiantes
             if "estudiantes" in s_lower:
                 if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]): 
                     return "Estudiantes RC"
                 if any(k in s_lower for k in ["la plata", "(lp)"]): 
                     return "Estudiantes"
 
-            # Formateo estricto para los dos Gimnasia (evita la colisión de nombres)
             if "gimnasia" in s_lower:
                 if any(k in s_lower for k in ["mendoza", "(m)"]):
                     return "Gimnasia (M)"
-                return "Gimnasia (LP)"
+                return "Gimnasia LP"
 
             return re.sub(r"\[.*?\]|\(.*?\)", "", s).strip()
 
@@ -850,44 +906,37 @@ if os.path.exists(RUTA_CSV):
     elif "xG_Favor" in df.columns and "xG" not in df.columns:
         df["xG"] = df["xG_Favor"]
 
-        # ... código previo ...
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     
-    # 1. Scraping en vivo desde Promiedos
-    stats_torneo = obtener_estadisticas_promiedos(lista_equipos)
+    # 1. Extracción en vivo desde API Oficial (Evita bloqueos 403)
+    stats_torneo = obtener_estadisticas_promiedos(tuple(lista_equipos))
 
     # =====================================================================
-    #  NUEVO: ACTUALIZAR Y REORDENAR EL DATAFRAME CON DATOS EN VIVO
+    #  ACTUALIZAR Y REORDENAR EL DATAFRAME CON DATOS EN VIVO
     # =====================================================================
     if stats_torneo:
+        for col_req in ["Puntos", "PJ", "GF", "GC", "DG"]:
+            if col_req not in df.columns:
+                df[col_req] = 0
+
         for equipo, datos in stats_torneo.items():
             mask = df["Equipo"] == equipo
             if mask.any():
-                if "Puntos" in df.columns: 
-                    df.loc[mask, "Puntos"] = datos["Puntos"]
-                if "PJ" in df.columns: 
-                    df.loc[mask, "PJ"] = datos["PJ"]
-                if "GF" in df.columns: 
-                    df.loc[mask, "GF"] = datos["GF"]
-                if "GC" in df.columns: 
-                    df.loc[mask, "GC"] = datos["GC"]
-                if "DG" in df.columns: 
-                    df.loc[mask, "DG"] = datos["GF"] - datos["GC"]
+                df.loc[mask, "Puntos"] = datos["Puntos"]
+                df.loc[mask, "PJ"] = datos["PJ"]
+                df.loc[mask, "GF"] = datos["GF"]
+                df.loc[mask, "GC"] = datos["GC"]
+                df.loc[mask, "DG"] = datos["GF"] - datos["GC"]
 
-        # Recalcular xG en vivo si cambió el número de partidos jugados
         if "GF" in df.columns and "PJ" in df.columns:
             df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
 
-        # Reordenar la tabla por Puntos, Diferencia de Gol y Goles a Favor
-        columnas_orden = [col for col in ["Puntos", "DG", "GF"] if col in df.columns]
-        if columnas_orden:
-            df = df.sort_values(by=columnas_orden, ascending=False).reset_index(drop=True)
+        df = df.sort_values(by=["Puntos", "DG", "GF"], ascending=[False, False, False]).reset_index(drop=True)
 
     # AGENDA DEL DÍA AUTOMÁTICA Y AGENTE AUTÓNOMO
     st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy (Agente Autónomo)</h3>", unsafe_allow_html=True)
-    # ... resto del código ...
 
-    partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
+    partidos_del_dia = obtener_partidos_hoy_auto(tuple(lista_equipos))
 
     # === EJECUTAR AGENTE ===
     procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df, stats_torneo, paquete_ia, lista_equipos)
@@ -910,7 +959,7 @@ if os.path.exists(RUTA_CSV):
     # =====================================================================
     # SECCIÓN: MÉTRICAS DE EFECTIVIDAD Y PERFORMANCE DEL MODELO
     # =====================================================================
-    st.markdown("<h3 style='color: #cbd5e1;'> Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #cbd5e1;'>Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
 
     df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
 
@@ -918,7 +967,7 @@ if os.path.exists(RUTA_CSV):
         finalizados = df_ef[df_ef["Estado"] == "Finalizado"].copy()
 
         if finalizados.empty:
-            st.info(" **Agente Autónomo Activo**: Las predicciones de hoy se han guardado. En cuanto finalicen los partidos, se descargarán los resultados y verás la efectividad aquí.")
+            st.info("🤖 **Agente Autónomo Activo**: Las predicciones de hoy se han guardado. En cuanto finalicen los partidos, se descargarán los resultados y verás la efectividad aquí.")
         else:
             finalizados["res_real_1x2"] = np.where(finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
                                           np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate"))
@@ -965,7 +1014,7 @@ if os.path.exists(RUTA_CSV):
             )
             st.plotly_chart(fig_efectividad, use_container_width=True)
 
-            with st.expander("📋 Ver registro detallado de las evaluaciones autónomas"):
+            with st.expander("📋 Ver registro detallado de las evaluations autónomas"):
                 df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Goles_Local_Real", "Goles_Visita_Real", "Corners_Est", "Corners_Reales"]].tail(10)
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
     else:
@@ -1111,4 +1160,4 @@ if os.path.exists(RUTA_CSV):
             st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
 
 else:
-    st.error("Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista.") 
+    st.error("Archivo de origen no encontrado. Verifique que 'datos_procesados.csv' exista.")
