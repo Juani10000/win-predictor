@@ -850,28 +850,43 @@ if os.path.exists(RUTA_CSV):
     elif "xG_Favor" in df.columns and "xG" not in df.columns:
         df["xG"] = df["xG_Favor"]
 
+        # ... código previo ...
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
-
-    # 1. Traemos los datos frescos de Promiedos
+    
+    # 1. Scraping en vivo desde Promiedos
     stats_torneo = obtener_estadisticas_promiedos(lista_equipos)
 
-    # 2. INYECCIÓN EN VIVO: Pisamos el DataFrame con los puntos reales actualizados
+    # =====================================================================
+    #  NUEVO: ACTUALIZAR Y REORDENAR EL DATAFRAME CON DATOS EN VIVO
+    # =====================================================================
     if stats_torneo:
-        for eq_nombre, datos_frescos in stats_torneo.items():
-            mask = df["Equipo"] == eq_nombre
+        for equipo, datos in stats_torneo.items():
+            mask = df["Equipo"] == equipo
             if mask.any():
-                df.loc[mask, "Puntos"] = datos_frescos["Puntos"]
-                df.loc[mask, "PJ"] = datos_frescos["PJ"]
-                df.loc[mask, "GF"] = datos_frescos["GF"]
-                df.loc[mask, "GC"] = datos_frescos["GC"]
+                if "Puntos" in df.columns: 
+                    df.loc[mask, "Puntos"] = datos["Puntos"]
+                if "PJ" in df.columns: 
+                    df.loc[mask, "PJ"] = datos["PJ"]
+                if "GF" in df.columns: 
+                    df.loc[mask, "GF"] = datos["GF"]
+                if "GC" in df.columns: 
+                    df.loc[mask, "GC"] = datos["GC"]
+                if "DG" in df.columns: 
+                    df.loc[mask, "DG"] = datos["GF"] - datos["GC"]
 
-        # Recalculamos xG y ordenamos por Puntos
-        df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
-        if "Puntos" in df.columns:
-            df = df.sort_values(by="Puntos", ascending=False).reset_index(drop=True)
+        # Recalcular xG en vivo si cambió el número de partidos jugados
+        if "GF" in df.columns and "PJ" in df.columns:
+            df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
+
+        # Reordenar la tabla por Puntos, Diferencia de Gol y Goles a Favor
+        columnas_orden = [col for col in ["Puntos", "DG", "GF"] if col in df.columns]
+        if columnas_orden:
+            df = df.sort_values(by=columnas_orden, ascending=False).reset_index(drop=True)
 
     # AGENDA DEL DÍA AUTOMÁTICA Y AGENTE AUTÓNOMO
     st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy (Agente Autónomo)</h3>", unsafe_allow_html=True)
+    # ... resto del código ...
+
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
 
     # === EJECUTAR AGENTE ===
