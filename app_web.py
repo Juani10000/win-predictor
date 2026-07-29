@@ -97,16 +97,16 @@ def obtener_jerarquia_y_bajas(nombre_equipo):
             if eq.lower() in nombre_clean or nombre_clean in eq.lower():
                 jerarquia_base = rating
                 break
-                
+
     ruta_csv = os.path.join("datos", "valores_lpf.csv")
     factor_lesiones = 1.0
     bajas = []
-    
+
     if os.path.exists(ruta_csv):
         try:
             import pandas as pd
             df_mercado = pd.read_csv(ruta_csv)
-            
+
             equipo_csv = None
             if isinstance(nombre_equipo, str):
                 nombre_clean = nombre_equipo.lower().strip()
@@ -114,25 +114,25 @@ def obtener_jerarquia_y_bajas(nombre_equipo):
                     if isinstance(eq_csv, str) and (eq_csv.lower() in nombre_clean or nombre_clean in eq_csv.lower()):
                         equipo_csv = eq_csv
                         break
-                        
+
             if equipo_csv:
                 df_equipo = df_mercado[df_mercado["Equipo"] == equipo_csv]
                 valor_total = df_equipo["Valor_Millones"].sum()
-                
+
                 if valor_total > 0:
                     df_bajas = df_equipo[df_equipo["Estado"] != "Disponible"]
                     df_disponibles = df_equipo[df_equipo["Estado"] == "Disponible"]
-                    
+
                     valor_disponible = df_disponibles["Valor_Millones"].sum()
-                    
+
                     for _, fila in df_bajas.iterrows():
                         if fila["Jugador"] != "Resto_Plantilla":
                             bajas.append(f"{fila['Jugador']} ({fila['Estado']})")
-                    
+
                     factor_lesiones = max(0.50, valor_disponible / valor_total) 
         except Exception:
             pass
-            
+
     jerarquia_final = round(jerarquia_base * factor_lesiones, 2)
     return jerarquia_final, bajas
 
@@ -170,7 +170,7 @@ def poisson_prob(lmbda, k):
 
 def simular_monte_carlo(xg_loc, xg_vis, num_simulaciones=10000):
     rng = np.random.default_rng()
-    
+
     xg_loc_sim = rng.normal(xg_loc, xg_loc * 0.10, num_simulaciones)
     xg_vis_sim = rng.normal(xg_vis, xg_vis * 0.10, num_simulaciones)
 
@@ -198,12 +198,12 @@ def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, pr
     prob_emp_poisson = 0.0
     prob_vis_poisson = 0.0
     poisson_matriz = {}
-    
+
     for i in range(7):
         for j in range(7):
             p = poisson_prob(xg_loc, i) * poisson_prob(xg_vis, j)
             poisson_matriz[(i, j)] = p
-            
+
             if i > j: prob_loc_poisson += p
             elif i == j: prob_emp_poisson += p
             else: prob_vis_poisson += p
@@ -219,7 +219,7 @@ def calcular_top_resultados(xg_loc, xg_vis, prob_loc_target, prob_emp_target, pr
             p_ajustada = p * factor_emp
         else:
             p_ajustada = p * factor_vis
-            
+
         scores[f"{i} - {j}"] = p_ajustada * 100
 
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -273,13 +273,13 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 def obtener_historial_directo(equipo_a, equipo_b):
     semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
     seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
-    
+
     rng = np.random.default_rng(seed)
-    
+
     es_inverso = equipo_a != min(equipo_a, equipo_b)
     resultados_posibles = ['G', 'E', 'P']
     historial_base = rng.choice(resultados_posibles, 5, p=[0.38, 0.32, 0.30]).tolist()
-    
+
     if es_inverso:
         historial_final = []
         for r in historial_base:
@@ -295,9 +295,9 @@ def render_h2h_pills(historial, local, visitante):
     html += "<span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; "
     html += f"<span style='color: #ff3366; font-weight: bold;'>P</span> = Ganó {visitante}"
     html += "</div>"
-    
+
     html += "<div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>"
-    
+
     for res in historial:
         if res == 'G':
             color = "#00ffcc"
@@ -311,9 +311,9 @@ def render_h2h_pills(historial, local, visitante):
             color = "#ff3366"
             bg = "rgba(255, 51, 102, 0.2)"
             tooltip = f"Ganó {visitante}"
-            
+
         html += f"<div title='{tooltip}' style='background-color: {bg}; color: {color}; width: 32px; height: 32px; border: 2px solid {color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; box-shadow: 0 0 5px {color}80; cursor: help;'>{res}</div>"
-        
+
     html += "</div>"
     return html
 
@@ -360,7 +360,7 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             try:
                 probs = modelo.predict_proba(row_input)[0]
                 clases = list(modelo.classes_)
-                
+
                 idx_loc = clases.index(1) if 1 in clases else 0
                 idx_emp = clases.index(0) if 0 in clases else 1
                 idx_vis = clases.index(2) if 2 in clases else 2
@@ -409,7 +409,7 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
         ventaja_relativa = 0.0
 
     ajuste_h2h = ventaja_relativa * 0.08
-    
+
     victorias_h2h = historial_h2h.count('G')
     derrotas_h2h = historial_h2h.count('P')
     balance_h2h = victorias_h2h - derrotas_h2h
@@ -475,7 +475,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 def obtener_estadisticas_promiedos(equipos_disponibles):
     url = "https://www.promiedos.com.ar/primera"
     stats_promiedos = {}
-    
+
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
@@ -483,11 +483,11 @@ def obtener_estadisticas_promiedos(equipos_disponibles):
         }
         response = requests.get(url, headers=headers, timeout=15)
         response.encoding = 'utf-8'
-        
+
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
             tabla = soup.find("table", id="posiciones")
-            
+
             if tabla:
                 filas = tabla.find_all("tr")
                 for fila in filas[1:]:
@@ -509,7 +509,7 @@ def obtener_estadisticas_promiedos(equipos_disponibles):
                             }
     except Exception:
         pass
-        
+
     return stats_promiedos
 
 @st.cache_data(ttl=3600)
@@ -623,7 +623,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         str(stats_loc["VI"]), str(stats_loc["TirosArco"]), f"{stats_loc['Pases']} %",
         f"{stats_loc['Fortaleza']}/100", f"{stats_loc['Pts_U5']} pts", f"{jer_loc:.2f}/10"
     ]
-    
+
     text_vis = [
         str(stats_vis["GF"]), str(stats_vis["xG"]), f"{stats_vis['Pos']} %",
         str(stats_vis["VI"]), str(stats_vis["TirosArco"]), f"{stats_vis['Pases']} %",
@@ -705,9 +705,9 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
         df_hist = pd.read_csv(RUTA_HISTORIAL)
     except Exception:
         return False, 0
-        
+
     hubo_cambios = False
-    
+
     # === PASO 1: EXTRAER RESULTADOS REALES DE PARTIDOS PENDIENTES ===
     if "Estado" in df_hist.columns:
         pendientes = df_hist[df_hist["Estado"] == "Pendiente"]
@@ -725,16 +725,16 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
                                 comps = ev["competitions"][0]["competitors"]
                                 n_loc = comps[0]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[1]["team"]["name"]
                                 n_vis = comps[1]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[0]["team"]["name"]
-                                
+
                                 t_loc = buscar_equipo(n_loc, lista_equipos)
                                 t_vis = buscar_equipo(n_vis, lista_equipos)
-                                
+
                                 match_idx = df_hist[(df_hist["Local"] == t_loc) & (df_hist["Visitante"] == t_vis) & (df_hist["Estado"] == "Pendiente")].index
                                 if len(match_idx) > 0:
                                     idx = match_idx[0]
                                     df_hist.at[idx, "Goles_Local_Real"] = int(comps[0]["score"] if comps[0]["homeAway"] == "home" else comps[1]["score"])
                                     df_hist.at[idx, "Goles_Visita_Real"] = int(comps[1]["score"] if comps[0]["homeAway"] == "home" else comps[0]["score"])
-                                    
+
                                     # Extracción de Córners Reales
                                     c_totales = 9 # Promedio base si ESPN no lo provee
                                     try:
@@ -748,7 +748,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
                                             if cc > 0: 
                                                 c_totales = cc
                                     except Exception: pass
-                                    
+
                                     df_hist.at[idx, "Corners_Reales"] = c_totales
                                     df_hist.at[idx, "Estado"] = "Finalizado"
                                     hubo_cambios = True
@@ -760,23 +760,23 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
     for p in partidos_del_dia:
         loc, vis = p["Local"], p["Visitante"]
         pid = f"{datetime.date.today().strftime('%Y%m%d')}_{loc[:3].upper()}_{vis[:3].upper()}"
-        
+
         if pid not in df_hist["ID"].values and loc in df_datos["Equipo"].values and vis in df_datos["Equipo"].values:
             xl_base = float(df_datos[df_datos["Equipo"] == loc].iloc[0].get("xG", 1.25))
             xv_base = float(df_datos[df_datos["Equipo"] == vis].iloc[0].get("xG", 1.10))
             xgl = round(xl_base * 1.15, 2)
             xgv = round(xv_base * 0.925, 2)
-            
+
             sl = consolidar_estadisticas(loc, df_datos, stats_torneo, xgl)
             sv = consolidar_estadisticas(vis, df_datos, stats_torneo, xgv)
             h2h = obtener_historial_directo(loc, vis)
-            
+
             pl, pe, pv, _ = realizar_prediccion(loc, vis, df_datos, sl, sv, xgl, xgv, 0.15, h2h, paquete_ia)
             po25, _, pbtts = calcular_mercados_adicionales(xgl, xgv)
             corn_est = round(sl["Corners"] + sv["Corners"], 1)
-            
+
             p1x2 = "Local" if pl > pe and pl > pv else "Visitante" if pv > pl and pv > pe else "Empate"
-            
+
             n_fila = pd.DataFrame([{
                 "ID": pid, "Fecha": fecha_hoy, "Local": loc, "Visitante": vis,
                 "Prob_Loc": round(pl, 1), "Prob_Emp": round(pe, 1), "Prob_Vis": round(pv, 1),
@@ -791,7 +791,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
 
     if hubo_cambios:
         df_hist.to_csv(RUTA_HISTORIAL, index=False)
-        
+
     return hubo_cambios, nuevos
 
 
@@ -824,14 +824,14 @@ if os.path.exists(RUTA_CSV):
         def limpiar_nombre_equipo(x):
             s = str(x).strip()
             s_lower = s.lower()
-            
+
             # Formateo para Estudiantes
             if "estudiantes" in s_lower:
                 if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]): 
                     return "Estudiantes RC"
                 if any(k in s_lower for k in ["la plata", "(lp)"]): 
                     return "Estudiantes"
-            
+
             # Formateo estricto para los dos Gimnasia (evita la colisión de nombres)
             if "gimnasia" in s_lower:
                 if any(k in s_lower for k in ["mendoza", "(m)"]):
@@ -851,7 +851,7 @@ if os.path.exists(RUTA_CSV):
         df["xG"] = df["xG_Favor"]
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
-    
+
     # 1. Traemos los datos frescos de Promiedos
     stats_torneo = obtener_estadisticas_promiedos(lista_equipos)
 
@@ -873,7 +873,7 @@ if os.path.exists(RUTA_CSV):
     # AGENDA DEL DÍA AUTOMÁTICA Y AGENTE AUTÓNOMO
     st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy (Agente Autónomo)</h3>", unsafe_allow_html=True)
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
-    
+
     # === EJECUTAR AGENTE ===
     procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df, stats_torneo, paquete_ia, lista_equipos)
 
@@ -892,23 +892,23 @@ if os.path.exists(RUTA_CSV):
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
-=====================================================================
+    # =====================================================================
     # SECCIÓN: MÉTRICAS DE EFECTIVIDAD Y PERFORMANCE DEL MODELO
     # =====================================================================
     st.markdown("<h3 style='color: #cbd5e1;'> Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
 
     df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
-    
+
     if not df_ef.empty and "Estado" in df_ef.columns:
         finalizados = df_ef[df_ef["Estado"] == "Finalizado"].copy()
-        
+
         if finalizados.empty:
             st.info(" **Agente Autónomo Activo**: Las predicciones de hoy se han guardado. En cuanto finalicen los partidos, se descargarán los resultados y verás la efectividad aquí.")
         else:
             finalizados["res_real_1x2"] = np.where(finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
                                           np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate"))
             finalizados["acierto_1x2"] = (finalizados["Prediccion_1X2"] == finalizados["res_real_1x2"]).astype(int)
-            
+
             finalizados["over25_real"] = ((finalizados["Goles_Local_Real"] + finalizados["Goles_Visita_Real"]) > 2.5).astype(int)
             finalizados["pred_over25"] = (finalizados["Prob_Over25"] >= 50.0).astype(int)
             finalizados["acierto_o25"] = (finalizados["pred_over25"] == finalizados["over25_real"]).astype(int)
@@ -924,9 +924,9 @@ if os.path.exists(RUTA_CSV):
             c2.metric("Acierto Over 2.5", f"{(finalizados['acierto_o25'].mean()*100):.1f}%")
             c3.metric("Acierto Ambos Anotan", f"{(finalizados['acierto_btts'].mean()*100):.1f}%")
             c4.metric("Error en Córners", f"±{finalizados['error_corners'].mean():.1f} ud.")
-            
+
             finalizados["Efectividad_Acumulada"] = (finalizados["acierto_1x2"].cumsum() / (np.arange(len(finalizados)) + 1)) * 100
-            
+
             fig_efectividad = go.Figure()
             fig_efectividad.add_trace(go.Scatter(
                 x=list(range(1, len(finalizados) + 1)),
@@ -995,7 +995,7 @@ if os.path.exists(RUTA_CSV):
             )
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
-            
+
             if es_ia:
                 st.success("Predicción ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
             else:
@@ -1079,7 +1079,7 @@ if os.path.exists(RUTA_CSV):
             st.markdown("---")
 
             st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
-            
+
             top_5_marcadores, prob_otro = calcular_top_resultados(
                 xg_proyectado_local, 
                 xg_proyectado_visi, 
