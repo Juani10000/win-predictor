@@ -4,6 +4,7 @@ import os
 import re
 import hashlib
 import unicodedata
+import io
 from bs4 import BeautifulSoup
 import numpy as np
 import pandas as pd
@@ -313,7 +314,7 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 4. MOTOR DE PREDICCIÓN Y NORMALIZADOR UNIVERSAL DE EQUIPOS
+# 4. MOTOR DE PREDICCIÓN Y NORMALIZACIÓN DE EQUIPOS
 # =====================================================================
 def normalizar_cadena(s):
     """Limpia acentos, caracteres extraños y pasa a minúsculas para igualar nombres web con el CSV."""
@@ -357,18 +358,15 @@ def buscar_equipo(nombre_buscado, lista_equipos):
         
     s_norm = normalizar_cadena(nombre_buscado)
     
-    # 1. Chequear si está en el diccionario de alias normalizado
     if s_norm in ALIAS_PROMIEDOS:
         cand = ALIAS_PROMIEDOS[s_norm]
         if cand in lista_equipos:
             return cand
 
-    # 2. Coincidencia normalizada exacta con la lista del CSV
     for eq in lista_equipos:
         if s_norm == normalizar_cadena(eq):
             return eq
 
-    # 3. Coincidencia parcial difusa
     for eq in lista_equipos:
         eq_norm = normalizar_cadena(eq)
         if len(s_norm) > 4 and (s_norm in eq_norm or eq_norm in s_norm):
@@ -394,7 +392,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     pts_u5_loc_ajustado = pts_u5_loc * (jer_vis / 10.0)
     pts_u5_vis_ajustado = pts_u5_vis * (jer_loc / 10.0)
 
-    # Si tenemos un modelo .pkl cargado, intentamos predecir directamente con IA
     if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
         mapa = paquete_ia["mapa_equipos"]
         modelo = paquete_ia["modelo"]
@@ -437,7 +434,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # Resguardo: Algoritmo estadístico heurístico
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
@@ -506,16 +502,22 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     return prob_loc, prob_empate, prob_vis, False
 
 # =====================================================================
-# 5. SCRAPING DE PROMIEDOS EN VIVO (MÁXIMA EFECTIVIDAD)
+# 5. SCRAPING DE PROMIEDOS CON PANDAS CRUDO (OPCIÓN B - PD.READ_HTML)
 # =====================================================================
 @st.cache_data(ttl=300)
 def obtener_estadisticas_promiedos(equipos_disponibles):
     """
-    Scraper optimizado para extraer posiciones en vivo desde:
-    https://www.promiedos.com.ar/league/liga-profesional/hc
+    OPCIÓN B (Pandas crudo - pd.read_html):
+    Extrae las posiciones en vivo desde Promiedos parseando automáticamente 
+    todas las tablas HTML con Pandas sin depender de IDs o clases frágiles.
+    URL principal: https://www.promiedos.com.ar/league/liga-profesional/hc
     """
     stats_promiedos = {}
-    url = "https://www.promiedos.com.ar/league/liga-profesional/hc"
+    urls = [
+        "https://www.promiedos.com.ar/league/liga-profesional/hc",
+        "https://www.promiedos.com.ar/primera",
+        "https://www.promiedos.com.ar/ligaargentina"
+    ]
     
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -524,44 +526,84 @@ def obtener_estadisticas_promiedos(equipos_disponibles):
         "Referer": "https://www.google.com/"
     }
 
-    try:
-        res = requests.get(url, headers=headers, timeout=12)
-        res.encoding = 'utf-8'
-        
-        if res.status_code == 200:
-            soup = BeautifulSoup(res.text, "html.parser")
-            tablas = soup.find_all("table")
-            
-            for tabla in tablas:
-                filas = tabla.find_all("tr")
-                for fila in filas:
-                    celdas = fila.find_all(["td", "th"])
-                    if len(celdas) >= 8:
-                        equipo_raw = celdas[1].get_text(" ", strip=True)
-                        equipo_raw = re.sub(r'^\d+\s*[-.]*\s*', '', equipo_raw).strip()
+    for url in urls:
+        try:
+            res = requests.get(url, headers=headers, timeout=12)
+            res.encoding = 'utf-8'
+            if res.status_code == 200:
+                # Opción B: Leer todas las tablas del HTML usando pd.read_html
+                tablas = pd.read_html(io.StringIO(res.text))
+                
+                for df_tabla in tablas:
+                    if len(df_tabla) >= 10 and df_tabla.shape[1] >= 6:
+                        df_tabla.columns = [str(c).upper() for c in df_tabla.columns]
                         
-                        pts_raw = celdas[2].get_text(strip=True)
-                        pj_raw = celdas[3].get_text(strip=True)
-                        gf_raw = celdas[6].get_text(strip=True) if len(celdas) > 6 else "0"
-                        gc_raw = celdas[7].get_text(strip=True) if len(celdas) > 7 else "0"
-
-                        if pts_raw.isdigit() and pj_raw.isdigit():
-                            eq_match = buscar_equipo(equipo_raw, equipos_disponibles)
-                            if eq_match:
-                                stats_promiedos[eq_match] = {
-                                    "Puntos": int(pts_raw),
-                                    "PJ": max(1, int(pj_raw)),
-                                    "GF": int(gf_raw) if gf_raw.isdigit() else 0,
-                                    "GC": int(gc_raw) if gc_raw.isdigit() else 0
-                                }
+                        for idx, fila in df_tabla.iterrows():
+                            eq_match = None
+                            col_eq_idx = -1
+                            
+                            for col_idx, valor in enumerate(fila.values):
+                                val_str = re.sub(r'^\d+\s*[-.]*\s*', '', str(valor)).strip()
+                                match_cand = buscar_equipo(val_str, equipos_disponibles)
+                                if match_cand:
+                                    eq_match = match_cand
+                                    col_eq_idx = col_idx
+                                    break
+                                    
+                            if eq_match and col_eq_idx != -1:
+                                pts, pj, gf, gc = 0, 1, 0, 0
+                                
+                                # 1. Intento por nombre de columna
+                                try:
+                                    col_pts = next((c for c in df_tabla.columns if c in ["PTS", "PTS.", "PUNTOS", "PT"]), None)
+                                    col_pj = next((c for c in df_tabla.columns if c in ["PJ", "J", "PJUG", "PARTIDOS"]), None)
+                                    col_gf = next((c for c in df_tabla.columns if c in ["GF", "G.F.", "FAVOR"]), None)
+                                    col_gc = next((c for c in df_tabla.columns if c in ["GC", "G.C.", "CONTRA"]), None)
+                                    
+                                    if col_pts and pd.notna(fila[col_pts]) and str(fila[col_pts]).isdigit():
+                                        pts = int(fila[col_pts])
+                                    if col_pj and pd.notna(fila[col_pj]) and str(fila[col_pj]).isdigit():
+                                        pj = max(1, int(fila[col_pj]))
+                                    if col_gf and pd.notna(fila[col_gf]) and str(fila[col_gf]).isdigit():
+                                        gf = int(fila[col_gf])
+                                    if col_gc and pd.notna(fila[col_gc]) and str(fila[col_gc]).isdigit():
+                                        gc = int(fila[col_gc])
+                                except Exception:
+                                    pass
+                                
+                                # 2. Resguardo posicional por si los encabezados tienen nombres distintos
+                                if pts == 0 and col_eq_idx + 1 < len(fila):
+                                    try:
+                                        val_p = str(fila.iloc[col_eq_idx + 1]).strip()
+                                        if val_p.isdigit():
+                                            pts = int(val_p)
+                                        val_pj = str(fila.iloc[col_eq_idx + 2]).strip() if col_eq_idx + 2 < len(fila) else "1"
+                                        if val_pj.isdigit():
+                                            pj = max(1, int(val_pj))
+                                        val_gf = str(fila.iloc[col_eq_idx + 6]).strip() if col_eq_idx + 6 < len(fila) else "0"
+                                        if val_gf.isdigit():
+                                            gf = int(val_gf)
+                                        val_gc = str(fila.iloc[col_eq_idx + 7]).strip() if col_eq_idx + 7 < len(fila) else "0"
+                                        if val_gc.isdigit():
+                                            gc = int(val_gc)
+                                    except Exception:
+                                        pass
+                                        
+                                if pts > 0 or pj > 1:
+                                    stats_promiedos[eq_match] = {
+                                        "Puntos": pts,
+                                        "PJ": max(1, pj),
+                                        "GF": gf,
+                                        "GC": gc
+                                    }
                 if len(stats_promiedos) >= 10:
                     break
-    except Exception:
-        pass
-        
+        except Exception:
+            pass
+            
     return stats_promiedos
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=3600)
 def obtener_partidos_hoy_auto(equipos_disponibles):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
     fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
@@ -785,7 +827,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
                                     df_hist.at[idx, "Goles_Visita_Real"] = int(comps[1]["score"] if comps[0]["homeAway"] == "home" else comps[0]["score"])
 
                                     # Extracción de Córners Reales
-                                    c_totales = 9 # Promedio base si ESPN no lo provee
+                                    c_totales = 9
                                     try:
                                         r_sum = requests.get(f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/summary?event={ev['id']}", timeout=5)
                                         if r_sum.status_code == 200:
@@ -898,29 +940,31 @@ if os.path.exists(RUTA_CSV):
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
 
-    # 1. Extracción EN VIVO desde Promiedos
+    # 1. Scraping en vivo desde Promiedos (Opción B: Pandas crudo - pd.read_html)
     stats_torneo = obtener_estadisticas_promiedos(tuple(lista_equipos))
 
     # =====================================================================
-    #  ACTUALIZAR Y REORDENAR EL DATAFRAME EN TIEMPO REAL
+    # 2. INYECCIÓN EN VIVO: Pisamos el DataFrame con los puntos reales actualizados
     # =====================================================================
     if stats_torneo and len(stats_torneo) > 0:
         for col_req in ["Puntos", "PJ", "GF", "GC", "DG"]:
             if col_req not in df.columns:
                 df[col_req] = 0
 
-        for equipo, datos in stats_torneo.items():
-            mask = df["Equipo"] == equipo
+        for eq_nombre, datos_frescos in stats_torneo.items():
+            mask = df["Equipo"] == eq_nombre
             if mask.any():
-                df.loc[mask, "Puntos"] = datos.get("Puntos", 0)
-                df.loc[mask, "PJ"] = datos.get("PJ", 1)
-                df.loc[mask, "GF"] = datos.get("GF", 0)
-                df.loc[mask, "GC"] = datos.get("GC", 0)
-                df.loc[mask, "DG"] = datos.get("GF", 0) - datos.get("GC", 0)
+                df.loc[mask, "Puntos"] = datos_frescos.get("Puntos", 0)
+                df.loc[mask, "PJ"] = datos_frescos.get("PJ", 1)
+                df.loc[mask, "GF"] = datos_frescos.get("GF", 0)
+                df.loc[mask, "GC"] = datos_frescos.get("GC", 0)
+                df.loc[mask, "DG"] = datos_frescos.get("GF", 0) - datos_frescos.get("GC", 0)
 
+        # Recalcular xG con PJ actualizado
         if "GF" in df.columns and "PJ" in df.columns:
             df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
 
+        # Reordenar por Puntos -> Diferencia de Gol -> Goles a Favor
         df = df.sort_values(by=["Puntos", "DG", "GF"], ascending=[False, False, False]).reset_index(drop=True)
 
     # AGENDA DEL DÍA AUTOMÁTICA Y AGENTE AUTÓNOMO
@@ -943,7 +987,7 @@ if os.path.exists(RUTA_CSV):
     # TABLA DE POSICIONES EN VIVO
     st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>", unsafe_allow_html=True)
     if stats_torneo and len(stats_torneo) > 0:
-        st.success("✅ ¡Éxito! Tabla extraída y actualizada en vivo desde Promiedos")
+        st.success("✅ ¡Éxito! Tabla extraída y actualizada en vivo desde Promiedos (pd.read_html)")
     else:
         st.warning("⚠️ No se pudo obtener conexión externa a Promiedos; mostrando datos del archivo local.")
     st.dataframe(df, use_container_width=True, hide_index=True)
