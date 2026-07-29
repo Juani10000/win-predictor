@@ -133,7 +133,7 @@ def obtener_jerarquia_y_bajas(nombre_equipo):
         except Exception:
             pass
             
-    jerarquia_final = jerarquia_base * factor_lesiones
+    jerarquia_final = round(jerarquia_base * factor_lesiones, 2)
     return jerarquia_final, bajas
 
 def obtener_jerarquia(nombre_equipo):
