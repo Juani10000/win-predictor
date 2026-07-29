@@ -544,10 +544,10 @@ NORMALIZADOR_ESPN = {
 def obtener_estadisticas_promiedos(equipos_disponibles):
     """
     Obtiene la tabla real y actualizada de la Liga Profesional desde la API pública
-    de ESPN (evita bloqueos 403 de Cloudflare que sufren Promiedos y webs de scraping).
+    y oficial de ESPN (evita bloqueos 403 de Cloudflare que impiden leer Promiedos).
     """
     stats_torneo = {}
-    url_espn = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
+    url_espn = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/standings"
 
     try:
         res = requests.get(url_espn, timeout=10)
@@ -908,7 +908,7 @@ if os.path.exists(RUTA_CSV):
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     
-    # 1. Extracción en vivo desde API Oficial (Evita bloqueos 403)
+    # 1. Extracción en vivo desde API Oficial de ESPN
     stats_torneo = obtener_estadisticas_promiedos(tuple(lista_equipos))
 
     # =====================================================================
@@ -953,6 +953,10 @@ if os.path.exists(RUTA_CSV):
 
     # TABLA DE POSICIONES EN VIVO
     st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>", unsafe_allow_html=True)
+    if stats_torneo:
+        st.success("✅ Tabla actualizada EN VIVO desde ESPN API")
+    else:
+        st.warning("⚠️ No se pudo conectar a la API en vivo; mostrando datos guardados localmente.")
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
 
