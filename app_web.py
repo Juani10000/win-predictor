@@ -141,6 +141,11 @@ def obtener_jerarquia(nombre_equipo):
     jerarquia_final, _ = obtener_jerarquia_y_bajas(nombre_equipo)
     return jerarquia_final
 
+def obtener_jerarquia(nombre_equipo):
+    """Función puente para que el motor IA original siga funcionando."""
+    jerarquia_final, _ = obtener_jerarquia_y_bajas(nombre_equipo)
+    return jerarquia_final
+
 @st.cache_resource
 def cargar_modelo_ia():
     """Intenta cargar el archivo de modelo guardado (.pkl) generado por el script de entrenamiento."""
@@ -787,6 +792,80 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, stats_torneo, paquete_i
         df_hist.to_csv(RUTA_HISTORIAL, index=False)
         
     return hubo_cambios, nuevos
+
+if st.button("🔮 Iniciar Simulación", use_container_width=True):
+            
+            # =====================================================================
+            # --- NUEVA ALERTA VISUAL DE LESIONADOS (TRANSFERMARKT EN VIVO) ---
+            # =====================================================================
+            _, bajas_locales = obtener_jerarquia_y_bajas(local) 
+            _, bajas_visitantes = obtener_jerarquia_y_bajas(visitante) 
+            
+            if bajas_locales:
+                st.error(f"🚑 **ALERTA {local}:** Baja confirmada de {', '.join(bajas_locales)}")
+            if bajas_visitantes:
+                st.error(f"🚑 **ALERTA {visitante}:** Baja confirmada de {', '.join(bajas_visitantes)}")
+            # =====================================================================
+
+            with st.spinner("Analizando variables avanzadas, jerarquías ajustadas y simulando Monte Carlo..."):
+                
+                # Consolidar estadísticas y xG (Mantenemos tu lógica original)
+                stats_torneo = obtener_estadisticas_promiedos(equipos)
+                
+                # (Asegurate de tener definidas tus variables xg_proyectado_local y xg_proyectado_visi antes o aquí)
+                xg_proyectado_local = 1.45  # Ejemplo: Reemplazá por tu cálculo real
+                xg_proyectado_visi = 1.10   # Ejemplo: Reemplazá por tu cálculo real
+                
+                stats_loc = consolidar_estadisticas(local, df, stats_torneo, xg_proyectado_local)
+                stats_vis = consolidar_estadisticas(visitante, df, stats_torneo, xg_proyectado_visi)
+
+                historial_h2h = obtener_historial_directo(local, visitante)
+
+                prob_loc, prob_empate, prob_vis, uso_ia = realizar_prediccion(
+                    local, visitante, df, stats_loc, stats_vis, 
+                    xg_proyectado_local, xg_proyectado_visi, 
+                    factor_localia=0.15, historial_h2h=historial_h2h, paquete_ia=paquete_ia
+                )
+
+                if uso_ia:
+                    st.success("🤖 Análisis Completado exitosamente vía Inteligencia Artificial (Machine Learning).")
+                else:
+                    st.success("📊 Análisis Completado exitosamente vía Algoritmo Estadístico Heurístico.")
+
+                # Mostrar las probabilidades principales
+                st.markdown("### 📊 Predicción Principal")
+                c1, c2, c3 = st.columns(3)
+                c1.metric(label=f"Gana {local}", value=f"{prob_loc:.1f}%")
+                c2.metric(label="Empate", value=f"{prob_empate:.1f}%")
+                c3.metric(label=f"Gana {visitante}", value=f"{prob_vis:.1f}%")
+
+                st.markdown("---")
+
+                # Gráfico Radar (Frente a Frente)
+                st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal (Incluye Forma Reciente)</h4>", unsafe_allow_html=True)
+                fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
+                st.plotly_chart(fig_radar, use_container_width=True)
+
+                st.markdown("---")
+
+                # Cálculo y tabla de Marcadores Exactos
+                st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
+                
+                top_5_marcadores, prob_otro = calcular_top_resultados(
+                    xg_proyectado_local, 
+                    xg_proyectado_visi, 
+                    prob_loc,       
+                    prob_empate,    
+                    prob_vis
+                )
+
+                tabla_marcadores = [
+                    {"Ranking": f"#{rank}", "Resultado Exacto": marcador, "Probabilidad": f"{prob:.1f}%"}
+                    for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)
+                ]
+                tabla_marcadores.append({"Ranking": "Otros", "Resultado Exacto": "Cualquier otro", "Probabilidad": f"{prob_otro:.1f}%"})
+                
+                st.table(tabla_marcadores)
 
 # =====================================================================
 # 7. INTERFAZ Y ENCABEZADO
