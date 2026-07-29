@@ -618,15 +618,15 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         stats_vis["Fortaleza"] / max_fd, stats_vis["Pts_U5"] / max_forma, jer_vis / max_jer
     ]
 
-    text_loc = [
+text_loc = [
         str(stats_loc["GF"]), str(stats_loc["xG"]), f"{stats_loc['Pos']} %",
         str(stats_loc["VI"]), str(stats_loc["TirosArco"]), f"{stats_loc['Pases']} %",
-        f"{stats_loc['Fortaleza']}/100", f"{stats_loc['Pts_U5']} pts", f"{jer_loc}/10"
+        f"{stats_loc['Fortaleza']}/100", f"{stats_loc['Pts_U5']} pts", f"{jer_loc:.2f}/10"
     ]
     text_vis = [
         str(stats_vis["GF"]), str(stats_vis["xG"]), f"{stats_vis['Pos']} %",
         str(stats_vis["VI"]), str(stats_vis["TirosArco"]), f"{stats_vis['Pases']} %",
-        f"{stats_vis['Fortaleza']}/100", f"{stats_vis['Pts_U5']} pts", f"{jer_vis}/10"
+        f"{stats_vis['Fortaleza']}/100", f"{stats_vis['Pts_U5']} pts", f"{jer_vis:.2f}/10"
     ]
 
     fig = go.Figure()
