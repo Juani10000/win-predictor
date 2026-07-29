@@ -471,7 +471,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 # =====================================================================
 # 5. SCRAPING DE PROMIEDOS Y ESPN
 # =====================================================================
-@st.cache_data(ttl=3600)
+
 def obtener_estadisticas_promiedos(equipos_disponibles):
     url = "https://www.promiedos.com.ar/primera"
     stats_promiedos = {}
@@ -825,25 +825,19 @@ if os.path.exists(RUTA_CSV):
             s = str(x).strip()
             s_lower = s.lower()
             
-            # Reglas específicas para Estudiantes
+            # Respetar Estudiantes
             if "estudiantes" in s_lower:
                 if any(k in s_lower for k in ["rio cuarto", "río cuarto", "(rc)", "estudiantes rc"]): 
                     return "Estudiantes RC"
-                if any(k in s_lower for k in ["la plata", "(lp)", "estudiantes"]): 
+                if any(k in s_lower for k in ["la plata", "(lp)"]): 
                     return "Estudiantes"
             
-            # Reglas específicas para Gimnasia (Evita que se borren los paréntesis)
+            # Respetar expresamente los dos Gimnasia sin borrar paréntesis
             if "gimnasia" in s_lower:
-                if any(k in s_lower for k in ["la plata", "(lp)", "lp"]):
-                    return "Gimnasia (LP)"
-                if any(k in s_lower for k in ["mendoza", "(m)", "m"]):
+                if any(k in s_lower for k in ["mendoza", "(m)"]):
                     return "Gimnasia (M)"
-                if "jujuy" in s_lower or "(j)" in s_lower:
-                    return "Gimnasia (Jujuy)"
-                if "tiro" in s_lower:
-                    return "Gimnasia y Tiro"
+                return "Gimnasia (LP)"
 
-            # Para otros equipos, limpia corchetes o paréntesis genéricos
             return re.sub(r"\[.*?\]|\(.*?\)", "", s).strip()
 
         df["Equipo"] = df["Equipo"].apply(limpiar_nombre_equipo)
@@ -858,7 +852,23 @@ if os.path.exists(RUTA_CSV):
 
     lista_equipos = sorted(df["Equipo"].unique()) if "Equipo" in df.columns else []
     
+    # 1. Scraping en vivo desde Promiedos
     stats_torneo = obtener_estadisticas_promiedos(lista_equipos)
+
+    # 2. INYECCIÓN EN VIVO: Actualizamos el DataFrame (df) con las posiciones reales de Promiedos
+    if stats_torneo:
+        for eq_nombre, datos_frescos in stats_torneo.items():
+            mask = df["Equipo"] == eq_nombre
+            if mask.any():
+                df.loc[mask, "Puntos"] = datos_frescos["Puntos"]
+                df.loc[mask, "PJ"] = datos_frescos["PJ"]
+                df.loc[mask, "GF"] = datos_frescos["GF"]
+                df.loc[mask, "GC"] = datos_frescos["GC"]
+
+        # Recalcular xG con PJ actualizado y reordenar por Puntos reales
+        df["xG"] = (df["GF"] / df["PJ"].replace(0, 1) * 0.95).round(2)
+        if "Puntos" in df.columns:
+            df = df.sort_values(by="Puntos", ascending=False).reset_index(drop=True)
 
     # AGENDA DEL DÍA AUTOMÁTICA Y AGENTE AUTÓNOMO
     st.markdown("<h3 style='color: #cbd5e1;'>Partidos de Hoy (Agente Autónomo)</h3>", unsafe_allow_html=True)
@@ -877,7 +887,7 @@ if os.path.exists(RUTA_CSV):
         st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         st.divider()
 
-    # TABLA DE POSICIONES
+    # TABLA DE POSICIONES (AHORA SÍ MUESTRA LOS PUNTOS Y EQUIPOS ACTUALIZADOS)
     st.markdown("<h3 style='color: #cbd5e1;'>Tabla General de Posiciones & xG</h3>", unsafe_allow_html=True)
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.markdown("---")
