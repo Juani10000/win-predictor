@@ -1,29 +1,33 @@
 import os
 import pandas as pd
-import requests
+import cloudscraper
 import random
 import io
 import re
 
 def obtener_tabla_anual():
-    print("⏳ Buscando la Tabla Anual en Promiedos...")
+    print("⏳ Buscando la Tabla de Posiciones en Promiedos usando Cloudscraper...")
     
     df_resultado = None
     
-    # INTENTO 1: Extracción en vivo desde Promiedos (URL actualizada y parser universal)
+    # INTENTO 1: Extracción en vivo usando cloudscraper para saltar el antibot
     try:
         url_promiedos = "https://www.promiedos.com.ar/league/liga-profesional/hc"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
-            "Referer": "https://www.google.com/"
-        }
-        res = requests.get(url_promiedos, headers=headers, timeout=15)
+        
+        # Creamos el scraper que emula un navegador real
+        scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'desktop': True
+            }
+        )
+        
+        res = scraper.get(url_promiedos, timeout=15)
         res.encoding = 'utf-8'
         
         if res.status_code == 200:
-            # Leemos todas las tablas sin restringir por ID "posiciones"
+            # Leemos todas las tablas del HTML
             tablas = pd.read_html(io.StringIO(res.text))
             
             for t in tablas:
@@ -32,12 +36,12 @@ def obtener_tabla_anual():
                 
                 t.columns = [str(c).strip().upper() for c in t.columns]
                 
-                # Buscamos la tabla que tenga equipos y puntos
+                # Buscamos la columna de equipo y puntos
                 col_eq = next((c for c in t.columns if any(k in c for k in ["EQUIPO", "CLUB", "TEAM"])), None)
                 col_pts = next((c for c in t.columns if c in ["PTS", "PTS.", "PUNTOS", "PT"]), None)
                 
                 if not col_eq and len(t.columns) >= 2:
-                    col_eq = t.columns[1] # Por lo general el nombre está en la 2da columna
+                    col_eq = t.columns[1]
                 if not col_pts and len(t.columns) >= 3:
                     col_pts = t.columns[2]
                 
@@ -45,19 +49,22 @@ def obtener_tabla_anual():
                     t = t.rename(columns={col_eq: "Equipo", col_pts: "Pts"})
                     t_filt = t.dropna(subset=["Equipo"]).copy()
                     
-                    # Limpiar encabezados repetidos dentro de la tabla
+                    # Limpiar filas basura si el encabezado se repite
                     t_filt = t_filt[~t_filt["Equipo"].astype(str).str.upper().isin(["EQUIPO", "CLUB", "PTS"])]
                     
                     if len(t_filt) >= 20:
                         df_resultado = t_filt
                         print("✅ ¡ÉXITO! Tabla extraída EN VIVO desde Promiedos.")
                         break
+        else:
+            print(f"⚠️ Promiedos respondió con código HTTP: {res.status_code}")
+            
     except Exception as e:
         print(f"⚠️ Aviso: Falló la conexión a Promiedos ({e}).")
 
-    # INTENTO 2: Respaldo en caso de caída
+    # INTENTO 2: Respaldo en caso de que falle la conexión local
     if df_resultado is None:
-        print("🔄 Promiedos bloqueó la conexión. Cargando datos de respaldo...")
+        print("🔄 No se pudo obtener la tabla online. Cargando datos de respaldo...")
         equipos = [
             "Independiente Rivadavia", "Argentinos Juniors", "Estudiantes (LP)", "Boca Juniors", "River Plate", 
             "Belgrano", "Vélez Sarsfield", "Rosario Central", "Talleres (C)", "Gimnasia (LP)", "Independiente", 
@@ -72,7 +79,7 @@ def obtener_tabla_anual():
             datos_respaldo.append({"Equipo": eq, "Pts": max(5, puntos - int(i*0.9)), "PJ": 16, "PG": 8, "PE": 5, "PP": 3, "GF": 20, "GC": 15})
         df_resultado = pd.DataFrame(datos_respaldo)
 
-    # LIMPIEZA Y ESTANDARIZACIÓN
+    # LIMPIEZA Y ESTANDARIZACIÓN DE COLUMNAS
     mapeo = {}
     for col in df_resultado.columns:
         cl = str(col).lower()
@@ -106,7 +113,7 @@ def obtener_tabla_anual():
         "Gimnasia Mendoza": "Gimnasia (M)",
         "Gimnasia Mza": "Gimnasia (M)",
         
-        # Otros conflictivos por si acaso
+        # Otros conflictivos
         "Gimnasia (J)": "Gimnasia (Jujuy)",
         "Gimnasia y Tiro": "Gimnasia y Tiro (S)",
         "Central Cba (SdE)": "Central Córdoba (SdE)",
