@@ -2,39 +2,47 @@ import os
 import pandas as pd
 import requests
 import random
+import io
 
 def obtener_tabla_anual():
-    print("⏳ Buscando la Tabla Anual 2026 (30 Equipos)...")
+    print("⏳ Buscando la Tabla Anual 2026 en Promiedos (30 Equipos)...")
     
     df_resultado = None
     
-    # INTENTO 1: Wikipedia 2026
+    # INTENTO 1: Extracción en vivo desde Promiedos
     try:
-        url_wiki = "https://es.wikipedia.org/wiki/Campeonato_de_Primera_Divisi%C3%B3n_2026_(Argentina)"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        res = requests.get(url_wiki, headers=headers, timeout=10)
+        url_promiedos = "https://www.promiedos.com.ar/primera"
+        # Promiedos requiere un User-Agent completo para no bloquear la conexión
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        }
+        res = requests.get(url_promiedos, headers=headers, timeout=15)
         
         if res.status_code == 200:
-            tablas = pd.read_html(res.text)
-            for t in tablas:
-                # Aplanar columnas si hay múltiples niveles
+            # Promiedos usa el id "posiciones" para su tabla principal
+            # Usamos io.StringIO para evitar advertencias de pandas en versiones nuevas
+            tablas = pd.read_html(io.StringIO(res.text), attrs={"id": "posiciones"})
+            
+            if tablas:
+                t = tablas[0]
+                
+                # Aplanar columnas por si vienen en formato MultiIndex
                 if isinstance(t.columns, pd.MultiIndex):
                     t.columns = [c[-1] for c in t.columns]
                 
-                cols_str = [str(c).lower() for c in t.columns]
-                # Buscamos que tenga columna de equipo, puntos y que tenga al menos 28-30 filas
-                if any("equipo" in c for c in cols_str) and any("pts" in c for c in cols_str):
-                    col_eq = [c for c in t.columns if "equipo" in str(c).lower()][0]
-                    t_filt = t.dropna(subset=[col_eq]).copy()
+                # Limpiar los nombres de las columnas
+                t.columns = [str(c).strip() for c in t.columns]
+                
+                if "Equipo" in t.columns and "Pts" in t.columns:
+                    t_filt = t.dropna(subset=["Equipo"]).copy()
                     
                     if len(t_filt) >= 28:
                         df_resultado = t_filt
-                        print("✅ Tabla Anual 2026 extraída correctamente de Wikipedia.")
-                        break
+                        print("✅ Tabla Anual 2026 extraída correctamente de Promiedos.")
     except Exception as e:
-        print(f"⚠️ Aviso: Falló la conexión a Wikipedia ({e}).")
+        print(f"⚠️ Aviso: Falló la conexión a Promiedos ({e}).")
 
-    # INTENTO 2: Respaldo en caso de fallo (30 equipos reales 2026)
+    # INTENTO 2: Respaldo en caso de caída del servidor de Promiedos
     if df_resultado is None:
         print("🔄 Cargando base de datos interna de la Tabla Anual...")
         equipos = [
@@ -48,8 +56,7 @@ def obtener_tabla_anual():
         datos_respaldo = []
         puntos = 34
         for i, eq in enumerate(equipos):
-            # Simulamos datos coherentes para el respaldo
-            datos_respaldo.append({"Equipo": eq, "Puntos": max(5, puntos - int(i*0.9)), "PJ": 16, "PG": 8, "PE": 5, "PP": 3, "GF": 20, "GC": 15})
+            datos_respaldo.append({"Equipo": eq, "Pts": max(5, puntos - int(i*0.9)), "PJ": 16, "PG": 8, "PE": 5, "PP": 3, "GF": 20, "GC": 15})
         df_resultado = pd.DataFrame(datos_respaldo)
 
     # LIMPIEZA Y ESTANDARIZACIÓN
@@ -66,8 +73,25 @@ def obtener_tabla_anual():
         elif cl == "gc": mapeo[col] = "GC"
 
     df_resultado = df_resultado.rename(columns=mapeo)
+    
+    # Limpiamos el número de posición que a veces viene pegado al nombre en Promiedos
     df_resultado["Equipo"] = df_resultado["Equipo"].astype(str).str.replace(r'^\d+\s*', '', regex=True).str.strip()
 
+    # --- SOLUCIÓN PARA LOS HOMÓNIMOS (Gimnasia, Estudiantes, etc) ---
+    correcciones_equipos = {
+        "Gimnasia (M)": "Gimnasia (Mendoza)",
+        "Gimnasia (J)": "Gimnasia (Jujuy)",
+        "Gimnasia y Tiro": "Gimnasia y Tiro (S)",
+        "Central Cba (SdE)": "Central Córdoba (SdE)",
+        "Central Cba (R)": "Central Córdoba (R)",
+        "Estudiantes (BA)": "Estudiantes (Caseros)"
+    }
+    
+    # Aplicamos el diccionario a la columna Equipos
+    df_resultado["Equipo"] = df_resultado["Equipo"].replace(correcciones_equipos)
+    # ----------------------------------------------------------------
+
+    # Formateo de columnas numéricas
     cols_num = ["Puntos", "PJ", "PG", "PE", "PP", "GF", "GC"]
     for c in cols_num:
         if c in df_resultado.columns:
@@ -75,6 +99,7 @@ def obtener_tabla_anual():
         else:
             df_resultado[c] = 0
 
+    # Creación de columnas extendidas para la IA
     df_resultado["Victorias"] = df_resultado["PG"]
     df_resultado["Empates"] = df_resultado["PE"]
     df_resultado["Derrotas"] = df_resultado["PP"]
@@ -82,11 +107,14 @@ def obtener_tabla_anual():
     df_resultado["Goles_Contra"] = df_resultado["GC"]
     df_resultado["Partidos_Jugados"] = df_resultado["PJ"]
 
+    # Simulación de racha (Últimos 5 partidos)
     opciones = ['G', 'E', 'P']
     df_resultado["Racha"] = [",".join(random.choices(opciones, k=5)) for _ in range(len(df_resultado))]
+    
+    # Ordenar tabla por puntos
     df_resultado = df_resultado.sort_values(by="Puntos", ascending=False).reset_index(drop=True)
 
-    # Guardar archivo
+    # Guardar archivo maestro
     df_resultado.to_csv("datos_procesados.csv", index=False, encoding="utf-8-sig")
     print(f"🎉 Proceso completado: Tabla Anual guardada con {len(df_resultado)} equipos.")
 
