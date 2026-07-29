@@ -3,37 +3,55 @@ import pandas as pd
 import requests
 import random
 import io
+import re
 
 def obtener_tabla_anual():
     print("⏳ Buscando la Tabla Anual en Promiedos...")
     
     df_resultado = None
     
-    # INTENTO 1: Extracción en vivo desde Promiedos (Con Headers mejorados anti-bloqueo)
+    # INTENTO 1: Extracción en vivo desde Promiedos (URL actualizada y parser universal)
     try:
-        url_promiedos = "https://www.promiedos.com.ar/primera"
+        url_promiedos = "https://www.promiedos.com.ar/league/liga-profesional/hc"
         headers = {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8"
+            "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
+            "Referer": "https://www.google.com/"
         }
         res = requests.get(url_promiedos, headers=headers, timeout=15)
+        res.encoding = 'utf-8'
         
         if res.status_code == 200:
-            tablas = pd.read_html(io.StringIO(res.text), attrs={"id": "posiciones"})
+            # Leemos todas las tablas sin restringir por ID "posiciones"
+            tablas = pd.read_html(io.StringIO(res.text))
             
-            if tablas:
-                t = tablas[0]
+            for t in tablas:
                 if isinstance(t.columns, pd.MultiIndex):
                     t.columns = [c[-1] for c in t.columns]
                 
-                t.columns = [str(c).strip() for c in t.columns]
+                t.columns = [str(c).strip().upper() for c in t.columns]
                 
-                if "Equipo" in t.columns and "Pts" in t.columns:
+                # Buscamos la tabla que tenga equipos y puntos
+                col_eq = next((c for c in t.columns if any(k in c for k in ["EQUIPO", "CLUB", "TEAM"])), None)
+                col_pts = next((c for c in t.columns if c in ["PTS", "PTS.", "PUNTOS", "PT"]), None)
+                
+                if not col_eq and len(t.columns) >= 2:
+                    col_eq = t.columns[1] # Por lo general el nombre está en la 2da columna
+                if not col_pts and len(t.columns) >= 3:
+                    col_pts = t.columns[2]
+                
+                if col_eq and col_pts and len(t) >= 15:
+                    t = t.rename(columns={col_eq: "Equipo", col_pts: "Pts"})
                     t_filt = t.dropna(subset=["Equipo"]).copy()
-                    if len(t_filt) >= 28:
+                    
+                    # Limpiar encabezados repetidos dentro de la tabla
+                    t_filt = t_filt[~t_filt["Equipo"].astype(str).str.upper().isin(["EQUIPO", "CLUB", "PTS"])]
+                    
+                    if len(t_filt) >= 20:
                         df_resultado = t_filt
                         print("✅ ¡ÉXITO! Tabla extraída EN VIVO desde Promiedos.")
+                        break
     except Exception as e:
         print(f"⚠️ Aviso: Falló la conexión a Promiedos ({e}).")
 
@@ -60,15 +78,15 @@ def obtener_tabla_anual():
         cl = str(col).lower()
         if "equipo" in cl: mapeo[col] = "Equipo"
         elif "pts" in cl or "puntos" in cl: mapeo[col] = "Puntos"
-        elif cl == "pj": mapeo[col] = "PJ"
-        elif cl == "pg": mapeo[col] = "PG"
-        elif cl == "pe": mapeo[col] = "PE"
-        elif cl == "pp": mapeo[col] = "PP"
-        elif cl == "gf": mapeo[col] = "GF"
-        elif cl == "gc": mapeo[col] = "GC"
+        elif cl in ["pj", "j", "pjug"]: mapeo[col] = "PJ"
+        elif cl in ["pg", "g", "gan"]: mapeo[col] = "PG"
+        elif cl in ["pe", "e", "emp"]: mapeo[col] = "PE"
+        elif cl in ["pp", "p", "per"]: mapeo[col] = "PP"
+        elif cl in ["gf", "g.f."]: mapeo[col] = "GF"
+        elif cl in ["gc", "g.c."]: mapeo[col] = "GC"
 
     df_resultado = df_resultado.rename(columns=mapeo)
-    df_resultado["Equipo"] = df_resultado["Equipo"].astype(str).str.replace(r'^\d+\s*', '', regex=True).str.strip()
+    df_resultado["Equipo"] = df_resultado["Equipo"].astype(str).str.replace(r'^\d+\s*[-.]*\s*', '', regex=True).str.strip()
 
     # ================================================================
     # 🎯 DICCIONARIO DE CORRECCIONES EXACTAS (TUS REGLAS)
@@ -79,12 +97,14 @@ def obtener_tabla_anual():
         "Gimnasia y Esgrima de La Plata": "Gimnasia (LP)",
         "Gimnasia y Esgrima (LP)": "Gimnasia (LP)",
         "Gimnasia La Plata": "Gimnasia (LP)",
+        "Gimnasia LP": "Gimnasia (LP)",
         
         # Reglas para Gimnasia de Mendoza
         "Gimnasia (Mendoza)": "Gimnasia (M)",
         "Gimnasia y Esgrima de Mendoza": "Gimnasia (M)",
         "Gimnasia y Esgrima (M)": "Gimnasia (M)",
         "Gimnasia Mendoza": "Gimnasia (M)",
+        "Gimnasia Mza": "Gimnasia (M)",
         
         # Otros conflictivos por si acaso
         "Gimnasia (J)": "Gimnasia (Jujuy)",
@@ -117,7 +137,7 @@ def obtener_tabla_anual():
     df_resultado = df_resultado.sort_values(by="Puntos", ascending=False).reset_index(drop=True)
 
     df_resultado.to_csv("datos_procesados.csv", index=False, encoding="utf-8-sig")
-    print(f"🎉 Proceso completado: Tabla Anual guardada con {len(df_resultado)} equipos.")
+    print(f"🎉 Proceso completado: Tabla Anual guardada con {len(df_resultado)} equipos en datos_procesados.csv.")
 
 if __name__ == "__main__":
     obtener_tabla_anual()
