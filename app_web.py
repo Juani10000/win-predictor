@@ -106,7 +106,7 @@ def cargar_modelo_ia():
 paquete_ia = cargar_modelo_ia()
 
 # =====================================================================
-# 3. EXTRAER GRUPOS/ZONAS EN VIVO DESDE ESPN
+# 3. EXTRAER TABLAS Y MAPA DE IDs DESDE ESPN
 # =====================================================================
 @st.cache_data(ttl=1800)
 def obtener_grupos_en_vivo_espn():
@@ -128,7 +128,9 @@ def obtener_grupos_en_vivo_espn():
                 
                 lista_equipos_grupo = []
                 for entry in entries:
-                    nombre = entry.get("team", {}).get("displayName", "")
+                    team_info = entry.get("team", {})
+                    nombre = team_info.get("displayName", "")
+                    team_id = team_info.get("id", "")
                     if not nombre:
                         continue
 
@@ -140,23 +142,15 @@ def obtener_grupos_en_vivo_espn():
                     gc = int(stats_map.get("pointsAgainst", 0))
                     pts = int(stats_map.get("points", 0))
 
-                    # Si van menos de 5 partidos, el xG no se distorsiona por la tabla
-                    jer = obtener_jerarquia(nombre)
-                    if pj < 5:
-                        xg_base_jerarquia = (jer / 10.0) * 1.65
-                        xg_tabla = (gf / max(1, pj)) * 0.95
-                        xg_est = round((xg_base_jerarquia * 0.75) + (xg_tabla * 0.25), 2)
-                    else:
-                        xg_est = round((gf / max(1, pj)) * 0.95, 2)
-
                     lista_equipos_grupo.append({
                         "Equipo": nombre,
+                        "ID_ESPN": team_id,
                         "Puntos": pts,
                         "PJ": pj,
                         "GF": gf,
                         "GC": gc,
                         "DG": gf - gc,
-                        "xG": max(0.80, xg_est)
+                        "xG": max(0.80, round((gf / max(1, pj)) * 0.95, 2))
                     })
 
                 df_grupo = pd.DataFrame(lista_equipos_grupo)
@@ -174,7 +168,97 @@ def obtener_grupos_en_vivo_espn():
     return grupos
 
 # =====================================================================
-# 4. FUNCIONES MATEMATICAS Y DE SIMULACION
+# 4. OBTENER ULTIMOS 10 PARTIDOS REALES DE ESPN (SCHEDULE API)
+# =====================================================================
+@st.cache_data(ttl=3600)
+def obtener_ultimos_10_partidos_espn(team_id):
+    """
+    Obtiene los últimos 10 partidos reales finalizados del equipo desde la API de ESPN
+    (abarca torneo actual, torneo anterior y copas nacionales).
+    """
+    if not team_id:
+        return []
+
+    url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{team_id}/schedule"
+    partidos_finalizados = []
+
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            events = r.json().get("events", [])
+            for ev in events:
+                status = ev.get("status", {}).get("type", {}).get("completed", False)
+                if status:
+                    competitions = ev.get("competitions", [])
+                    if not competitions:
+                        continue
+                    
+                    comps = competitions[0]["competitors"]
+                    # Identificar si nuestro equipo es local o visitante
+                    mi_equipo = comps[0] if str(comps[0].get("team", {}).get("id")) == str(team_id) else comps[1]
+                    rival_equipo = comps[1] if str(comps[0].get("team", {}).get("id")) == str(team_id) else comps[0]
+
+                    goles_favor = int(mi_equipo.get("score", {}).get("value", 0))
+                    goles_contra = int(rival_equipo.get("score", {}).get("value", 0))
+
+                    if goles_favor > goles_contra:
+                        pts = 3 # Victoria
+                    elif goles_favor == goles_contra:
+                        pts = 1 # Empate
+                    else:
+                        pts = 0 # Derrota
+
+                    partidos_finalizados.append({
+                        "Fecha": ev.get("date", ""),
+                        "Rival": rival_equipo.get("team", {}).get("displayName", "Rival"),
+                        "GF": goles_favor,
+                        "GC": goles_contra,
+                        "Puntos": pts
+                    })
+
+            # Ordenar por fecha descendente (más reciente primero) y tomar los últimos 10
+            partidos_finalizados.sort(key=lambda x: x["Fecha"], reverse=True)
+            return partidos_finalizados[:10]
+
+    except Exception:
+        pass
+
+    return partidos_finalizados
+
+def calcular_score_forma_exponencial_real(partidos_10, jerarquia):
+    """
+    Aplica exactamente tus pesos exponenciales sobre los últimos 10 partidos REALES:
+    1°: 20%, 2°: 15%, 3°: 12%, 4°: 10%, 5°: 8%, 6°: 5%, 7°: 4%, 8°: 3%, 9°: 2%, 10°: 1%
+    """
+    pesos = [0.20, 0.15, 0.12, 0.10, 0.08, 0.05, 0.04, 0.03, 0.02, 0.01]
+
+    if not partidos_10:
+        # Si no hay historial disponible en la API, devolvemos un score basado en su jerarquía base
+        return jerarquia
+
+    score_total = 0.0
+    peso_acumulado = 0.0
+
+    for i, p in enumerate(partidos_10):
+        if i >= len(pesos):
+            break
+        
+        peso = pesos[i]
+        # Puntos del partido (3, 1 o 0) convertidos a escala de 0 a 10
+        rendimiento_partido = (p["Puntos"] / 3.0) * 10.0
+        score_total += rendimiento_partido * peso
+        peso_acumulado += peso
+
+    # Normalizar en caso de que haya menos de 10 partidos registrados
+    if peso_acumulado > 0:
+        score_normalizado = score_total / peso_acumulado
+    else:
+        score_normalizado = jerarquia
+
+    return min(10.0, max(1.0, score_normalizado))
+
+# =====================================================================
+# 5. FUNCIONES MATEMATICAS Y DE SIMULACION
 # =====================================================================
 def poisson_prob(lmbda, k):
     if lmbda <= 0:
@@ -282,61 +366,18 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 5. MOTOR DE PREDICCION DESACOPLADO DE LA TABLA INICIAL
+# 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
 # =====================================================================
-def calcular_score_forma_reciente(equipo, df, stats_eq):
-    """
-    Rendimiento ponderado exponencialmente (1°: 20%, 2°: 15%, 3°: 12%, 4°: 10%, 5°: 8%, 6°: 5%, etc.).
-    Si van menos de 5 partidos en el torneo, la base del rendimiento proviene de la Jerarquia del Plantel
-    para que una derrota en la fecha 1 no afecte negativamente la proyeccion.
-    """
-    pesos_1_a_10 = [0.20, 0.15, 0.12, 0.10, 0.08, 0.05, 0.04, 0.03, 0.02, 0.01]
-    
-    row = df[df["Equipo"] == equipo].iloc[0]
-    pj = max(1, int(row.get("PJ", 1)))
-    jerarquia = obtener_jerarquia(equipo)
-    
-    # Rendimiento en tabla actual
-    pts_partido = float(row.get("Puntos", 0)) / pj
-    efectividad_actual = min(1.0, pts_partido / 3.0) * 10.0
-    
-    # Rendimiento estructural de jerarquia
-    efectividad_jerarquia = jerarquia
-    
-    # ESCUDO ANTI-DISTORSION (< 5 partidos):
-    if pj < 5:
-        # Pesa 75% lo que vale el plantel por jerarquia y 25% la tabla recien arrancada
-        rendimiento_base = (efectividad_jerarquia * 0.75) + (efectividad_actual * 0.25)
-    else:
-        rendimiento_base = (efectividad_actual * 0.65) + (efectividad_jerarquia * 0.35)
-
-    if pj <= 10:
-        pesos_activos = pesos_1_a_10[:pj]
-        peso_total = sum(pesos_activos)
-        pesos_normalizados = [p / peso_total for p in pesos_activos] if peso_total > 0 else [1.0 / pj] * pj
-    else:
-        pesos_activos = pesos_1_a_10.copy()
-        extra = pj - 10
-        peso_restante = max(0.0, 1.0 - sum(pesos_1_a_10))
-        peso_ind = peso_restante / extra if extra > 0 else 0.005
-        pesos_activos.extend([peso_ind] * extra)
-        peso_total = sum(pesos_activos)
-        pesos_normalizados = [p / peso_total for p in pesos_activos]
-
-    score_ponderado = 0.0
-    for i, p_norm in enumerate(pesos_normalizados):
-        mod = 1.0 - (i * 0.015)
-        val_p = max(1.0, min(10.0, rendimiento_base * mod))
-        score_ponderado += val_p * p_norm
-
-    return min(10.0, max(1.0, score_ponderado))
-
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[], paquete_ia=None):
     jer_loc = obtener_jerarquia(local)
     jer_vis = obtener_jerarquia(visitante)
 
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
+
+    # Cargar 10 partidos reales desde la API de ESPN
+    partidos_10_loc = obtener_ultimos_10_partidos_espn(row_loc.get("ID_ESPN"))
+    partidos_10_vis = obtener_ultimos_10_partidos_espn(row_vis.get("ID_ESPN"))
 
     if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
         mapa = paquete_ia["mapa_equipos"]
@@ -370,13 +411,11 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # --- CALIBRACION ESTADISTICA SIN IMPACTO NEGATIVO DE LA TABLA ---
-    
-    # 1. Base Principal: Rendimiento ponderado exponencialmente (blindado ante torneos recién iniciados)
-    base_loc = calcular_score_forma_reciente(local, df, stats_loc)
-    base_vis = calcular_score_forma_reciente(visitante, df, stats_vis)
+    # 1. Score Base: Curva exponencial de 10 partidos reales
+    base_loc = calcular_score_forma_exponencial_real(partidos_10_loc, jer_loc)
+    base_vis = calcular_score_forma_exponencial_real(partidos_10_vis, jer_vis)
 
-    # 2. Mini Bonus de la Tabla de Posiciones: Máximo estricto del 3% (+0.03)
+    # 2. Mini Bonus de la Tabla de Posiciones actual: Máximo 3% (+0.03)
     pj_loc = max(1.0, float(row_loc.get("PJ", 1)))
     pj_vis = max(1.0, float(row_vis.get("PJ", 1)))
     bonus_tabla_loc = ((float(row_loc.get("Puntos", 0)) / pj_loc) / 3.0) * 0.03
@@ -385,18 +424,18 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     power_loc = base_loc * (1.0 + bonus_tabla_loc)
     power_vis = base_vis * (1.0 + bonus_tabla_vis)
 
-    # 3. Bonus Directo de Jerarquía: +8% por cada 1.0 de diferencia sobre el rival
+    # 3. Bonus de Jerarquía: +8% por cada 1.0 de diferencia positiva
     dif_jer = jer_loc - jer_vis
     if dif_jer > 0:
         power_loc *= (1.0 + (dif_jer * 0.08))
     elif dif_jer < 0:
         power_vis *= (1.0 + (abs(dif_jer) * 0.08))
 
-    # Factor localia
+    # Factor localía
     power_loc_ajustado = power_loc * (1.0 + factor_localia)
     power_vis_ajustado = power_vis
 
-    # Bono historial H2H (+/- 2.5% por victoria/derrota)
+    # Bono Historial H2H
     bono_h2h = (historial_h2h.count('G') - historial_h2h.count('P')) * 0.025
     power_loc_ajustado *= max(0.1, (1.0 + bono_h2h))
 
@@ -448,26 +487,28 @@ def consolidar_estadisticas(equipo, df, xg_proyectado):
     pj = max(1, int(row.get("PJ", 1)))
     jerarquia = obtener_jerarquia(equipo)
 
-    # Si van pocos partidos, proyectamos los goles desde la jerarquia estructural del plantel
-    if pj < 5:
-        gf_proyectado = round((jerarquia / 10.0) * 1.6 * pj)
-        gc_proyectado = round(((10.0 - jerarquia) / 10.0) * 1.3 * pj)
-        gf = int(row.get("GF", max(1, gf_proyectado)))
-        gc = int(row.get("GC", max(0, gc_proyectado)))
+    # Proyección estadística refinada combinando historial de 10 partidos + xG proyectado
+    partidos_10 = obtener_ultimos_10_partidos_espn(row.get("ID_ESPN"))
+    if partidos_10:
+        total_gf = sum(p["GF"] for p in partidos_10)
+        total_gc = sum(p["GC"] for p in partidos_10)
+        n = len(partidos_10)
+        prom_gf = total_gf / n
+        prom_gc = total_gc / n
     else:
-        gf = int(row.get("GF", round(xg_proyectado * pj)))
-        gc = int(row.get("GC", pj))
+        prom_gf = (jerarquia / 10.0) * 1.5
+        prom_gc = ((10.0 - jerarquia) / 10.0) * 1.2
 
-    pos = min(75, max(35, int(40 + (gf / max(1, pj) * 8) + (xg_proyectado * 3))))
-    vi = int(max(0, pj - int(gc * 0.8)) * 0.4)
+    pos = min(75, max(35, int(40 + (prom_gf * 8) + (xg_proyectado * 3))))
+    vi = int(max(0, 10 - int(prom_gc * 3.0)))
 
     return {
-        "GF": gf, "xG": round(xg_proyectado, 1), "Pos": pos, "VI": vi,
-        "TirosArco": round(xg_proyectado * 3.5 + (gf / max(1, pj) * 1.5), 1),
+        "GF": int(prom_gf * 10), "xG": round(xg_proyectado, 1), "Pos": pos, "VI": vi,
+        "TirosArco": round(xg_proyectado * 3.5 + (prom_gf * 1.2), 1),
         "Pases": min(92, max(60, int(pos * 1.15 + 8))),
         "Corners": round(max(3.0, min(5.8, 2.2 + (xg_proyectado * 1.1) + (pos * 0.02))), 1),
-        "Fortaleza": min(100, max(10, int(100 - ((gc / max(1, pj)) * 35)))),
-        "Pts_U5": round(min(15.0, max(1.0, (gf / max(1, pj)) * 3.5 + (xg_proyectado * 2.0))), 1),
+        "Fortaleza": min(100, max(10, int(100 - (prom_gc * 35)))),
+        "Pts_U5": round(sum(p["Puntos"] for p in partidos_10[:5]), 1) if partidos_10 else 7.5,
         "PJ": pj,
     }
 
@@ -475,8 +516,8 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     categories = ["Goles", "xG", "Posesion", "Vallas Inv.", "Tiros Arco", "Pases", "Defensa", "U5", "Jerarquia"]
     jer_loc, jer_vis = obtener_jerarquia(loc_name), obtener_jerarquia(vis_name)
 
-    val_loc = [stats_loc["GF"]/20, stats_loc["xG"]/2.5, stats_loc["Pos"]/100, stats_loc["VI"]/8, stats_loc["TirosArco"]/7, stats_loc["Pases"]/100, stats_loc["Fortaleza"]/100, stats_loc["Pts_U5"]/15, jer_loc/10]
-    val_vis = [stats_vis["GF"]/20, stats_vis["xG"]/2.5, stats_vis["Pos"]/100, stats_vis["VI"]/8, stats_vis["TirosArco"]/7, stats_vis["Pases"]/100, stats_vis["Fortaleza"]/100, stats_vis["Pts_U5"]/15, jer_vis/10]
+    val_loc = [stats_loc["GF"]/20, stats_loc["xG"]/2.5, stats_loc["Pos"]/100, stats_loc["VI"]/10, stats_loc["TirosArco"]/7, stats_loc["Pases"]/100, stats_loc["Fortaleza"]/100, stats_loc["Pts_U5"]/15, jer_loc/10]
+    val_vis = [stats_vis["GF"]/20, stats_vis["xG"]/2.5, stats_vis["Pos"]/100, stats_vis["VI"]/10, stats_vis["TirosArco"]/7, stats_vis["Pases"]/100, stats_vis["Fortaleza"]/100, stats_vis["Pts_U5"]/15, jer_vis/10]
 
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(r=val_loc+[val_loc[0]], theta=categories+[categories[0]], fill="toself", name=loc_name, line=dict(color="#00ffcc"), fillcolor="rgba(0, 255, 204, 0.2)"))
@@ -489,7 +530,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     return fig
 
 # =====================================================================
-# 6. HISTORIAL Y AGENTE AUTONOMO (FILTRO 3 DIAS Y SIN DUPLICADOS)
+# 7. HISTORIAL Y AGENTE AUTONOMO
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
@@ -656,7 +697,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
     return hubo_cambios, nuevos
 
 # =====================================================================
-# 7. INTERFAZ STREAMLIT INTEGRAL
+# 8. INTERFAZ STREAMLIT INTEGRAL
 # =====================================================================
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
@@ -664,7 +705,7 @@ with col_logo:
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">TABLAS OFICIALES DIVIDIDAS POR ZONAS (ESPN EN VIVO)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">MOTOR CON HISTORIAL EXPONENCIAL REAL (10 ULTIMOS PARTIDOS)</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -693,7 +734,9 @@ if grupos:
     for idx, (nombre_grupo, df_g) in enumerate(grupos.items()):
         with cols_grupos[idx]:
             st.markdown(f"<h4 style='color: #00ffcc; text-align: center;'>{nombre_grupo}</h4>", unsafe_allow_html=True)
-            st.dataframe(df_g, use_container_width=True, hide_index=True)
+            # Ocultamos la columna ID_ESPN de la vista visual del usuario
+            df_mostrar_grupo = df_g.drop(columns=["ID_ESPN"], errors="ignore")
+            st.dataframe(df_mostrar_grupo, use_container_width=True, hide_index=True)
 
     st.markdown("---")
 
@@ -754,7 +797,7 @@ if grupos:
             )
             st.plotly_chart(fig_efectividad, use_container_width=True)
 
-            with st.expander("Ver registro detallado de las evaluations (Depurado sin duplicados)"):
+            with st.expander("Ver registro detallado de las evaluaciones (Depurado sin duplicados)"):
                 df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Marcador_Predicho", "marcador_real", "Prob_Over25", "goles_totales_reales"]].tail(10)
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
@@ -797,7 +840,7 @@ if grupos:
             if es_ia:
                 st.success("Prediccion ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
             else:
-                st.info("Prediccion blindada: Jerarquia (Escudo Arranque) + Forma Exponencial + Bonus Tabla 3%")
+                st.info("Prediccion ejecutada: Forma Exponencial sobre 10 partidos REALES + Mini Bonus Tabla (3%) + Jerarquia (8%/pto)")
 
             st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Ultimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
@@ -824,6 +867,26 @@ if grupos:
             with c_b3:
                 st.markdown("<p style='color: #ff3366;'>Visitante</p>", unsafe_allow_html=True)
                 st.progress(min(1.0, max(0.0, prob_vis / 100.0)))
+
+            st.markdown("---")
+
+            # Desplegable visual para auditar los 10 partidos reales consumidos
+            with st.expander("Ver auditoria de los ultimos partidos reales consumidos por ESPN API"):
+                col_aud1, col_aud2 = st.columns(2)
+                partidos_audit_loc = obtener_ultimos_10_partidos_espn(row_loc.get("ID_ESPN"))
+                partidos_audit_vis = obtener_ultimos_10_partidos_espn(row_vis.get("ID_ESPN"))
+                with col_aud1:
+                    st.markdown(f"**Ultimos partidos de {local}:**")
+                    if partidos_audit_loc:
+                        st.dataframe(pd.DataFrame(partidos_audit_loc)[["Rival", "GF", "GC", "Puntos"]], use_container_width=True)
+                    else:
+                        st.write("Sin datos adicionales en API.")
+                with col_aud2:
+                    st.markdown(f"**Ultimos partidos de {visitante}:**")
+                    if partidos_audit_vis:
+                        st.dataframe(pd.DataFrame(partidos_audit_vis)[["Rival", "GF", "GC", "Puntos"]], use_container_width=True)
+                    else:
+                        st.write("Sin datos adicionales en API.")
 
             st.markdown("---")
 
