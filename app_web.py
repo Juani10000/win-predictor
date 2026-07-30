@@ -276,7 +276,7 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 5. MOTOR DE PREDICCIÓN
+# 5. MOTOR DE PREDICCIÓN CON ALTO PESO EN JERARQUÍA
 # =====================================================================
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[], paquete_ia=None):
     jer_loc = obtener_jerarquia(local)
@@ -297,9 +297,9 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             data_dict = {
                 "local_cod": mapa[local],
                 "visitante_cod": mapa[visitante],
-                "local_jerarquia": jer_loc,
-                "visitante_jerarquia": jer_vis,
-                "dif_jerarquia": jer_loc - jer_vis,
+                "local_jerarquia": jer_loc * 2.5,  # Impacto jerárquico potenciado para IA
+                "visitante_jerarquia": jer_vis * 2.5,
+                "dif_jerarquia": (jer_loc - jer_vis) * 3.0,
                 "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
                 "local_gc_5": 1.0,
                 "local_pts_5": pts_u5_loc / 5.0,
@@ -324,18 +324,24 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     prom_loc = (((float(row_loc.get("Puntos", 0)) / max(float(row_loc.get("PJ", 1)), 1.0)) * 0.4) + (xg_proyectado_local * 0.4)) * (0.85 + (pts_u5_loc_ajustado / 15.0) * 0.30)
     prom_vis = (((float(row_vis.get("Puntos", 0)) / max(float(row_vis.get("PJ", 1)), 1.0)) * 0.4) + (xg_proyectado_visi * 0.4)) * (0.85 + (pts_u5_vis_ajustado / 15.0) * 0.30)
 
+    # IMPULSO MASIVO POR JERARQUÍA (Exponencial base 7.0)
+    prom_loc *= math.pow(jer_loc / 7.0, 1.5)
+    prom_vis *= math.pow(jer_vis / 7.0, 1.5)
+
     prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
     score_loc = (stats_loc["GF"] * 0.2) + (stats_loc["Pos"] * 0.05) + (stats_loc["VI"] * 1.2) + (stats_loc["TirosArco"] * 0.8) + (stats_loc["Fortaleza"] * 0.1)
     score_vis = (stats_vis["GF"] * 0.2) + (stats_vis["Pos"] * 0.05) + (stats_vis["VI"] * 1.2) + (stats_vis["TirosArco"] * 0.8) + (stats_vis["Fortaleza"] * 0.1)
 
     ventaja_relativa = (score_loc - score_vis) / (score_loc + score_vis) if (score_loc + score_vis) > 0 else 0.0
     bono_h2h = (historial_h2h.count('G') - historial_h2h.count('P')) * 0.025
-    bono_jerarquia = (jer_loc - jer_vis) * 0.04
+    
+    # BONO DE JERARQUÍA POTENCIADO (Aumentado de 0.04 a 0.25 por punto de diferencia)
+    bono_jerarquia = (jer_loc - jer_vis) * 0.25
 
-    prom_loc_ajustado *= (1.0 + (ventaja_relativa * 0.08) + bono_h2h + bono_jerarquia)
-    prom_vis_ajustado = prom_vis * (1.0 - (ventaja_relativa * 0.08) - bono_h2h - bono_jerarquia)
+    prom_loc_ajustado *= max(0.1, (1.0 + (ventaja_relativa * 0.08) + bono_h2h + bono_jerarquia))
+    prom_vis_ajustado = prom_vis * max(0.1, (1.0 - (ventaja_relativa * 0.08) - bono_h2h - bono_jerarquia))
 
-    prob_empate = max(22.0, min(38.0, (sum(poisson_prob(xg_proyectado_local, k) * poisson_prob(xg_proyectado_visi, k) for k in range(5)) * 100) * max(0.85, 1.25 - (abs(xg_proyectado_local - xg_proyectado_visi) * 0.4))))
+    prob_empate = max(15.0, min(35.0, (sum(poisson_prob(xg_proyectado_local, k) * poisson_prob(xg_proyectado_visi, k) for k in range(5)) * 100) * max(0.70, 1.25 - (abs(jer_loc - jer_vis) * 0.15))))
     resto = 100.0 - prob_empate
     tot = prom_loc_ajustado + prom_vis_ajustado
 
@@ -433,7 +439,6 @@ def inicializar_historial():
                     df_hist[col] = np.nan
                     hubo_cambio = True
             
-            # DEPURACIÓN ESTRICTA: Eliminar duplicados por (Fecha, Local, Visitante)
             if df_hist.duplicated(subset=['Fecha', 'Local', 'Visitante']).any():
                 df_hist = df_hist.drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first')
                 hubo_cambio = True
@@ -492,11 +497,9 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
                                     hubo_cambios = True
                 except Exception: pass
 
-    # GUARDAR PREDICCIONES HOY (VALIDACIÓN POR TRIPLETA DE CONTROL)
+    # GUARDAR PREDICCIONES HOY
     nuevos = 0
     fecha_hoy = datetime.date.today().strftime("%Y-%m-%d")
-    
-    # Crear set de combinaciones existentes (Fecha, Local, Visitante)
     existentes = set(zip(df_hist["Fecha"].astype(str), df_hist["Local"].astype(str), df_hist["Visitante"].astype(str)))
 
     for p in partidos_del_dia:
@@ -506,8 +509,12 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
             pid = f"{fecha_hoy}_{loc.replace(' ', '')[:4].upper()}_{vis.replace(' ', '')[:4].upper()}"
             xl_base = float(df_datos[df_datos["Equipo"] == loc].iloc[0].get("xG", 1.25))
             xv_base = float(df_datos[df_datos["Equipo"] == vis].iloc[0].get("xG", 1.10))
-            xgl = round(xl_base * 1.15, 2)
-            xgv = round(xv_base * 0.925, 2)
+
+            # APLICAR JERARQUÍA AL XG PROYECTADO DE CADA EQUIPO
+            j_loc_val = obtener_jerarquia(loc)
+            j_vis_val = obtener_jerarquia(vis)
+            xgl = round(xl_base * 1.15 * math.pow(j_loc_val / j_vis_val, 0.8), 2)
+            xgv = round(xv_base * 0.925 * math.pow(j_vis_val / j_loc_val, 0.8), 2)
 
             sl = consolidar_estadisticas(loc, df_datos, xgl)
             sv = consolidar_estadisticas(vis, df_datos, xgv)
@@ -590,13 +597,11 @@ if grupos:
     df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
 
     if not df_ef.empty and "Estado" in df_ef.columns:
-        # Deduplicación garantizada a nivel de interfaz por combinación de partido
         finalizados = df_ef[df_ef["Estado"] == "Finalizado"].drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first').copy()
 
         if finalizados.empty:
             st.info("🤖 **Agente Autónomo Activo**: Las predicciones están guardadas. Cuando finalicen los partidos de la fecha se descargarán los resultados y verás las métricas aquí.")
         else:
-            # Cálculos de acierto
             finalizados["res_real_1x2"] = np.where(finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
                                           np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate"))
             finalizados["acierto_1x2"] = (finalizados["Prediccion_1X2"] == finalizados["res_real_1x2"]).astype(int)
@@ -619,7 +624,6 @@ if grupos:
             c3.metric("Marcador Exacto", f"{(finalizados['acierto_exacto'].mean()*100):.1f}%")
             c4.metric("Acierto Ambos Anotan", f"{(finalizados['acierto_btts'].mean()*100):.1f}%")
 
-            # Gráfico de evolución temporal
             finalizados["Efectividad_Acumulada"] = (finalizados["acierto_1x2"].cumsum() / (np.arange(len(finalizados)) + 1)) * 100
 
             fig_efectividad = go.Figure()
@@ -666,8 +670,11 @@ if grupos:
             row_vis = df_unificado[df_unificado["Equipo"] == visitante].iloc[0]
 
             FACTOR_LOCALIA = 0.15
-            xg_proyectado_local = round(float(row_loc.get("xG", 1.25)) * (1.0 + FACTOR_LOCALIA), 2)
-            xg_proyectado_visi = round(float(row_vis.get("xG", 1.10)) * (1.0 - (FACTOR_LOCALIA * 0.5)), 2)
+            j_loc = obtener_jerarquia(local)
+            j_vis = obtener_jerarquia(visitante)
+
+            xg_proyectado_local = round(float(row_loc.get("xG", 1.25)) * (1.0 + FACTOR_LOCALIA) * math.pow(j_loc / j_vis, 0.8), 2)
+            xg_proyectado_visi = round(float(row_vis.get("xG", 1.10)) * (1.0 - (FACTOR_LOCALIA * 0.5)) * math.pow(j_vis / j_loc, 0.8), 2)
 
             stats_loc = consolidar_estadisticas(local, df_unificado, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df_unificado, xg_proyectado_visi)
@@ -686,18 +693,16 @@ if grupos:
             if es_ia:
                 st.success("Predicción ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
             else:
-                st.info("Predicción ejecutada mediante el Motor Estadístico Avanzado de Resguardo")
+                st.info("Predicción ejecutada mediante el Motor Estadístico Avanzado (Alto Peso Jerárquico)")
 
             st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
 
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
-                jer_local_ui = obtener_jerarquia(local)
-                st.info(f"Jerarquía: **{jer_local_ui}/10** | xG Proy: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
+                st.info(f"Jerarquía: **{j_loc}/10** | xG Proy: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
             with col_xg2:
-                jer_visita_ui = obtener_jerarquia(visitante)
-                st.info(f"Jerarquía: **{jer_visita_ui}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
+                st.info(f"Jerarquía: **{j_vis}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
 
             m1, m2, m3 = st.columns(3)
             m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
