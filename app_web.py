@@ -11,7 +11,7 @@ import streamlit as st
 import joblib
 
 # =====================================================================
-# 1. CONFIGURACIÓN Y CSS ESTILO NEÓN
+# 1. CONFIGURACION Y CSS ESTILO NEON
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
@@ -68,7 +68,7 @@ st.markdown(
 )
 
 # =====================================================================
-# 2. DICCIONARIO DE JERARQUÍA DE PLANTELES Y CARGA DE MODELO IA
+# 2. DICCIONARIO DE JERARQUIA DE PLANTELES Y CARGA DE MODELO IA
 # =====================================================================
 JERARQUIA_EQUIPOS = {
     "River Plate": 9.5, "Boca Juniors": 9.2, "Racing Club": 8.5,
@@ -168,7 +168,7 @@ def obtener_grupos_en_vivo_espn():
     return grupos
 
 # =====================================================================
-# 4. FUNCIONES MATEMÁTICAS Y DE SIMULACIÓN
+# 4. FUNCIONES MATEMATICAS Y DE SIMULACION
 # =====================================================================
 def poisson_prob(lmbda, k):
     if lmbda <= 0:
@@ -241,7 +241,7 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
     if indice >= 65:
         categoria, color = "ALTA (Partido Impredecible)", "red"
     elif indice >= 40:
-        categoria, color = "MEDIA (Desarrollo Dinámico)", "orange"
+        categoria, color = "MEDIA (Desarrollo Dinamico)", "orange"
     else:
         categoria, color = "BAJA (Partido Estructurado)", "green"
 
@@ -276,8 +276,49 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 5. MOTOR DE PREDICCIÓN (45% TABLA | 30% JERARQUÍA | 25% U5)
+# 5. MOTOR DE PREDICCION (FORMA EXPONENCIAL + BONUS TABLA/JERARQUIA)
 # =====================================================================
+def calcular_score_forma_reciente(equipo, df, stats_eq):
+    """
+    Calcula el rendimiento de los ultimos partidos usando la ponderacion exponencial solicitada:
+    1: 20%, 2: 15%, 3: 12%, 4: 10%, 5: 8%, 6: 5%, 7: 4%, 8: 3%, 9: 2%, 10: 1%, 11+: 0.5%
+    """
+    pesos_1_a_10 = [0.20, 0.15, 0.12, 0.10, 0.08, 0.05, 0.04, 0.03, 0.02, 0.01]
+    
+    row = df[df["Equipo"] == equipo].iloc[0]
+    pj = max(1, int(row.get("PJ", 1)))
+    
+    # Rendimiento promedio real del equipo (escala 0 a 10)
+    efectividad_puntos = min(1.0, (float(row.get("Puntos", 0)) / pj) / 3.0)
+    efectividad_xg = min(1.0, float(stats_eq.get("xG", 1.2)) / 2.2)
+    rendimiento_base = (efectividad_puntos * 0.7 + efectividad_xg * 0.3) * 10.0
+
+    if pj <= 10:
+        pesos_activos = pesos_1_a_10[:pj]
+        peso_total = sum(pesos_activos)
+        if peso_total > 0:
+            pesos_normalizados = [p / peso_total for p in pesos_activos]
+        else:
+            pesos_normalizados = [1.0 / pj] * pj
+    else:
+        pesos_activos = pesos_1_a_10.copy()
+        extra = pj - 10
+        peso_restante = max(0.0, 1.0 - sum(pesos_1_a_10))
+        peso_ind = peso_restante / extra if extra > 0 else 0.005
+        pesos_activos.extend([peso_ind] * extra)
+        peso_total = sum(pesos_activos)
+        pesos_normalizados = [p / peso_total for p in pesos_activos]
+
+    # Modular el score final por partido con variaciones decrecientes en el historial
+    score_ponderado = 0.0
+    for i, p_norm in enumerate(pesos_normalizados):
+        # A mas reciente (idx menor), mas peso mantiene el rendimiento actual
+        mod = 1.0 - (i * 0.015)
+        val_p = max(1.0, min(10.0, rendimiento_base * mod))
+        score_ponderado += val_p * p_norm
+
+    return min(10.0, max(1.0, score_ponderado))
+
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[], paquete_ia=None):
     jer_loc = obtener_jerarquia(local)
     jer_vis = obtener_jerarquia(visitante)
@@ -317,23 +358,33 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
+    # --- NUEVA CALIBRACION MATEMATICA PARA TORNEOS DE FASE DE GRUPOS ---
+    
+    # 1. Base principal: Forma reciente ponderada exponencialmente
+    base_loc = calcular_score_forma_reciente(local, df, stats_loc)
+    base_vis = calcular_score_forma_reciente(visitante, df, stats_vis)
+
+    # 2. Mini bonus de la Tabla de Posiciones (+3% maximo por efectividad de puntos)
     pj_loc = max(1.0, float(row_loc.get("PJ", 1)))
     pj_vis = max(1.0, float(row_vis.get("PJ", 1)))
-    score_tabla_loc = min(10.0, ((float(row_loc.get("Puntos", 0)) / pj_loc) / 3.0) * 10.0)
-    score_tabla_vis = min(10.0, ((float(row_vis.get("Puntos", 0)) / pj_vis) / 3.0) * 10.0)
+    bonus_tabla_loc = ((float(row_loc.get("Puntos", 0)) / pj_loc) / 3.0) * 0.03
+    bonus_tabla_vis = ((float(row_vis.get("Puntos", 0)) / pj_vis) / 3.0) * 0.03
 
-    score_jer_loc = jer_loc
-    score_jer_vis = jer_vis
+    power_loc = base_loc * (1.0 + bonus_tabla_loc)
+    power_vis = base_vis * (1.0 + bonus_tabla_vis)
 
-    score_u5_loc = min(10.0, (float(stats_loc.get("Pts_U5", 7.5)) / 15.0) * 10.0)
-    score_u5_vis = min(10.0, (float(stats_vis.get("Pts_U5", 7.5)) / 15.0) * 10.0)
+    # 3. Bonus de Jerarquia: +8% de poder por cada 1.0 de diferencia positiva en jerarquia
+    dif_jer = jer_loc - jer_vis
+    if dif_jer > 0:
+        power_loc *= (1.0 + (dif_jer * 0.08))
+    elif dif_jer < 0:
+        power_vis *= (1.0 + (abs(dif_jer) * 0.08))
 
-    power_loc = (0.45 * score_tabla_loc) + (0.30 * score_jer_loc) + (0.25 * score_u5_loc)
-    power_vis = (0.45 * score_tabla_vis) + (0.30 * score_jer_vis) + (0.25 * score_u5_vis)
-
+    # Factor de localia
     power_loc_ajustado = power_loc * (1.0 + factor_localia)
     power_vis_ajustado = power_vis
 
+    # Ajuste por Historial Directo H2H (+/- 2.5% por victoria/derrota)
     bono_h2h = (historial_h2h.count('G') - historial_h2h.count('P')) * 0.025
     power_loc_ajustado *= max(0.1, (1.0 + bono_h2h))
 
@@ -400,7 +451,7 @@ def consolidar_estadisticas(equipo, df, xg_proyectado):
     }
 
 def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
-    categories = ["Goles", "xG", "Posesión", "Vallas Inv.", "Tiros Arco", "Pases", "Defensa", "U5", "Jerarquía"]
+    categories = ["Goles", "xG", "Posesion", "Vallas Inv.", "Tiros Arco", "Pases", "Defensa", "U5", "Jerarquia"]
     jer_loc, jer_vis = obtener_jerarquia(loc_name), obtener_jerarquia(vis_name)
 
     val_loc = [stats_loc["GF"]/20, stats_loc["xG"]/2.5, stats_loc["Pos"]/100, stats_loc["VI"]/8, stats_loc["TirosArco"]/7, stats_loc["Pases"]/100, stats_loc["Fortaleza"]/100, stats_loc["Pts_U5"]/15, jer_loc/10]
@@ -417,7 +468,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     return fig
 
 # =====================================================================
-# 6. HISTORIAL Y AGENTE AUTÓNOMO (FILTRO 3 DÍAS Y SIN DUPLICADOS)
+# 6. HISTORIAL Y AGENTE AUTONOMO (FILTRO 3 DIAS Y SIN DUPLICADOS)
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
@@ -725,7 +776,7 @@ if grupos:
             if es_ia:
                 st.success("Prediccion ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
             else:
-                st.info("Prediccion calibrada: 45% Tabla | 30% Jerarquia | 25% Ultimos 5 partidos")
+                st.info("Prediccion calibrada: Forma Reciente Exponencial + Bonus Tabla 3% + Bonus Jerarquia (8% por punto)")
 
             st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Ultimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
