@@ -14,7 +14,18 @@ import joblib
 # 1. CONFIGURACION Y CSS ESTILO NEON / CORPORATIVO
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
-
+# =====================================================================
+# OCULTAR MENÚS Y MARCA DE AGUA DE STREAMLIT / GITHUB
+# =====================================================================
+ocultar_elementos_streamlit = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stAppHeader {display: none;}
+    </style>
+    """
+st.markdown(ocultar_elementos_streamlit, unsafe_allow_html=True)
 st.markdown(
     """
     <head>
