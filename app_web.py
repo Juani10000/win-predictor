@@ -140,8 +140,14 @@ def obtener_grupos_en_vivo_espn():
                     gc = int(stats_map.get("pointsAgainst", 0))
                     pts = int(stats_map.get("points", 0))
 
-                    pj_safe = max(1, pj)
-                    xg_est = round((gf / pj_safe) * 0.95, 2)
+                    # Si van menos de 5 partidos, el xG no se distorsiona por la tabla
+                    jer = obtener_jerarquia(nombre)
+                    if pj < 5:
+                        xg_base_jerarquia = (jer / 10.0) * 1.65
+                        xg_tabla = (gf / max(1, pj)) * 0.95
+                        xg_est = round((xg_base_jerarquia * 0.75) + (xg_tabla * 0.25), 2)
+                    else:
+                        xg_est = round((gf / max(1, pj)) * 0.95, 2)
 
                     lista_equipos_grupo.append({
                         "Equipo": nombre,
@@ -276,30 +282,38 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 5. MOTOR DE PREDICCION (FORMA EXPONENCIAL + BONUS TABLA/JERARQUIA)
+# 5. MOTOR DE PREDICCION DESACOPLADO DE LA TABLA INICIAL
 # =====================================================================
 def calcular_score_forma_reciente(equipo, df, stats_eq):
     """
-    Calcula el rendimiento de los ultimos partidos usando la ponderacion exponencial solicitada:
-    1: 20%, 2: 15%, 3: 12%, 4: 10%, 5: 8%, 6: 5%, 7: 4%, 8: 3%, 9: 2%, 10: 1%, 11+: 0.5%
+    Rendimiento ponderado exponencialmente (1°: 20%, 2°: 15%, 3°: 12%, 4°: 10%, 5°: 8%, 6°: 5%, etc.).
+    Si van menos de 5 partidos en el torneo, la base del rendimiento proviene de la Jerarquia del Plantel
+    para que una derrota en la fecha 1 no afecte negativamente la proyeccion.
     """
     pesos_1_a_10 = [0.20, 0.15, 0.12, 0.10, 0.08, 0.05, 0.04, 0.03, 0.02, 0.01]
     
     row = df[df["Equipo"] == equipo].iloc[0]
     pj = max(1, int(row.get("PJ", 1)))
+    jerarquia = obtener_jerarquia(equipo)
     
-    # Rendimiento promedio real del equipo (escala 0 a 10)
-    efectividad_puntos = min(1.0, (float(row.get("Puntos", 0)) / pj) / 3.0)
-    efectividad_xg = min(1.0, float(stats_eq.get("xG", 1.2)) / 2.2)
-    rendimiento_base = (efectividad_puntos * 0.7 + efectividad_xg * 0.3) * 10.0
+    # Rendimiento en tabla actual
+    pts_partido = float(row.get("Puntos", 0)) / pj
+    efectividad_actual = min(1.0, pts_partido / 3.0) * 10.0
+    
+    # Rendimiento estructural de jerarquia
+    efectividad_jerarquia = jerarquia
+    
+    # ESCUDO ANTI-DISTORSION (< 5 partidos):
+    if pj < 5:
+        # Pesa 75% lo que vale el plantel por jerarquia y 25% la tabla recien arrancada
+        rendimiento_base = (efectividad_jerarquia * 0.75) + (efectividad_actual * 0.25)
+    else:
+        rendimiento_base = (efectividad_actual * 0.65) + (efectividad_jerarquia * 0.35)
 
     if pj <= 10:
         pesos_activos = pesos_1_a_10[:pj]
         peso_total = sum(pesos_activos)
-        if peso_total > 0:
-            pesos_normalizados = [p / peso_total for p in pesos_activos]
-        else:
-            pesos_normalizados = [1.0 / pj] * pj
+        pesos_normalizados = [p / peso_total for p in pesos_activos] if peso_total > 0 else [1.0 / pj] * pj
     else:
         pesos_activos = pesos_1_a_10.copy()
         extra = pj - 10
@@ -309,10 +323,8 @@ def calcular_score_forma_reciente(equipo, df, stats_eq):
         peso_total = sum(pesos_activos)
         pesos_normalizados = [p / peso_total for p in pesos_activos]
 
-    # Modular el score final por partido con variaciones decrecientes en el historial
     score_ponderado = 0.0
     for i, p_norm in enumerate(pesos_normalizados):
-        # A mas reciente (idx menor), mas peso mantiene el rendimiento actual
         mod = 1.0 - (i * 0.015)
         val_p = max(1.0, min(10.0, rendimiento_base * mod))
         score_ponderado += val_p * p_norm
@@ -358,13 +370,13 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # --- NUEVA CALIBRACION MATEMATICA PARA TORNEOS DE FASE DE GRUPOS ---
+    # --- CALIBRACION ESTADISTICA SIN IMPACTO NEGATIVO DE LA TABLA ---
     
-    # 1. Base principal: Forma reciente ponderada exponencialmente
+    # 1. Base Principal: Rendimiento ponderado exponencialmente (blindado ante torneos recién iniciados)
     base_loc = calcular_score_forma_reciente(local, df, stats_loc)
     base_vis = calcular_score_forma_reciente(visitante, df, stats_vis)
 
-    # 2. Mini bonus de la Tabla de Posiciones (+3% maximo por efectividad de puntos)
+    # 2. Mini Bonus de la Tabla de Posiciones: Máximo estricto del 3% (+0.03)
     pj_loc = max(1.0, float(row_loc.get("PJ", 1)))
     pj_vis = max(1.0, float(row_vis.get("PJ", 1)))
     bonus_tabla_loc = ((float(row_loc.get("Puntos", 0)) / pj_loc) / 3.0) * 0.03
@@ -373,18 +385,18 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     power_loc = base_loc * (1.0 + bonus_tabla_loc)
     power_vis = base_vis * (1.0 + bonus_tabla_vis)
 
-    # 3. Bonus de Jerarquia: +8% de poder por cada 1.0 de diferencia positiva en jerarquia
+    # 3. Bonus Directo de Jerarquía: +8% por cada 1.0 de diferencia sobre el rival
     dif_jer = jer_loc - jer_vis
     if dif_jer > 0:
         power_loc *= (1.0 + (dif_jer * 0.08))
     elif dif_jer < 0:
         power_vis *= (1.0 + (abs(dif_jer) * 0.08))
 
-    # Factor de localia
+    # Factor localia
     power_loc_ajustado = power_loc * (1.0 + factor_localia)
     power_vis_ajustado = power_vis
 
-    # Ajuste por Historial Directo H2H (+/- 2.5% por victoria/derrota)
+    # Bono historial H2H (+/- 2.5% por victoria/derrota)
     bono_h2h = (historial_h2h.count('G') - historial_h2h.count('P')) * 0.025
     power_loc_ajustado *= max(0.1, (1.0 + bono_h2h))
 
@@ -433,20 +445,29 @@ def obtener_partidos_hoy_auto(equipos_disponibles):
 
 def consolidar_estadisticas(equipo, df, xg_proyectado):
     row = df[df["Equipo"] == equipo].iloc[0]
-    gf = int(row.get("GF", round(xg_proyectado * 12)))
-    pj = max(1, int(row.get("PJ", 12)))
-    gc = int(row.get("GC", 12))
+    pj = max(1, int(row.get("PJ", 1)))
+    jerarquia = obtener_jerarquia(equipo)
 
-    pos = min(75, max(35, int(40 + (gf / pj * 8) + (xg_proyectado * 3))))
+    # Si van pocos partidos, proyectamos los goles desde la jerarquia estructural del plantel
+    if pj < 5:
+        gf_proyectado = round((jerarquia / 10.0) * 1.6 * pj)
+        gc_proyectado = round(((10.0 - jerarquia) / 10.0) * 1.3 * pj)
+        gf = int(row.get("GF", max(1, gf_proyectado)))
+        gc = int(row.get("GC", max(0, gc_proyectado)))
+    else:
+        gf = int(row.get("GF", round(xg_proyectado * pj)))
+        gc = int(row.get("GC", pj))
+
+    pos = min(75, max(35, int(40 + (gf / max(1, pj) * 8) + (xg_proyectado * 3))))
     vi = int(max(0, pj - int(gc * 0.8)) * 0.4)
 
     return {
         "GF": gf, "xG": round(xg_proyectado, 1), "Pos": pos, "VI": vi,
-        "TirosArco": round(xg_proyectado * 3.5 + (gf / pj * 1.5), 1),
+        "TirosArco": round(xg_proyectado * 3.5 + (gf / max(1, pj) * 1.5), 1),
         "Pases": min(92, max(60, int(pos * 1.15 + 8))),
         "Corners": round(max(3.0, min(5.8, 2.2 + (xg_proyectado * 1.1) + (pos * 0.02))), 1),
-        "Fortaleza": min(100, max(10, int(100 - ((gc / pj) * 35)))),
-        "Pts_U5": round(min(15.0, max(1.0, (gf / pj) * 3.5 + (xg_proyectado * 2.0))), 1),
+        "Fortaleza": min(100, max(10, int(100 - ((gc / max(1, pj)) * 35)))),
+        "Pts_U5": round(min(15.0, max(1.0, (gf / max(1, pj)) * 3.5 + (xg_proyectado * 2.0))), 1),
         "PJ": pj,
     }
 
@@ -733,7 +754,7 @@ if grupos:
             )
             st.plotly_chart(fig_efectividad, use_container_width=True)
 
-            with st.expander("Ver registro detallado de las evaluaciones (Depurado sin duplicados)"):
+            with st.expander("Ver registro detallado de las evaluations (Depurado sin duplicados)"):
                 df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Marcador_Predicho", "marcador_real", "Prob_Over25", "goles_totales_reales"]].tail(10)
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
@@ -776,7 +797,7 @@ if grupos:
             if es_ia:
                 st.success("Prediccion ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
             else:
-                st.info("Prediccion calibrada: Forma Reciente Exponencial + Bonus Tabla 3% + Bonus Jerarquia (8% por punto)")
+                st.info("Prediccion blindada: Jerarquia (Escudo Arranque) + Forma Exponencial + Bonus Tabla 3%")
 
             st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Ultimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
