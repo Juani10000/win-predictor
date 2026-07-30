@@ -276,38 +276,38 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 5. MOTOR DE PREDICCIÓN CON ALTO PESO EN JERARQUÍA
+# 5. MOTOR DE PREDICCIÓN (45% TABLA | 30% JERARQUÍA | 25% U5)
 # =====================================================================
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[], paquete_ia=None):
     jer_loc = obtener_jerarquia(local)
     jer_vis = obtener_jerarquia(visitante)
 
-    pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
-    pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
+    row_loc = df[df["Equipo"] == local].iloc[0]
+    row_vis = df[df["Equipo"] == visitante].iloc[0]
 
-    pts_u5_loc_ajustado = pts_u5_loc * (jer_vis / 10.0)
-    pts_u5_vis_ajustado = pts_u5_vis * (jer_loc / 10.0)
-
+    # SI EXISTE EL MODELO IA, MANTIENE LA INFERENCIA ENTRENADA
     if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
         mapa = paquete_ia["mapa_equipos"]
         modelo = paquete_ia["modelo"]
         features_req = paquete_ia.get("features", [])
 
         if local in mapa and visitante in mapa:
+            pts_u5_loc = float(stats_loc.get("Pts_U5", 7.5))
+            pts_u5_vis = float(stats_vis.get("Pts_U5", 7.5))
             data_dict = {
                 "local_cod": mapa[local],
                 "visitante_cod": mapa[visitante],
-                "local_jerarquia": jer_loc * 2.5,  # Impacto jerárquico potenciado para IA
-                "visitante_jerarquia": jer_vis * 2.5,
-                "dif_jerarquia": (jer_loc - jer_vis) * 3.0,
+                "local_jerarquia": jer_loc,
+                "visitante_jerarquia": jer_vis,
+                "dif_jerarquia": jer_loc - jer_vis,
                 "local_gf_5": stats_loc.get("GF", 1.2) / max(1, stats_loc.get("PJ", 1)),
                 "local_gc_5": 1.0,
                 "local_pts_5": pts_u5_loc / 5.0,
-                "local_pts_ajustados_5": pts_u5_loc_ajustado / 5.0,
+                "local_pts_ajustados_5": pts_u5_loc / 5.0,
                 "visita_gf_5": stats_vis.get("GF", 1.0) / max(1, stats_vis.get("PJ", 1)),
                 "visita_gc_5": 1.0,
                 "visita_pts_5": pts_u5_vis / 5.0,
-                "visita_pts_ajustados_5": pts_u5_vis_ajustado / 5.0,
+                "visita_pts_ajustados_5": pts_u5_vis / 5.0,
             }
             row_input = pd.DataFrame([{col: data_dict.get(col, 0) for col in features_req}]) if features_req else pd.DataFrame([data_dict])
 
@@ -318,34 +318,45 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    row_loc = df[df["Equipo"] == local].iloc[0]
-    row_vis = df[df["Equipo"] == visitante].iloc[0]
+    # --- PONDERACIÓN MATEMÁTICA PERSONALIZADA (45% TABLA | 30% JERARQUÍA | 25% U5) ---
 
-    prom_loc = (((float(row_loc.get("Puntos", 0)) / max(float(row_loc.get("PJ", 1)), 1.0)) * 0.4) + (xg_proyectado_local * 0.4)) * (0.85 + (pts_u5_loc_ajustado / 15.0) * 0.30)
-    prom_vis = (((float(row_vis.get("Puntos", 0)) / max(float(row_vis.get("PJ", 1)), 1.0)) * 0.4) + (xg_proyectado_visi * 0.4)) * (0.85 + (pts_u5_vis_ajustado / 15.0) * 0.30)
+    # 1. Componente Posición/Tabla (45%): Puntos por partido normalizados de 0 a 10
+    pj_loc = max(1.0, float(row_loc.get("PJ", 1)))
+    pj_vis = max(1.0, float(row_vis.get("PJ", 1)))
+    score_tabla_loc = min(10.0, ((float(row_loc.get("Puntos", 0)) / pj_loc) / 3.0) * 10.0)
+    score_tabla_vis = min(10.0, ((float(row_vis.get("Puntos", 0)) / pj_vis) / 3.0) * 10.0)
 
-    # IMPULSO MASIVO POR JERARQUÍA (Exponencial base 7.0)
-    prom_loc *= math.pow(jer_loc / 7.0, 1.5)
-    prom_vis *= math.pow(jer_vis / 7.0, 1.5)
+    # 2. Componente Jerarquía (30%): Escala nativa de 0 a 10
+    score_jer_loc = jer_loc
+    score_jer_vis = jer_vis
 
-    prom_loc_ajustado = prom_loc * (1.0 + (factor_localia * 0.5))
-    score_loc = (stats_loc["GF"] * 0.2) + (stats_loc["Pos"] * 0.05) + (stats_loc["VI"] * 1.2) + (stats_loc["TirosArco"] * 0.8) + (stats_loc["Fortaleza"] * 0.1)
-    score_vis = (stats_vis["GF"] * 0.2) + (stats_vis["Pos"] * 0.05) + (stats_vis["VI"] * 1.2) + (stats_vis["TirosArco"] * 0.8) + (stats_vis["Fortaleza"] * 0.1)
+    # 3. Componente Últimos 5 Partidos (25%): Puntos en los últimos 5 normalizados de 0 a 10 (Max 15 pts)
+    score_u5_loc = min(10.0, (float(stats_loc.get("Pts_U5", 7.5)) / 15.0) * 10.0)
+    score_u5_vis = min(10.0, (float(stats_vis.get("Pts_U5", 7.5)) / 15.0) * 10.0)
 
-    ventaja_relativa = (score_loc - score_vis) / (score_loc + score_vis) if (score_loc + score_vis) > 0 else 0.0
+    # CÁLCULO PONDERADO FINAL
+    power_loc = (0.45 * score_tabla_loc) + (0.30 * score_jer_loc) + (0.25 * score_u5_loc)
+    power_vis = (0.45 * score_tabla_vis) + (0.30 * score_jer_vis) + (0.25 * score_u5_vis)
+
+    # Factor localía sobre el poder del local
+    power_loc_ajustado = power_loc * (1.0 + factor_localia)
+    power_vis_ajustado = power_vis
+
+    # Ajuste por Historial Directo H2H (+/- 2.5% por victoria/derrota)
     bono_h2h = (historial_h2h.count('G') - historial_h2h.count('P')) * 0.025
-    
-    # BONO DE JERARQUÍA POTENCIADO (Aumentado de 0.04 a 0.25 por punto de diferencia)
-    bono_jerarquia = (jer_loc - jer_vis) * 0.25
+    power_loc_ajustado *= max(0.1, (1.0 + bono_h2h))
 
-    prom_loc_ajustado *= max(0.1, (1.0 + (ventaja_relativa * 0.08) + bono_h2h + bono_jerarquia))
-    prom_vis_ajustado = prom_vis * max(0.1, (1.0 - (ventaja_relativa * 0.08) - bono_h2h - bono_jerarquia))
+    total_power = max(0.1, power_loc_ajustado + power_vis_ajustado)
 
-    prob_empate = max(15.0, min(35.0, (sum(poisson_prob(xg_proyectado_local, k) * poisson_prob(xg_proyectado_visi, k) for k in range(5)) * 100) * max(0.70, 1.25 - (abs(jer_loc - jer_vis) * 0.15))))
+    # Probabilidad de Empate según paridad de poder
+    dif_power = abs(power_loc_ajustado - power_vis_ajustado)
+    prob_empate = max(20.0, min(36.0, 34.0 - (dif_power * 3.2)))
+
     resto = 100.0 - prob_empate
-    tot = prom_loc_ajustado + prom_vis_ajustado
+    prob_loc = (power_loc_ajustado / total_power) * resto
+    prob_vis = (power_vis_ajustado / total_power) * resto
 
-    return (prom_loc_ajustado / tot) * resto if tot > 0 else resto/2, prob_empate, (prom_vis_ajustado / tot) * resto if tot > 0 else resto/2, False
+    return prob_loc, prob_empate, prob_vis, False
 
 def buscar_equipo(nombre_buscado, lista_equipos):
     nombre_clean = nombre_buscado.lower().strip()
@@ -416,7 +427,7 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     return fig
 
 # =====================================================================
-# 6. HISTORIAL Y AGENTE AUTÓNOMO (CORRECCIÓN ESTRICTA DE DUPLICADOS)
+# 6. HISTORIAL Y AGENTE AUTÓNOMO
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
@@ -509,12 +520,8 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
             pid = f"{fecha_hoy}_{loc.replace(' ', '')[:4].upper()}_{vis.replace(' ', '')[:4].upper()}"
             xl_base = float(df_datos[df_datos["Equipo"] == loc].iloc[0].get("xG", 1.25))
             xv_base = float(df_datos[df_datos["Equipo"] == vis].iloc[0].get("xG", 1.10))
-
-            # APLICAR JERARQUÍA AL XG PROYECTADO DE CADA EQUIPO
-            j_loc_val = obtener_jerarquia(loc)
-            j_vis_val = obtener_jerarquia(vis)
-            xgl = round(xl_base * 1.15 * math.pow(j_loc_val / j_vis_val, 0.8), 2)
-            xgv = round(xv_base * 0.925 * math.pow(j_vis_val / j_loc_val, 0.8), 2)
+            xgl = round(xl_base * 1.15, 2)
+            xgv = round(xv_base * 0.925, 2)
 
             sl = consolidar_estadisticas(loc, df_datos, xgl)
             sv = consolidar_estadisticas(vis, df_datos, xgv)
@@ -673,8 +680,8 @@ if grupos:
             j_loc = obtener_jerarquia(local)
             j_vis = obtener_jerarquia(visitante)
 
-            xg_proyectado_local = round(float(row_loc.get("xG", 1.25)) * (1.0 + FACTOR_LOCALIA) * math.pow(j_loc / j_vis, 0.8), 2)
-            xg_proyectado_visi = round(float(row_vis.get("xG", 1.10)) * (1.0 - (FACTOR_LOCALIA * 0.5)) * math.pow(j_vis / j_loc, 0.8), 2)
+            xg_proyectado_local = round(float(row_loc.get("xG", 1.25)) * (1.0 + FACTOR_LOCALIA), 2)
+            xg_proyectado_visi = round(float(row_vis.get("xG", 1.10)) * (1.0 - (FACTOR_LOCALIA * 0.5)), 2)
 
             stats_loc = consolidar_estadisticas(local, df_unificado, xg_proyectado_local)
             stats_vis = consolidar_estadisticas(visitante, df_unificado, xg_proyectado_visi)
@@ -693,7 +700,7 @@ if grupos:
             if es_ia:
                 st.success("Predicción ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
             else:
-                st.info("Predicción ejecutada mediante el Motor Estadístico Avanzado (Alto Peso Jerárquico)")
+                st.info("Predicción calibrada: 45% Tabla | 30% Jerarquía | 25% Últimos 5 partidos")
 
             st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
