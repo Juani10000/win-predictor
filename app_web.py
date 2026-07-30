@@ -14,6 +14,7 @@ import joblib
 # 1. CONFIGURACION Y CSS ESTILO NEON / CORPORATIVO
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
+
 # =====================================================================
 # OCULTAR MENÚS Y MARCA DE AGUA DE STREAMLIT / GITHUB
 # =====================================================================
@@ -697,7 +698,6 @@ with col_logo:
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-    # SUBTITULO SERIO E IMPACTANTE
     st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
 
 st.markdown("---")
@@ -708,7 +708,6 @@ if grupos:
     df_unificado = pd.concat(grupos.values(), ignore_index=True)
     lista_equipos = sorted(df_unificado["Equipo"].unique())
 
-    # SE QUITÓ "(AGENTE AUTONOMO)"
     st.markdown("<h3 style='color: #cbd5e1;'>Partidos Programados para Hoy</h3>", unsafe_allow_html=True)
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
     procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df_unificado, paquete_ia, lista_equipos)
@@ -790,7 +789,6 @@ if grupos:
             )
             st.plotly_chart(fig_efectividad, use_container_width=True)
 
-            # SE QUITÓ "Depurado sin duplicados"
             with st.expander("Ver registro detallado de las evaluaciones"):
                 df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Marcador_Predicho", "marcador_real", "Prob_Over25", "goles_totales_reales"]].tail(10)
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
@@ -831,7 +829,6 @@ if grupos:
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
 
-            # TEXTO TÉCNICO SERIO Y PRECISO (REEMPLAZA EL ANTERIOR)
             if es_ia:
                 st.success("Proyección ejecutada mediante Red Neural Recursiva & Árboles de Decisión Estocásticos")
             else:
@@ -863,9 +860,50 @@ if grupos:
                 st.markdown("<p style='color: #ff3366;'>Visitante</p>", unsafe_allow_html=True)
                 st.progress(min(1.0, max(0.0, prob_vis / 100.0)))
 
+            # =====================================================================
+            # MEJORA AGREGADA: CUOTAS TEÓRICAS DE VALOR (FAIR ODDS)
+            # =====================================================================
             st.markdown("---")
+            st.markdown("<h4 style='color: #cbd5e1;'>💡 Cuotas Teóricas de Valor (Fair Odds)</h4>", unsafe_allow_html=True)
+            st.caption("Valores calculados directamente según la probabilidad del algoritmo:")
 
-            # SE QUITÓ COMPLEMENTAMENTE EL BOTÓN/EXPANDER DE AUDITORÍA DE PARTIDOS
+            cuota_loc = 100.0 / max(prob_loc, 0.1)
+            cuota_emp = 100.0 / max(prob_empate, 0.1)
+            cuota_vis = 100.0 / max(prob_vis, 0.1)
+
+            c_odd1, c_odd2, c_odd3 = st.columns(3)
+            with c_odd1:
+                st.metric(
+                    label=f"Cuota {local}", 
+                    value=f"${cuota_loc:.2f}",
+                    delta="Favorito" if prob_loc >= 45.0 else None
+                )
+            with c_odd2:
+                st.metric(
+                    label="Cuota Empate", 
+                    value=f"${cuota_emp:.2f}"
+                )
+            with c_odd3:
+                st.metric(
+                    label=f"Cuota {visitante}", 
+                    value=f"${cuota_vis:.2f}",
+                    delta="Favorito" if prob_vis >= 45.0 else None
+                )
+
+            prob_max = max(prob_loc, prob_empate, prob_vis)
+            if prob_max == prob_loc:
+                equipo_val = local
+                cuota_val = cuota_loc
+            elif prob_max == prob_vis:
+                equipo_val = visitante
+                cuota_val = cuota_vis
+            else:
+                equipo_val = "Empate"
+                cuota_val = cuota_emp
+
+            st.info(f"📌 **Análisis del Algoritmo:** La opción con mayor probabilidad estadística es **{equipo_val}** con una cuota teórica justa de **${cuota_val:.2f}**.")
+
+            st.markdown("---")
 
             st.markdown("<h4 style='color: #cbd5e1;'>Indice de Volatilidad & Impredecibilidad</h4>", unsafe_allow_html=True)
             vol_val, vol_cat, vol_col = calcular_indice_volatilidad(xg_proyectado_local, xg_proyectado_visi, stats_loc, stats_vis)
@@ -918,6 +956,25 @@ if grupos:
             tabla_marcadores = [{"Ranking": f"#{rank}", "Resultado Exacto": marcador, "Probabilidad": f"{prob:.1f}%"} for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)]
             tabla_marcadores.append({"Ranking": "Otros", "Resultado Exacto": "Cualquier otro resultado", "Probabilidad": f"{prob_otro:.1f}%"})
             st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
+
+            # =====================================================================
+            # MEJORA AGREGADA: RESUMEN LISTO PARA COMPARTIR EN REDES / WHATSAPP
+            # =====================================================================
+            st.markdown("---")
+            st.markdown("<h4 style='color: #cbd5e1;'>📲 Compartir el Pronóstico</h4>", unsafe_allow_html=True)
+
+            resumen_partido = (
+                f"📊 *Win Predictor LPF*\n"
+                f"⚽ {local} vs {visitante}\n\n"
+                f"🏆 Victoria Local: {prob_loc:.1f}% (${cuota_loc:.2f})\n"
+                f"🤝 Empate: {prob_empate:.1f}% (${cuota_emp:.2f})\n"
+                f"🚀 Victoria Visita: {prob_vis:.1f}% (${cuota_vis:.2f})\n\n"
+                f"🔥 Marcador más probable: {top_5_marcadores[0][0]}\n"
+                f"💡 Opción de Valor: {equipo_val}"
+            )
+
+            st.code(resumen_partido, language="text")
+            st.caption("Copiá este texto para compartir el análisis directamente en tus grupos o redes sociales.")
 
 else:
     st.error("No se pudo obtener la informacion en vivo desde ESPN. Intente refrescar la pagina.")
