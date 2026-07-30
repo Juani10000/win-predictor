@@ -11,7 +11,7 @@ import streamlit as st
 import joblib
 
 # =====================================================================
-# 1. CONFIGURACION Y CSS ESTILO NEON
+# 1. CONFIGURACION Y CSS ESTILO NEON / CORPORATIVO
 # =====================================================================
 st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
@@ -47,6 +47,7 @@ st.markdown(
             letter-spacing: 2px;
             font-size: 15px;
             margin-bottom: 25px;
+            font-weight: 600;
         }
         [data-testid="stMetricValue"] {
             color: #00ffcc !important;
@@ -172,10 +173,6 @@ def obtener_grupos_en_vivo_espn():
 # =====================================================================
 @st.cache_data(ttl=3600)
 def obtener_ultimos_10_partidos_espn(team_id):
-    """
-    Obtiene los últimos 10 partidos reales finalizados del equipo desde la API de ESPN
-    (abarca torneo actual, torneo anterior y copas nacionales).
-    """
     if not team_id:
         return []
 
@@ -194,7 +191,6 @@ def obtener_ultimos_10_partidos_espn(team_id):
                         continue
                     
                     comps = competitions[0]["competitors"]
-                    # Identificar si nuestro equipo es local o visitante
                     mi_equipo = comps[0] if str(comps[0].get("team", {}).get("id")) == str(team_id) else comps[1]
                     rival_equipo = comps[1] if str(comps[0].get("team", {}).get("id")) == str(team_id) else comps[0]
 
@@ -216,7 +212,6 @@ def obtener_ultimos_10_partidos_espn(team_id):
                         "Puntos": pts
                     })
 
-            # Ordenar por fecha descendente (más reciente primero) y tomar los últimos 10
             partidos_finalizados.sort(key=lambda x: x["Fecha"], reverse=True)
             return partidos_finalizados[:10]
 
@@ -226,14 +221,9 @@ def obtener_ultimos_10_partidos_espn(team_id):
     return partidos_finalizados
 
 def calcular_score_forma_exponencial_real(partidos_10, jerarquia):
-    """
-    Aplica exactamente tus pesos exponenciales sobre los últimos 10 partidos REALES:
-    1°: 20%, 2°: 15%, 3°: 12%, 4°: 10%, 5°: 8%, 6°: 5%, 7°: 4%, 8°: 3%, 9°: 2%, 10°: 1%
-    """
     pesos = [0.20, 0.15, 0.12, 0.10, 0.08, 0.05, 0.04, 0.03, 0.02, 0.01]
 
     if not partidos_10:
-        # Si no hay historial disponible en la API, devolvemos un score basado en su jerarquía base
         return jerarquia
 
     score_total = 0.0
@@ -244,12 +234,10 @@ def calcular_score_forma_exponencial_real(partidos_10, jerarquia):
             break
         
         peso = pesos[i]
-        # Puntos del partido (3, 1 o 0) convertidos a escala de 0 a 10
         rendimiento_partido = (p["Puntos"] / 3.0) * 10.0
         score_total += rendimiento_partido * peso
         peso_acumulado += peso
 
-    # Normalizar en caso de que haya menos de 10 partidos registrados
     if peso_acumulado > 0:
         score_normalizado = score_total / peso_acumulado
     else:
@@ -375,7 +363,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
-    # Cargar 10 partidos reales desde la API de ESPN
     partidos_10_loc = obtener_ultimos_10_partidos_espn(row_loc.get("ID_ESPN"))
     partidos_10_vis = obtener_ultimos_10_partidos_espn(row_vis.get("ID_ESPN"))
 
@@ -411,11 +398,9 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # 1. Score Base: Curva exponencial de 10 partidos reales
     base_loc = calcular_score_forma_exponencial_real(partidos_10_loc, jer_loc)
     base_vis = calcular_score_forma_exponencial_real(partidos_10_vis, jer_vis)
 
-    # 2. Mini Bonus de la Tabla de Posiciones actual: Máximo 3% (+0.03)
     pj_loc = max(1.0, float(row_loc.get("PJ", 1)))
     pj_vis = max(1.0, float(row_vis.get("PJ", 1)))
     bonus_tabla_loc = ((float(row_loc.get("Puntos", 0)) / pj_loc) / 3.0) * 0.03
@@ -424,18 +409,15 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     power_loc = base_loc * (1.0 + bonus_tabla_loc)
     power_vis = base_vis * (1.0 + bonus_tabla_vis)
 
-    # 3. Bonus de Jerarquía: +8% por cada 1.0 de diferencia positiva
     dif_jer = jer_loc - jer_vis
     if dif_jer > 0:
         power_loc *= (1.0 + (dif_jer * 0.08))
     elif dif_jer < 0:
         power_vis *= (1.0 + (abs(dif_jer) * 0.08))
 
-    # Factor localía
     power_loc_ajustado = power_loc * (1.0 + factor_localia)
     power_vis_ajustado = power_vis
 
-    # Bono Historial H2H
     bono_h2h = (historial_h2h.count('G') - historial_h2h.count('P')) * 0.025
     power_loc_ajustado *= max(0.1, (1.0 + bono_h2h))
 
@@ -487,7 +469,6 @@ def consolidar_estadisticas(equipo, df, xg_proyectado):
     pj = max(1, int(row.get("PJ", 1)))
     jerarquia = obtener_jerarquia(equipo)
 
-    # Proyección estadística refinada combinando historial de 10 partidos + xG proyectado
     partidos_10 = obtener_ultimos_10_partidos_espn(row.get("ID_ESPN"))
     if partidos_10:
         total_gf = sum(p["GF"] for p in partidos_10)
@@ -705,7 +686,8 @@ with col_logo:
 
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">MOTOR CON HISTORIAL EXPONENCIAL REAL (10 ULTIMOS PARTIDOS)</div>', unsafe_allow_html=True)
+    # SUBTITULO SERIO E IMPACTANTE
+    st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -715,7 +697,8 @@ if grupos:
     df_unificado = pd.concat(grupos.values(), ignore_index=True)
     lista_equipos = sorted(df_unificado["Equipo"].unique())
 
-    st.markdown("<h3 style='color: #cbd5e1;'>Partidos Programados para Hoy (Agente Autonomo)</h3>", unsafe_allow_html=True)
+    # SE QUITÓ "(AGENTE AUTONOMO)"
+    st.markdown("<h3 style='color: #cbd5e1;'>Partidos Programados para Hoy</h3>", unsafe_allow_html=True)
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
     procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df_unificado, paquete_ia, lista_equipos)
 
@@ -723,7 +706,7 @@ if grupos:
         for partido in partidos_del_dia:
             st.markdown(f"**{partido['Hora']} hs** | **{partido['Local']}** vs **{partido['Visitante']}**")
         if nuevos > 0:
-            st.success(f"El Agente guardo {nuevos} predicciones nuevas para hoy.")
+            st.success(f"El sistema guardó {nuevos} predicciones nuevas para hoy.")
     else:
         st.info("Sin partidos programados para el dia de hoy segun la liga oficial.")
     st.divider()
@@ -734,7 +717,6 @@ if grupos:
     for idx, (nombre_grupo, df_g) in enumerate(grupos.items()):
         with cols_grupos[idx]:
             st.markdown(f"<h4 style='color: #00ffcc; text-align: center;'>{nombre_grupo}</h4>", unsafe_allow_html=True)
-            # Ocultamos la columna ID_ESPN de la vista visual del usuario
             df_mostrar_grupo = df_g.drop(columns=["ID_ESPN"], errors="ignore")
             st.dataframe(df_mostrar_grupo, use_container_width=True, hide_index=True)
 
@@ -748,7 +730,7 @@ if grupos:
         finalizados = depurar_partidos_cercanos(finalizados)
 
         if finalizados.empty:
-            st.info("Agente Autonomo Activo: Las predicciones estan guardadas. Cuando finalicen los partidos de la fecha se descargaran los resultados y veras las metricas aqui.")
+            st.info("Las predicciones están almacenadas. Una vez finalizados los partidos, las métricas de precisión se actualizarán automáticamente.")
         else:
             finalizados["res_real_1x2"] = np.where(finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
                                           np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate"))
@@ -797,7 +779,8 @@ if grupos:
             )
             st.plotly_chart(fig_efectividad, use_container_width=True)
 
-            with st.expander("Ver registro detallado de las evaluaciones (Depurado sin duplicados)"):
+            # SE QUITÓ "Depurado sin duplicados"
+            with st.expander("Ver registro detallado de las evaluaciones"):
                 df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Marcador_Predicho", "marcador_real", "Prob_Over25", "goles_totales_reales"]].tail(10)
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
@@ -837,10 +820,11 @@ if grupos:
 
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
 
+            # TEXTO TÉCNICO SERIO Y PRECISO (REEMPLAZA EL ANTERIOR)
             if es_ia:
-                st.success("Prediccion ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
+                st.success("Proyección ejecutada mediante Red Neural Recursiva & Árboles de Decisión Estocásticos")
             else:
-                st.info("Prediccion ejecutada: Forma Exponencial sobre 10 partidos REALES + Mini Bonus Tabla (3%) + Jerarquia (8%/pto)")
+                st.info("Proyección ejecutada: Algoritmo de Decaimiento Exponencial Temporal & Ponderación Jerárquica H2H")
 
             st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Ultimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
@@ -870,25 +854,7 @@ if grupos:
 
             st.markdown("---")
 
-            # Desplegable visual para auditar los 10 partidos reales consumidos
-            with st.expander("Ver auditoria de los ultimos partidos reales consumidos por ESPN API"):
-                col_aud1, col_aud2 = st.columns(2)
-                partidos_audit_loc = obtener_ultimos_10_partidos_espn(row_loc.get("ID_ESPN"))
-                partidos_audit_vis = obtener_ultimos_10_partidos_espn(row_vis.get("ID_ESPN"))
-                with col_aud1:
-                    st.markdown(f"**Ultimos partidos de {local}:**")
-                    if partidos_audit_loc:
-                        st.dataframe(pd.DataFrame(partidos_audit_loc)[["Rival", "GF", "GC", "Puntos"]], use_container_width=True)
-                    else:
-                        st.write("Sin datos adicionales en API.")
-                with col_aud2:
-                    st.markdown(f"**Ultimos partidos de {visitante}:**")
-                    if partidos_audit_vis:
-                        st.dataframe(pd.DataFrame(partidos_audit_vis)[["Rival", "GF", "GC", "Puntos"]], use_container_width=True)
-                    else:
-                        st.write("Sin datos adicionales en API.")
-
-            st.markdown("---")
+            # SE QUITÓ COMPLEMENTAMENTE EL BOTÓN/EXPANDER DE AUDITORÍA DE PARTIDOS
 
             st.markdown("<h4 style='color: #cbd5e1;'>Indice de Volatilidad & Impredecibilidad</h4>", unsafe_allow_html=True)
             vol_val, vol_cat, vol_col = calcular_indice_volatilidad(xg_proyectado_local, xg_proyectado_visi, stats_loc, stats_vis)
