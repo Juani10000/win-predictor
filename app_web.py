@@ -261,15 +261,15 @@ def obtener_historial_directo(equipo_a, equipo_b):
 
 def render_h2h_pills(historial, local, visitante):
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
-    html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Ganó {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
+    html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Gano {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
     html += "<span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; "
-    html += f"<span style='color: #ff3366; font-weight: bold;'>P</span> = Ganó {visitante}</div>"
+    html += f"<span style='color: #ff3366; font-weight: bold;'>P</span> = Gano {visitante}</div>"
     html += "<div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>"
 
     for res in historial:
         color = "#00ffcc" if res == 'G' else "#cbd5e1" if res == 'E' else "#ff3366"
         bg = "rgba(0, 255, 204, 0.2)" if res == 'G' else "rgba(203, 213, 225, 0.2)" if res == 'E' else "rgba(255, 51, 102, 0.2)"
-        tooltip = f"Ganó {local}" if res == 'G' else "Empate" if res == 'E' else f"Ganó {visitante}"
+        tooltip = f"Gano {local}" if res == 'G' else "Empate" if res == 'E' else f"Gano {visitante}"
         html += f"<div title='{tooltip}' style='background-color: {bg}; color: {color}; width: 32px; height: 32px; border: 2px solid {color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; box-shadow: 0 0 5px {color}80; cursor: help;'>{res}</div>"
 
     html += "</div>"
@@ -285,7 +285,6 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
     row_loc = df[df["Equipo"] == local].iloc[0]
     row_vis = df[df["Equipo"] == visitante].iloc[0]
 
-    # SI EXISTE EL MODELO IA, MANTIENE LA INFERENCIA ENTRENADA
     if paquete_ia and "modelo" in paquete_ia and "mapa_equipos" in paquete_ia:
         mapa = paquete_ia["mapa_equipos"]
         modelo = paquete_ia["modelo"]
@@ -318,37 +317,28 @@ def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectad
             except Exception:
                 pass
 
-    # --- PONDERACIÓN MATEMÁTICA PERSONALIZADA (45% TABLA | 30% JERARQUÍA | 25% U5) ---
-
-    # 1. Componente Posición/Tabla (45%): Puntos por partido normalizados de 0 a 10
     pj_loc = max(1.0, float(row_loc.get("PJ", 1)))
     pj_vis = max(1.0, float(row_vis.get("PJ", 1)))
     score_tabla_loc = min(10.0, ((float(row_loc.get("Puntos", 0)) / pj_loc) / 3.0) * 10.0)
     score_tabla_vis = min(10.0, ((float(row_vis.get("Puntos", 0)) / pj_vis) / 3.0) * 10.0)
 
-    # 2. Componente Jerarquía (30%): Escala nativa de 0 a 10
     score_jer_loc = jer_loc
     score_jer_vis = jer_vis
 
-    # 3. Componente Últimos 5 Partidos (25%): Puntos en los últimos 5 normalizados de 0 a 10 (Max 15 pts)
     score_u5_loc = min(10.0, (float(stats_loc.get("Pts_U5", 7.5)) / 15.0) * 10.0)
     score_u5_vis = min(10.0, (float(stats_vis.get("Pts_U5", 7.5)) / 15.0) * 10.0)
 
-    # CÁLCULO PONDERADO FINAL
     power_loc = (0.45 * score_tabla_loc) + (0.30 * score_jer_loc) + (0.25 * score_u5_loc)
     power_vis = (0.45 * score_tabla_vis) + (0.30 * score_jer_vis) + (0.25 * score_u5_vis)
 
-    # Factor localía sobre el poder del local
     power_loc_ajustado = power_loc * (1.0 + factor_localia)
     power_vis_ajustado = power_vis
 
-    # Ajuste por Historial Directo H2H (+/- 2.5% por victoria/derrota)
     bono_h2h = (historial_h2h.count('G') - historial_h2h.count('P')) * 0.025
     power_loc_ajustado *= max(0.1, (1.0 + bono_h2h))
 
     total_power = max(0.1, power_loc_ajustado + power_vis_ajustado)
 
-    # Probabilidad de Empate según paridad de poder
     dif_power = abs(power_loc_ajustado - power_vis_ajustado)
     prob_empate = max(20.0, min(36.0, 34.0 - (dif_power * 3.2)))
 
@@ -427,10 +417,44 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
     return fig
 
 # =====================================================================
-# 6. HISTORIAL Y AGENTE AUTÓNOMO
+# 6. HISTORIAL Y AGENTE AUTÓNOMO (FILTRO 3 DÍAS Y SIN DUPLICADOS)
 # =====================================================================
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 RUTA_HISTORIAL = os.path.join(DIRECTORIO_APP, "historial_predicciones.csv")
+
+def depurar_partidos_cercanos(df_hist):
+    if df_hist.empty or "Fecha" not in df_hist.columns:
+        return df_hist
+    df_temp = df_hist.copy()
+    df_temp["Fecha_dt"] = pd.to_datetime(df_temp["Fecha"], errors="coerce")
+    df_temp = df_temp.sort_values(by="Fecha_dt").reset_index(drop=True)
+
+    fechas_ultimo_partido = {}
+    indices_validos = []
+
+    for idx, row in df_temp.iterrows():
+        f_dt = row["Fecha_dt"]
+        if pd.isna(f_dt):
+            indices_validos.append(idx)
+            continue
+        
+        loc, vis = str(row["Local"]), str(row["Visitante"])
+        valido = True
+
+        for equipo in (loc, vis):
+            if equipo in fechas_ultimo_partido:
+                dias_dif = (f_dt - fechas_ultimo_partido[equipo]).days
+                if 0 <= dias_dif < 3:
+                    valido = False
+                    break
+        
+        if valido:
+            indices_validos.append(idx)
+            fechas_ultimo_partido[loc] = f_dt
+            fechas_ultimo_partido[vis] = f_dt
+
+    df_limpio = df_temp.loc[indices_validos].drop(columns=["Fecha_dt"]).reset_index(drop=True)
+    return df_limpio
 
 def inicializar_historial():
     columnas_requeridas = [
@@ -454,6 +478,11 @@ def inicializar_historial():
                 df_hist = df_hist.drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first')
                 hubo_cambio = True
 
+            df_depurado = depurar_partidos_cercanos(df_hist)
+            if len(df_depurado) != len(df_hist):
+                df_hist = df_depurado
+                hubo_cambio = True
+
             if hubo_cambio:
                 df_hist.to_csv(RUTA_HISTORIAL, index=False)
         except Exception:
@@ -468,7 +497,6 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
 
     hubo_cambios = False
 
-    # ACTUALIZAR RESULTADOS REALES PENDIENTES
     if "Estado" in df_hist.columns:
         pendientes = df_hist[df_hist["Estado"] == "Pendiente"]
         if not pendientes.empty:
@@ -508,7 +536,6 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
                                     hubo_cambios = True
                 except Exception: pass
 
-    # GUARDAR PREDICCIONES HOY
     nuevos = 0
     fecha_hoy = datetime.date.today().strftime("%Y-%m-%d")
     existentes = set(zip(df_hist["Fecha"].astype(str), df_hist["Local"].astype(str), df_hist["Visitante"].astype(str)))
@@ -551,6 +578,7 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
 
     if hubo_cambios:
         df_hist = df_hist.drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first')
+        df_hist = depurar_partidos_cercanos(df_hist)
         df_hist.to_csv(RUTA_HISTORIAL, index=False)
 
     return hubo_cambios, nuevos
@@ -574,8 +602,7 @@ if grupos:
     df_unificado = pd.concat(grupos.values(), ignore_index=True)
     lista_equipos = sorted(df_unificado["Equipo"].unique())
 
-    # PARTIDOS DE HOY CON AGENTE AUTÓNOMO
-    st.markdown("<h3 style='color: #cbd5e1;'>Partidos Programados para Hoy (Agente Autónomo)</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #cbd5e1;'>Partidos Programados para Hoy (Agente Autonomo)</h3>", unsafe_allow_html=True)
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
     procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df_unificado, paquete_ia, lista_equipos)
 
@@ -583,12 +610,11 @@ if grupos:
         for partido in partidos_del_dia:
             st.markdown(f"**{partido['Hora']} hs** | **{partido['Local']}** vs **{partido['Visitante']}**")
         if nuevos > 0:
-            st.success(f"🤖 El Agente guardó {nuevos} predicciones nuevas para hoy.")
+            st.success(f"El Agente guardo {nuevos} predicciones nuevas para hoy.")
     else:
-        st.info("Sin partidos programados para el día de hoy según la liga oficial.")
+        st.info("Sin partidos programados para el dia de hoy segun la liga oficial.")
     st.divider()
 
-    # TABLAS DE POSICIONES DIVIDIDAS POR ZONAS
     st.markdown("<h3 style='color: #cbd5e1;'>Tablas de Posiciones Oficiales por Zonas</h3>", unsafe_allow_html=True)
 
     cols_grupos = st.columns(len(grupos))
@@ -599,15 +625,15 @@ if grupos:
 
     st.markdown("---")
 
-    # PANEL DE EFECTIVIDAD HISTÓRICA SIN DUPLICADOS
-    st.markdown("<h3 style='color: #cbd5e1;'>Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #cbd5e1;'>Efectividad Historica del Modelo</h3>", unsafe_allow_html=True)
     df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
 
     if not df_ef.empty and "Estado" in df_ef.columns:
         finalizados = df_ef[df_ef["Estado"] == "Finalizado"].drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first').copy()
+        finalizados = depurar_partidos_cercanos(finalizados)
 
         if finalizados.empty:
-            st.info("🤖 **Agente Autónomo Activo**: Las predicciones están guardadas. Cuando finalicen los partidos de la fecha se descargarán los resultados y verás las métricas aquí.")
+            st.info("Agente Autonomo Activo: Las predicciones estan guardadas. Cuando finalicen los partidos de la fecha se descargaran los resultados y veras las metricas aqui.")
         else:
             finalizados["res_real_1x2"] = np.where(finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
                                           np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate"))
@@ -644,8 +670,8 @@ if grupos:
                 hovertemplate="Partido N°%{x}<br>Efectividad: %{y:.1f}%<extra></extra>"
             ))
             fig_efectividad.update_layout(
-                title="Curva de Evolución del Porcentaje de Acierto (%)",
-                xaxis_title="Número de Partidos Evaluados",
+                title="Curva de Evolucion del Porcentaje de Acierto (%)",
+                xaxis_title="Numero de Partidos Evaluados",
                 yaxis_title="Acierto Acumulado (%)",
                 yaxis=dict(range=[0, 100], gridcolor="#1e293b"),
                 xaxis=dict(gridcolor="#1e293b"),
@@ -656,14 +682,13 @@ if grupos:
             )
             st.plotly_chart(fig_efectividad, use_container_width=True)
 
-            with st.expander("📋 Ver registro detallado de las evaluaciones (Depurado sin duplicados)"):
+            with st.expander("Ver registro detallado de las evaluaciones (Depurado sin duplicados)"):
                 df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Marcador_Predicho", "marcador_real", "Prob_Over25", "goles_totales_reales"]].tail(10)
                 st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
 
     st.markdown("---")
 
-    # MOTOR DE PREDICCIÓN INTERACTIVO COMPLETO
-    st.markdown("<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #cbd5e1;'>Motor de Prediccion de Partidos</h3>", unsafe_allow_html=True)
 
     if len(lista_equipos) >= 2:
         col1, col2 = st.columns(2)
@@ -698,25 +723,25 @@ if grupos:
             st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
 
             if es_ia:
-                st.success("Predicción ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
+                st.success("Prediccion ejecutada mediante el Modelo de Inteligencia Artificial (modelo_entrenado.pkl)")
             else:
-                st.info("Predicción calibrada: 45% Tabla | 30% Jerarquía | 25% Últimos 5 partidos")
+                st.info("Prediccion calibrada: 45% Tabla | 30% Jerarquia | 25% Ultimos 5 partidos")
 
-            st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Ultimos 5 vs)</p>", unsafe_allow_html=True)
             st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
 
             col_xg1, col_xg2 = st.columns(2)
             with col_xg1:
-                st.info(f"Jerarquía: **{j_loc}/10** | xG Proy: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
+                st.info(f"Jerarquia: **{j_loc}/10** | xG Proy: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
             with col_xg2:
-                st.info(f"Jerarquía: **{j_vis}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
+                st.info(f"Jerarquia: **{j_vis}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
 
             m1, m2, m3 = st.columns(3)
             m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
             m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
             m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
 
-            st.markdown("<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>", unsafe_allow_html=True)
+            st.markdown("<br><p style='color: #94a3b8;'>Distribucion de probabilidad 1X2:</p>", unsafe_allow_html=True)
             c_b1, c_b2, c_b3 = st.columns(3)
             with c_b1:
                 st.markdown("<p style='color: #00ffcc;'>Local</p>", unsafe_allow_html=True)
@@ -730,30 +755,27 @@ if grupos:
 
             st.markdown("---")
 
-            # ÍNDICE DE VOLATILIDAD Y CAOS
-            st.markdown("<h4 style='color: #cbd5e1;'>Índice de Volatilidad & Impredecibilidad</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='color: #cbd5e1;'>Indice de Volatilidad & Impredecibilidad</h4>", unsafe_allow_html=True)
             vol_val, vol_cat, vol_col = calcular_indice_volatilidad(xg_proyectado_local, xg_proyectado_visi, stats_loc, stats_vis)
             v_col1, v_col2 = st.columns([1, 2])
-            with v_col1: st.metric(label="Índice de Caos", value=f"{vol_val}%")
+            with v_col1: st.metric(label="Indice de Caos", value=f"{vol_val}%")
             with v_col2:
                 st.markdown(f"**Nivel de Riesgo:** :{vol_col}[{vol_cat}]")
                 st.progress(int(vol_val) / 100)
 
             st.markdown("---")
 
-            # MERCADOS COMPLEMENTARIOS
-            st.markdown("<h4 style='color: #cbd5e1;'>Mercados Complementarios (Proyección Poisson)</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='color: #cbd5e1;'>Mercados Complementarios (Proyeccion Poisson)</h4>", unsafe_allow_html=True)
             prob_over_25, prob_under_25, prob_btts = calcular_mercados_adicionales(xg_proyectado_local, xg_proyectado_visi)
             c_m1, c_m2, c_m3, c_m4 = st.columns(4)
-            with c_m1: st.metric(label="Más de 2.5 Goles", value=f"{prob_over_25:.1f}%")
+            with c_m1: st.metric(label="Mas de 2.5 Goles", value=f"{prob_over_25:.1f}%")
             with c_m2: st.metric(label="Menos de 2.5 Goles", value=f"{prob_under_25:.1f}%")
-            with c_m3: st.metric(label="Ambos Anotan (Sí)", value=f"{prob_btts:.1f}%")
-            with c_m4: st.metric(label="Córners Totales (Est.)", value=f"{round(stats_loc['Corners'] + stats_vis['Corners'], 1)}")
+            with c_m3: st.metric(label="Ambos Anotan (Si)", value=f"{prob_btts:.1f}%")
+            with c_m4: st.metric(label="Corners Totales (Est.)", value=f"{round(stats_loc['Corners'] + stats_vis['Corners'], 1)}")
 
             st.markdown("---")
 
-            # SIMULACIÓN ESTOCÁSTICA MONTE CARLO
-            st.markdown("<h4 style='color: #cbd5e1;'>Simulación Estocástica Monte Carlo (10,000 Partidos)</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='color: #cbd5e1;'>Simulacion Estocastica Monte Carlo (10,000 Partidos)</h4>", unsafe_allow_html=True)
             p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(xg_proyectado_local, xg_proyectado_visi)
             c_mc1, c_mc2, c_mc3 = st.columns(3)
             c_mc1.metric(f"Victoria {local} (MC)", f"{p_loc_mc:.1f}%")
@@ -763,7 +785,7 @@ if grupos:
             fig_hist = go.Figure()
             fig_hist.add_trace(go.Scatter(y=np.histogram(goles_sim, bins=10)[0], mode='lines+markers', line=dict(color="#00f3ff", width=3)))
             fig_hist.update_layout(
-                title="Distribución de Goles Totales en 10,000 Simulaciones",
+                title="Distribucion de Goles Totales en 10,000 Simulaciones",
                 xaxis_title="Escenarios de Goles", yaxis_title="Frecuencia",
                 paper_bgcolor="#070b14", plot_bgcolor="#111827", font=dict(color="#cbd5e1"),
                 margin=dict(t=40, b=40, l=40, r=40),
@@ -772,15 +794,13 @@ if grupos:
 
             st.markdown("---")
 
-            # ANÁLISIS OCTAGONAL RADAR
-            st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Analisis Octagonal</h4>", unsafe_allow_html=True)
             fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
             st.plotly_chart(fig_radar, use_container_width=True)
 
             st.markdown("---")
 
-            # MARCADORES EXACTOS TOP 5
-            st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Mas Probables</h4>", unsafe_allow_html=True)
             top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi, prob_loc, prob_empate, prob_vis)
 
             tabla_marcadores = [{"Ranking": f"#{rank}", "Resultado Exacto": marcador, "Probabilidad": f"{prob:.1f}%"} for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)]
@@ -788,4 +808,4 @@ if grupos:
             st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
 
 else:
-    st.error("No se pudo obtener la información en vivo desde ESPN. Intente refrescar la página.")
+    st.error("No se pudo obtener la informacion en vivo desde ESPN. Intente refrescar la pagina.")
