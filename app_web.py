@@ -78,46 +78,13 @@ st.markdown(
             background-color: #0d1322;
             border-right: 1px solid #1e293b;
         }
-        /* Tarjetas de Jugadores Goleadores */
-        .player-card {
-            background: linear-gradient(135deg, #0d1527 0%, #111e38 100%);
-            border: 1px solid #00f3ff40;
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0, 243, 255, 0.1);
-        }
-        .player-name {
-            font-size: 18px;
-            font-weight: 800;
-            color: #ffffff;
-            margin-bottom: 2px;
-        }
-        .player-team {
-            font-size: 12px;
-            color: #00ffcc;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-        }
-        .player-stat {
-            font-size: 24px;
-            font-weight: 900;
-            color: #00f3ff;
-            text-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
-        }
-        .player-sub {
-            font-size: 11px;
-            color: #94a3b8;
-        }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # =====================================================================
-# 2. DICCIONARIO DE JERARQUIA DE PLANTELES Y CARGA DE MODELO IA
+# 2. DICCIONARIO DE JERARQUIA DE PLANTELES Y GOLEADORES
 # =====================================================================
 JERARQUIA_EQUIPOS = {
     "River Plate": 9.5, "Boca Juniors": 9.2, "Racing Club": 8.5,
@@ -132,38 +99,37 @@ JERARQUIA_EQUIPOS = {
     "Atlético Tucumán": 6.2, "Aldosivi": 5.5, "San Martín (SJ)": 5.5
 }
 
-# Referentes ofensivos por equipo para la proyección individual de gol
-JUGADORES_CLAVE = {
-    "River Plate": [("Miguel Borja", 0.42), ("Facundo Colidio", 0.28), ("Pablo Solari", 0.20)],
-    "Boca Juniors": [("Edinson Cavani", 0.40), ("Miguel Merentiel", 0.35), ("Milton Giménez", 0.18)],
-    "Racing Club": [("Adrian Martínez", 0.45), ("Maximilian Salas", 0.25), ("Juan Fernando Quintero", 0.18)],
-    "Vélez Sarsfield": [("Braian Romero", 0.42), ("Claudio Aquino", 0.26), ("Francisco Pizzini", 0.18)],
-    "Talleres": [("Federico Girotti", 0.38), ("Rubén Botta", 0.24), ("Bruno Barticciotto", 0.22)],
-    "Estudiantes": [("Guido Carrillo", 0.40), ("Edwar Cetré", 0.25), ("José Sosa", 0.15)],
-    "San Lorenzo": [("Alexis Cuello", 0.35), ("Iker Muniain", 0.22), ("Nahuel Bustos", 0.20)],
-    "Independiente": [("Gabriel Ávalos", 0.40), ("Santiago Montiel", 0.22), ("Loyola", 0.15)],
-    "Huracán": [("Eric Ramírez", 0.35), ("Walter Mazzantti", 0.25), ("Rodrigo Echeverría", 0.18)],
-    "Lanús": [("Walter Bou", 0.42), ("Marcelino Moreno", 0.25), ("Eduardo Salvio", 0.20)],
-    "Rosario Central": [("Marco Ruben", 0.38), ("Jaminton Campaz", 0.25), ("Ignacio Malcorra", 0.20)],
-    "Argentinos Juniors": [("Maximilian Romero", 0.38), ("Alan Lescano", 0.26), ("Gastón Verón", 0.18)],
-    "Godoy Cruz": [("Salomón Rodríguez", 0.40), ("Daniel Barrea", 0.22), ("Santino Andino", 0.18)],
-    "Belgrano": [("Franco Jara", 0.45), ("Bryan Reyna", 0.22), ("Lucas Passerini", 0.20)],
-    "Newell's": [("Juan Ignacio Ramírez", 0.40), ("Mateo Silvetti", 0.22), ("Ever Banega", 0.15)],
-    "Defensa y Justicia": [("Juan Miritello", 0.38), ("Abiel Osorio", 0.25), ("Rodrigo Bogarín", 0.18)],
-    "Unión": [("Adrian Balboa", 0.36), ("Nicolas Orsini", 0.30), ("Lucas Gamba", 0.20)],
-    "Platense": [("Mateo Pellegrino", 0.42), ("Ronaldo Martínez", 0.25), ("Guido Mainero", 0.18)],
-    "Gimnasia LP": [("Rodrigo Castillo", 0.38), ("David Zalazar", 0.22), ("Pablo De Blasis", 0.18)],
-    "Instituto": [("Ignacio Russo", 0.38), ("Damián Puebla", 0.28), ("Facundo Suárez", 0.20)],
-    "Banfield": [("Bruno Sepúlveda", 0.40), ("Leandro Garate", 0.25), ("Ignacio Rodríguez", 0.18)],
-    "Tigre": [("Florián Monzón", 0.38), ("Gonzalo Maroni", 0.22), ("Eric Ramírez", 0.18)],
-    "Barracas Central": [("Jhonatan Candia", 0.38), ("Alexis Domínguez", 0.28), ("Facundo Mater", 0.15)],
-    "Central Córdoba": [("Favio Cabral", 0.38), ("Matías Godoy", 0.25), ("Lucas Varaldo", 0.18)],
-    "Sarmiento": [("Iván Morales", 0.38), ("Joaquín Gho", 0.22), ("Manuel Mónaco", 0.18)],
-    "Deportivo Riestra": [("Jonathan Herrera", 0.42), ("Antony Alonso", 0.25), ("Milton Céliz", 0.18)],
-    "Independiente Rivadavia": [("Victorio Ramis", 0.38), ("Sebastián Villa", 0.30), ("Gonzalo Ríos", 0.18)],
-    "Atlético Tucumán": [("Mateo Coronel", 0.38), ("Marcelo Estigarribia", 0.32), ("Renzo Tesuri", 0.18)],
-    "Aldosivi": [("Agustín Colazo", 0.40), ("Elías Torres", 0.25), ("Alan Sosa", 0.18)],
-    "San Martín (SJ)": [("Nazareno Funez", 0.40), ("Alejandro Molina", 0.22), ("Federico González", 0.18)]
+REFERENTES_OFENSIVOS = {
+    "River Plate": [("Miguel Borja", 0.45), ("Facundo Colidio", 0.30)],
+    "Boca Juniors": [("Edinson Cavani", 0.42), ("Miguel Merentiel", 0.35)],
+    "Racing Club": [("Adrian Martinez", 0.44), ("Luciano Vietto", 0.28)],
+    "San Lorenzo": [("Alexis Cuello", 0.32), ("Iker Muniain", 0.25)],
+    "Independiente": [("Gabriel Avalos", 0.38), ("Santiago Montiel", 0.25)],
+    "Estudiantes": [("Guido Carrillo", 0.40), ("Edwuin Cetre", 0.28)],
+    "Talleres": [("Federico Girotti", 0.36), ("Ruben Botta", 0.25)],
+    "Vélez Sarsfield": [("Braian Romero", 0.42), ("Francisco Pizzini", 0.28)],
+    "Lanús": [("Walter Bou", 0.40), ("Marcelino Moreno", 0.30)],
+    "Huracán": [("Eric Ramirez", 0.35), ("Rodrigo Echeverria", 0.22)],
+    "Rosario Central": [("Marco Ruben", 0.35), ("Jaminton Campaz", 0.25)],
+    "Argentinos Juniors": [("Maximilian Romero", 0.35), ("Alan Lescano", 0.28)],
+    "Godoy Cruz": [("Salomon Rodriguez", 0.38), ("Santino Andino", 0.25)],
+    "Belgrano": [("Franco Jara", 0.40), ("Bryan Reyna", 0.25)],
+    "Newell's": [("Juan Ignacio Ramirez", 0.36), ("Mateo Silvetti", 0.22)],
+    "Defensa y Justicia": [("Juan Miritello", 0.35), ("Aaron Molinas", 0.22)],
+    "Unión": [("Adrian Balboa", 0.35), ("Nicolas Orsini", 0.30)],
+    "Platense": [("Mateo Pellegrino", 0.38), ("Guido Mainero", 0.25)],
+    "Gimnasia LP": [("Rodrigo Castillo", 0.35), ("David Zalazar", 0.22)],
+    "Instituto": [("Facundo Suarez", 0.35), ("Damian Puebla", 0.28)],
+    "Banfield": [("Bruno Sepulveda", 0.35), ("Ignacio Rodriguez", 0.22)],
+    "Tigre": [("Florian Monzon", 0.35), ("Gonzalo Maroni", 0.22)],
+    "Barracas Central": [("Jhonatan Candia", 0.32), ("Facundo Bruera", 0.28)],
+    "Central Córdoba": [("Lucas Varaldo", 0.32), ("Matias Godoy", 0.25)],
+    "Sarmiento": [("Iván Morales", 0.32), ("Joaquín Gho", 0.22)],
+    "Deportivo Riestra": [("Jonathan Herrera", 0.38), ("Antony Alonso", 0.25)],
+    "Independiente Rivadavia": [("Victorio Ramis", 0.32), ("Sebastian Villa", 0.28)],
+    "Atlético Tucumán": [("Mateo Coronel", 0.35), ("Marcelo Estigarribia", 0.30)],
+    "Aldosivi": [("Agustin Colazo", 0.35), ("Elias Torres", 0.25)],
+    "San Martín (SJ)": [("Nazareno Funez", 0.32), ("Tomas Fernandez", 0.25)]
 }
 
 def obtener_jerarquia(nombre_equipo):
@@ -436,7 +402,7 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL Y GOLEADORES
+# 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
 # =====================================================================
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[], paquete_ia=None):
     jer_loc = obtener_jerarquia(local)
@@ -591,56 +557,6 @@ def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
         showlegend=True, paper_bgcolor="#070b14", plot_bgcolor="#070b14", font=dict(color="#94a3b8"), margin=dict(t=30, b=30, l=30, r=30)
     )
     return fig
-
-# ---------------------------------------------------------------------
-# NUEVA FUNCIÓN: ESTIMACIÓN DE PROBABILIDAD DE GOL DE JUGADORES
-# ---------------------------------------------------------------------
-def obtener_top_3_goleadores_fecha(partidos_evaluar, df_unificado, factor_localia=0.15):
-    candidatos = []
-
-    for p in partidos_evaluar:
-        loc, vis = p["Local"], p["Visitante"]
-        if loc not in df_unificado["Equipo"].values or vis not in df_unificado["Equipo"].values:
-            continue
-
-        row_loc = df_unificado[df_unificado["Equipo"] == loc].iloc[0]
-        row_vis = df_unificado[df_unificado["Equipo"] == vis].iloc[0]
-
-        xgl = round(float(row_loc.get("xG", 1.25)) * (1.0 + factor_localia), 2)
-        xgv = round(float(row_vis.get("xG", 1.10)) * (1.0 - (factor_localia * 0.5)), 2)
-
-        # Evaluar referentes ofensivos de ambos equipos
-        equipos_partido = [(loc, vis, xgl, "Local"), (vis, loc, xgv, "Visitante")]
-        
-        for eq, rival, xg_eq, condicion in equipos_partido:
-            referentes = JUGADORES_CLAVE.get(eq, [("Centrodelantero Titular", 0.38), ("Extremo / Enganche", 0.25), ("Segundo Atacante", 0.18)])
-            
-            for nombre_jugador, cuota_participacion in referentes:
-                # Lambda individual Poisson = xG_equipo * cuota_participacion
-                lambda_jugador = max(0.05, xg_eq * cuota_participacion)
-                
-                # P(At least 1 goal) = 1 - e^(-lambda)
-                prob_gol = (1.0 - math.exp(-lambda_jugador)) * 100.0
-                cuota_justa = round(100.0 / max(0.1, prob_gol), 2)
-
-                candidatos.append({
-                    "Jugador": nombre_jugador,
-                    "Equipo": eq,
-                    "Rival": rival,
-                    "Condicion": condicion,
-                    "Partido": f"{loc} vs {vis}",
-                    "Hora": p.get("Hora", "Hoy"),
-                    "Probabilidad": round(prob_gol, 1),
-                    "Cuota_Justa": cuota_justa
-                })
-
-    # Ordenar por probabilidad descendente y seleccionar los 3 mejores
-    candidatos_df = pd.DataFrame(candidatos)
-    if candidatos_df.empty:
-        return []
-
-    candidatos_df = candidatos_df.sort_values(by="Probabilidad", ascending=False).drop_duplicates(subset=["Jugador"]).head(3)
-    return candidatos_df.to_dict(orient="records")
 
 # =====================================================================
 # 7. HISTORIAL Y AGENTE AUTONOMO
@@ -820,8 +736,8 @@ st.sidebar.markdown("---")
 opcion_pantalla = st.sidebar.radio(
     "Navegación / Menú",
     [
-        "🔮 Predicciones y Métricas",
-        "💰 Fair Odds & Valor"
+        "Predicciones y Métricas",
+        "Cuotas Justas y Opciones de Valor"
     ],
     index=0
 )
@@ -839,22 +755,10 @@ else:
     partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
     procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df_unificado, paquete_ia, lista_equipos)
 
-    # Preparar partidos a evaluar para goleadores / fair odds
-    partidos_fecha_evaluar = partidos_del_dia.copy()
-    if not partidos_fecha_evaluar:
-        equipos_disp = list(lista_equipos)
-        np.random.seed(42)
-        np.random.shuffle(equipos_disp)
-        for i in range(0, min(10, len(equipos_disp)-1), 2):
-            partidos_fecha_evaluar.append({"Local": equipos_disp[i], "Visitante": equipos_disp[i+1], "Hora": "Hoy"})
-
-    # Calcular los 3 jugadores con más probabilidad de gol de la fecha
-    top_3_goleadores = obtener_top_3_goleadores_fecha(partidos_fecha_evaluar, df_unificado)
-
     # =====================================================================
     # PANTALLA 1: PREDICCIONES Y MÉTRICAS
     # =====================================================================
-    if opcion_pantalla == "🔮 Predicciones y Métricas":
+    if opcion_pantalla == "Predicciones y Métricas":
         col_logo, col_titulo = st.columns([1, 6])
         with col_logo:
             st.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=100)
@@ -873,32 +777,6 @@ else:
         else:
             st.info("Sin partidos programados para el día de hoy según la liga oficial.")
         
-        st.divider()
-
-        # ---------------------------------------------------------------------
-        # SECCIÓN NUEVA: TOP 3 JUGADORES CON MÁS PROBABILIDAD DE GOL DE LA FECHA
-        # ---------------------------------------------------------------------
-        st.markdown("<h3 style='color: #00f3ff;'>⚽ Top 3 Jugadores con Mayor Probabilidad de Gol de la Fecha</h3>", unsafe_allow_html=True)
-        st.caption("Proyección individual basada en $xG$ del equipo, porcentaje de participación ofensiva y modelo de distribución Poisson.")
-
-        if top_3_goleadores:
-            cols_gol = st.columns(3)
-            for idx, jug in enumerate(top_3_goleadores):
-                with cols_gol[idx]:
-                    st.markdown(f"""
-                        <div class="player-card">
-                            <div class="player-team">{jug['Equipo']} ({jug['Condicion']})</div>
-                            <div class="player-name">#{idx+1} {jug['Jugador']}</div>
-                            <div style="margin: 10px 0;">
-                                <span class="player-stat">{jug['Probabilidad']}%</span>
-                            </div>
-                            <div class="player-sub">VS <b>{jug['Rival']}</b> | Hora: {jug['Hora']}</div>
-                            <div class="player-sub" style="color: #00ffcc; margin-top: 4px; font-weight:700;">Fair Odds (Cuota Justa): @{jug['Cuota_Justa']}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-        else:
-            st.info("No hay suficientes partidos disponibles para generar la proyección de goleadores.")
-
         st.divider()
 
         st.markdown("<h3 style='color: #cbd5e1;'>Tablas de Posiciones Oficiales por Zonas</h3>", unsafe_allow_html=True)
@@ -1094,24 +972,30 @@ else:
                 st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # PANTALLA 2: FAIR ODDS & OPCIONES DE VALOR
+    # PANTALLA 2: CUOTAS JUSTAS & OPCIONES DE VALOR
     # =====================================================================
-    elif opcion_pantalla == "💰 Fair Odds & Valor":
-        st.markdown('<div class="neon-title">ANÁLISIS DE FAIR ODDS Y CUOTAS DE VALOR</div>', unsafe_allow_html=True)
+    elif opcion_pantalla == "Cuotas Justas y Opciones de Valor":
+        st.markdown('<div class="neon-title">ANÁLISIS DE CUOTAS JUSTAS Y VALOR</div>', unsafe_allow_html=True)
         st.markdown('<div class="tech-sub">EVALUACIÓN AUTOMÁTICA DE MERCADOS Y OPORTUNIDADES ESTADÍSTICAS</div>', unsafe_allow_html=True)
         st.markdown("---")
 
-        # Cargar partidos a evaluar
-        partidos_evaluar = partidos_fecha_evaluar.copy()
+        # Cargar partidos del día o lista general para análisis
+        partidos_evaluar = partidos_del_dia.copy()
 
-        if not partidos_del_dia:
+        if not partidos_evaluar:
             st.info("Sin partidos programados para el día de hoy en ESPN. Se muestran oportunidades calculadas entre cruces principales de la fecha.")
+            equipos_disp = list(lista_equipos)
+            np.random.seed(42)
+            np.random.shuffle(equipos_disp)
+            for i in range(0, min(10, len(equipos_disp)-1), 2):
+                partidos_evaluar.append({"Local": equipos_disp[i], "Visitante": equipos_disp[i+1], "Hora": "Hoy"})
 
         # Matrices para guardar selecciones categorizadas
         opciones_probables = []       # Probabilidad >= 70%
         opciones_razonables = []      # 50% <= Probabilidad < 70%
         opciones_poco_probables = [] # Probabilidad < 50%
-        mejores_opciones = []         # Probabilidad >= 60% + Cuota Teórica >= 1.60 (Alto valor)
+        mejores_opciones = []         # Probabilidad >= 60% + Cuota Teórica >= 1.50
+        goleadores_del_dia = []
 
         FACTOR_LOCALIA = 0.15
 
@@ -1133,6 +1017,22 @@ else:
             pl, pe, pv, _ = realizar_prediccion(loc, vis, df_unificado, sl, sv, xgl, xgv, FACTOR_LOCALIA, h2h, paquete_ia)
             po25, pu25, pbtts = calcular_mercados_adicionales(xgl, xgv)
 
+            # Cálculo de Probabilidad de Goleadores
+            for eq_nombre, xg_eq in [(loc, xgl), (vis, xgv)]:
+                ref_list = REFERENTES_OFENSIVOS.get(eq_nombre, [("Delantero Titular", 0.35), ("Segundo Atacante", 0.25)])
+                for jug, ratio in ref_list:
+                    xg_jugador = xg_eq * ratio
+                    prob_gol = round((1.0 - math.exp(-xg_jugador)) * 100.0, 1)
+                    cuota_gol = round(100.0 / max(0.1, prob_gol), 2)
+                    goleadores_del_dia.append({
+                        "Jugador": jug,
+                        "Equipo": eq_nombre,
+                        "Partido": f"{loc} vs {vis}",
+                        "Probabilidad de Gol": f"{prob_gol}%",
+                        "Cuota Justa": cuota_gol,
+                        "_prob_num": prob_gol
+                    })
+
             # Lista de todos los mercados principales del partido
             mercados = [
                 {"Partido": f"{loc} vs {vis}", "Mercado": f"Victoria {loc}", "Prob": pl},
@@ -1148,14 +1048,13 @@ else:
                 if prob <= 1.0:
                     continue
                 
-                # Cuota justa o teórica = 1 / (Prob / 100)
                 cuota_teorica = round(100.0 / prob, 2)
 
                 item = {
                     "Partido": m["Partido"],
                     "Mercado": m["Mercado"],
                     "Probabilidad": f"{prob}%",
-                    "Cuota Justa (Fair Odds)": cuota_teorica,
+                    "Cuota Justa": cuota_teorica,
                     "_prob_num": prob,
                     "_cuota_num": cuota_teorica
                 }
@@ -1166,18 +1065,31 @@ else:
                 elif 50.0 <= prob < 70.0:
                     opciones_razonables.append(item)
                 else:
-                    if cuota_teorica >= 2.10: # Opciones poco probables con cuotas muy atractivas
+                    if cuota_teorica >= 2.10:
                         opciones_poco_probables.append(item)
 
-                # Criterio para MEJORES OPCIONES DE LA FECHA (P >= 60% y Cuota >= 1.50)
                 if prob >= 60.0 and cuota_teorica >= 1.50:
                     mejores_opciones.append(item)
 
         # ---------------------------------------------------------------------
-        # SECCIÓN 1: MEJORES OPCIONES DE LA FECHA
+        # SECCIÓN 1: JUGADORES CON MÁS PROBABILIDAD DE GOL DEL DÍA
         # ---------------------------------------------------------------------
-        st.markdown("<h3 style='color: #00ffcc;'>⭐ Mejores Opciones de la Fecha</h3>", unsafe_allow_html=True)
-        st.caption("Oportunidades con alta convicción del modelo (probabilidad ≥ 60%) y excelente cuota de valor teórica (≥ 1.50).")
+        st.markdown("<h3 style='color: #00ffcc;'>Jugadores con más probabilidad de gol del día</h3>", unsafe_allow_html=True)
+        st.caption("Atacantes y referentes ofensivos con mayor expectativa estadística de convertir en la jornada.")
+
+        if goleadores_del_dia:
+            df_goleadores = pd.DataFrame(goleadores_del_dia).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num"])
+            st.dataframe(df_goleadores, use_container_width=True, hide_index=True)
+        else:
+            st.info("Sin registros de goleadores disponibles para esta fecha.")
+
+        st.markdown("---")
+
+        # ---------------------------------------------------------------------
+        # SECCIÓN 2: MEJORES OPCIONES DEL DÍA
+        # ---------------------------------------------------------------------
+        st.markdown("<h3 style='color: #00ffcc;'>Mejores opciones del día</h3>", unsafe_allow_html=True)
+        st.caption("Oportunidades con alta convicción del modelo (probabilidad >= 60%) y excelente valor teórica (>= 1.50).")
 
         if mejores_opciones:
             df_mejores = pd.DataFrame(mejores_opciones).sort_values(by="_cuota_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
@@ -1188,28 +1100,10 @@ else:
         st.markdown("---")
 
         # ---------------------------------------------------------------------
-        # SECCIÓN DE JUGADORES GOLEADORES DESTACADOS EN PANTALLA DE VALOR
+        # SECCIÓN 3: OPCIONES PROBABLES
         # ---------------------------------------------------------------------
-        st.markdown("<h3 style='color: #00f3ff;'>⚽ Cuotas Justas de Jugadores (Anotadores Probables)</h3>", unsafe_allow_html=True)
-        if top_3_goleadores:
-            df_gol_tabla = pd.DataFrame([
-                {
-                    "Jugador": j["Jugador"],
-                    "Equipo": f"{j['Equipo']} ({j['Condicion']})",
-                    "Partido / Rival": f"vs {j['Rival']}",
-                    "Probabilidad Anotar": f"{j['Probabilidad']}%",
-                    "Fair Odds (Cuota Mínima de Valor)": f"@{j['Cuota_Justa']}"
-                } for j in top_3_goleadores
-            ])
-            st.dataframe(df_gol_tabla, use_container_width=True, hide_index=True)
-        
-        st.markdown("---")
-
-        # ---------------------------------------------------------------------
-        # SECCIÓN 2: OPCIONES PROBABLES
-        # ---------------------------------------------------------------------
-        st.markdown("<h3 style='color: #00f3ff;'>🟢 Opciones Probables (Probabilidad ≥ 70%)</h3>", unsafe_allow_html=True)
-        st.caption("Eventos con altísima tasa estimada de ocurrencia y cuotas teóricas moderadas pero de valor constante.")
+        st.markdown("<h3 style='color: #00f3ff;'>Opciones Probables (Probabilidad >= 70%)</h3>", unsafe_allow_html=True)
+        st.caption("Eventos con altísima tasa estimada de ocurrencia y cuotas estimadas moderadas.")
 
         if opciones_probables:
             df_probables = pd.DataFrame(opciones_probables).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
@@ -1220,10 +1114,10 @@ else:
         st.markdown("---")
 
         # ---------------------------------------------------------------------
-        # SECCIÓN 3: OPCIONES RAZONABLES
+        # SECCIÓN 4: OPCIONES RAZONABLES
         # ---------------------------------------------------------------------
-        st.markdown("<h3 style='color: #ffb703;'>🟡 Opciones Razonables (50% - 70% de probabilidad)</h3>", unsafe_allow_html=True)
-        st.caption("Escenarios equilibrados con probabilidades moderadas y cuotas de valor significativamente más altas.")
+        st.markdown("<h3 style='color: #ffb703;'>Opciones Razonables (50% - 70% de probabilidad)</h3>", unsafe_allow_html=True)
+        st.caption("Escenarios equilibrados con probabilidades moderadas y cuotas significativamente más altas.")
 
         if opciones_razonables:
             df_razonables = pd.DataFrame(opciones_razonables).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
@@ -1234,9 +1128,9 @@ else:
         st.markdown("---")
 
         # ---------------------------------------------------------------------
-        # SECCIÓN 4: OPCIONES POCO PROBABLES
+        # SECCIÓN 5: OPCIONES POCO PROBABLES
         # ---------------------------------------------------------------------
-        st.markdown("<h3 style='color: #ff3366;'>🔴 Opciones Poco Probables (< 50% de probabilidad)</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: #ff3366;'>Opciones Poco Probables (< 50% de probabilidad)</h3>", unsafe_allow_html=True)
         st.caption("Opciones de riesgo superior pero con cuotas teóricas muy elevadas (superior a 2.10).")
 
         if opciones_poco_probables:
