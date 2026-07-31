@@ -197,7 +197,7 @@ def cargar_modelo_ia():
 paquete_ia = cargar_modelo_ia()
 
 # =====================================================================
-# 3. EXTRAER TABLAS Y MAPA DE IDs DESDE ESPN CON POSICIÓN Y ESCUDO
+# 3. EXTRAER TABLAS, ESCUDOS Y MAPA DE IDs DESDE ESPN
 # =====================================================================
 @st.cache_data(ttl=1800)
 def obtener_grupos_en_vivo_espn():
@@ -222,10 +222,8 @@ def obtener_grupos_en_vivo_espn():
                     team_info = entry.get("team", {})
                     nombre = team_info.get("displayName", "")
                     team_id = team_info.get("id", "")
-                    
-                    # Obtener logo/escudo del equipo si está disponible
                     logos = team_info.get("logos", [])
-                    logo_url = logos[0].get("href", "") if logos else ""
+                    logo_url = logos[0].get("href", ESCUDO_DEFAULT) if logos else ESCUDO_DEFAULT
 
                     if not nombre:
                         continue
@@ -239,7 +237,7 @@ def obtener_grupos_en_vivo_espn():
                     pts = int(stats_map.get("points", 0))
 
                     lista_equipos_grupo.append({
-                        "Logo": logo_url,
+                        "Escudo": logo_url,
                         "Equipo": nombre,
                         "ID_ESPN": team_id,
                         "Puntos": pts,
@@ -252,13 +250,12 @@ def obtener_grupos_en_vivo_espn():
 
                 df_grupo = pd.DataFrame(lista_equipos_grupo)
                 if not df_grupo.empty:
-                    # Ordenar por Puntos, Diferencia de Gol y Goles a Favor
                     df_grupo = df_grupo.sort_values(
                         by=["Puntos", "DG", "GF"],
                         ascending=[False, False, False]
                     ).drop(columns=["DG"]).reset_index(drop=True)
 
-                    # Insertar columna de Posición al inicio
+                    # Insertar Posición en la columna 0 (a la izquierda de Escudo)
                     df_grupo.insert(0, "Pos", range(1, len(df_grupo) + 1))
 
                 grupos[nombre_grupo] = df_grupo
@@ -877,24 +874,6 @@ else:
     # PANTALLA 1: PREDICCIONES Y MÉTRICAS
     # =====================================================================
     if opcion_pantalla == "Predicciones y Métricas":
-        st.markdown("<h3 style='color: #cbd5e1;'>Partidos Programados para Hoy</h3>", unsafe_allow_html=True)
-        if partidos_del_dia:
-            for partido in partidos_del_dia:
-                esc_l = obtener_escudo_equipo(partido['Local'], df_unificado)
-                esc_v = obtener_escudo_equipo(partido['Visitante'], df_unificado)
-                st.markdown(
-                    f"**{partido['Hora']} hs** | "
-                    f"<img src='{esc_l}' width='20' style='vertical-align:middle;'> **{partido['Local']}** vs "
-                    f"**{partido['Visitante']}** <img src='{esc_v}' width='20' style='vertical-align:middle;'>", 
-                    unsafe_allow_html=True
-                )
-            if nuevos > 0:
-                st.success(f"El sistema guardó {nuevos} predicciones nuevas para hoy.")
-        else:
-            st.info("Sin partidos programados para el día de hoy según la liga oficial.")
-        
-        st.divider()
-
         st.markdown("<h3 style='color: #cbd5e1;'>Tablas de Posiciones Oficiales por Zonas</h3>", unsafe_allow_html=True)
         cols_grupos = st.columns(len(grupos))
         for idx, (nombre_grupo, df_g) in enumerate(grupos.items()):
@@ -902,10 +881,11 @@ else:
                 st.markdown(f"<h4 style='color: #00ffcc; text-align: center;'>{nombre_grupo}</h4>", unsafe_allow_html=True)
                 df_mostrar_grupo = df_g.drop(columns=["ID_ESPN"], errors="ignore")
                 
-                # Renderizar tabla con imágenes de escudos integradas
+                # Renderizar tabla configurando explícitamente la columna Escudo como imagen
                 st.dataframe(
                     df_mostrar_grupo,
                     column_config={
+                        "Pos": st.column_config.NumberColumn("Pos", width="small"),
                         "Escudo": st.column_config.ImageColumn("Escudo", width="small"),
                     },
                     use_container_width=True, 
