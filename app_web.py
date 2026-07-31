@@ -11,9 +11,9 @@ import streamlit as st
 import joblib
 
 # =====================================================================
-# 1. CONFIGURACION Y CSS ESTILO NEON / CORPORATIVO
+# 1. CONFIGURACION Y CSS ESTILO NEON / CORPORATIVO (OPTIMIZADO MÓVIL)
 # =====================================================================
-st.set_page_config(page_title="Win Predictor | LPF", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Win Predictor | LPF", layout="wide")
 
 # Ocultar menús nativos y footer de Streamlit
 ocultar_elementos_streamlit = """
@@ -43,7 +43,7 @@ st.markdown(
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         .neon-title {
-            font-size: 40px;
+            font-size: 36px;
             font-weight: 900;
             text-align: left;
             color: #ffffff;
@@ -55,13 +55,13 @@ st.markdown(
             text-align: left;
             color: #94a3b8;
             letter-spacing: 2px;
-            font-size: 14px;
-            margin-bottom: 20px;
+            font-size: 13px;
+            margin-bottom: 15px;
             font-weight: 600;
         }
         [data-testid="stMetricValue"] {
             color: #00ffcc !important;
-            font-size: 32px !important;
+            font-size: 30px !important;
             font-weight: 900 !important;
             text-shadow: 0 0 5px #00ffcc80;
         }
@@ -73,10 +73,40 @@ st.markdown(
         hr {
             border-top: 1px solid #1e293b;
         }
-        /* Estilos Sidebar */
-        [data-testid="stSidebar"] {
-            background-color: #0d1322;
-            border-right: 1px solid #1e293b;
+        /* Estilos para Tarjetas de Goleadores (Móvil) */
+        .player-card {
+            background: linear-gradient(135deg, #0d1527 0%, #111e38 100%);
+            border: 1px solid #00f3ff40;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 243, 255, 0.1);
+            margin-bottom: 12px;
+        }
+        .player-name {
+            font-size: 19px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+        .player-team {
+            font-size: 12px;
+            color: #00ffcc;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        .player-stat {
+            font-size: 28px;
+            font-weight: 900;
+            color: #00f3ff;
+            text-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
+        }
+        .player-sub {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 4px;
         }
     </style>
     """,
@@ -84,7 +114,7 @@ st.markdown(
 )
 
 # =====================================================================
-# 2. DICCIONARIO DE JERARQUIA DE PLANTELES Y GOLEADORES
+# 2. DICCIONARIO DE JERARQUIA DE PLANTELES Y CARGA DE MODELO IA
 # =====================================================================
 JERARQUIA_EQUIPOS = {
     "River Plate": 9.5, "Boca Juniors": 9.2, "Racing Club": 8.5,
@@ -99,38 +129,33 @@ JERARQUIA_EQUIPOS = {
     "Atlético Tucumán": 6.2, "Aldosivi": 5.5, "San Martín (SJ)": 5.5
 }
 
-REFERENTES_OFENSIVOS = {
-    "River Plate": [("Miguel Borja", 0.45), ("Facundo Colidio", 0.30)],
-    "Boca Juniors": [("Edinson Cavani", 0.42), ("Miguel Merentiel", 0.35)],
-    "Racing Club": [("Adrian Martinez", 0.44), ("Luciano Vietto", 0.28)],
-    "San Lorenzo": [("Alexis Cuello", 0.32), ("Iker Muniain", 0.25)],
-    "Independiente": [("Gabriel Avalos", 0.38), ("Santiago Montiel", 0.25)],
-    "Estudiantes": [("Guido Carrillo", 0.40), ("Edwuin Cetre", 0.28)],
-    "Talleres": [("Federico Girotti", 0.36), ("Ruben Botta", 0.25)],
-    "Vélez Sarsfield": [("Braian Romero", 0.42), ("Francisco Pizzini", 0.28)],
-    "Lanús": [("Walter Bou", 0.40), ("Marcelino Moreno", 0.30)],
-    "Huracán": [("Eric Ramirez", 0.35), ("Rodrigo Echeverria", 0.22)],
-    "Rosario Central": [("Marco Ruben", 0.35), ("Jaminton Campaz", 0.25)],
-    "Argentinos Juniors": [("Maximilian Romero", 0.35), ("Alan Lescano", 0.28)],
-    "Godoy Cruz": [("Salomon Rodriguez", 0.38), ("Santino Andino", 0.25)],
-    "Belgrano": [("Franco Jara", 0.40), ("Bryan Reyna", 0.25)],
-    "Newell's": [("Juan Ignacio Ramirez", 0.36), ("Mateo Silvetti", 0.22)],
-    "Defensa y Justicia": [("Juan Miritello", 0.35), ("Aaron Molinas", 0.22)],
-    "Unión": [("Adrian Balboa", 0.35), ("Nicolas Orsini", 0.30)],
-    "Platense": [("Mateo Pellegrino", 0.38), ("Guido Mainero", 0.25)],
-    "Gimnasia LP": [("Rodrigo Castillo", 0.35), ("David Zalazar", 0.22)],
-    "Instituto": [("Facundo Suarez", 0.35), ("Damian Puebla", 0.28)],
-    "Banfield": [("Bruno Sepulveda", 0.35), ("Ignacio Rodriguez", 0.22)],
-    "Tigre": [("Florian Monzon", 0.35), ("Gonzalo Maroni", 0.22)],
-    "Barracas Central": [("Jhonatan Candia", 0.32), ("Facundo Bruera", 0.28)],
-    "Central Córdoba": [("Lucas Varaldo", 0.32), ("Matias Godoy", 0.25)],
-    "Sarmiento": [("Iván Morales", 0.32), ("Joaquín Gho", 0.22)],
-    "Deportivo Riestra": [("Jonathan Herrera", 0.38), ("Antony Alonso", 0.25)],
-    "Independiente Rivadavia": [("Victorio Ramis", 0.32), ("Sebastian Villa", 0.28)],
-    "Atlético Tucumán": [("Mateo Coronel", 0.35), ("Marcelo Estigarribia", 0.30)],
-    "Aldosivi": [("Agustin Colazo", 0.35), ("Elias Torres", 0.25)],
-    "San Martín (SJ)": [("Nazareno Funez", 0.32), ("Tomas Fernandez", 0.25)]
-}
+# Base de datos de principales atacantes y su promedio de gol por partido
+JUGADORES_LPF = [
+    {"nombre": "Miguel Borja", "equipo": "River Plate", "prom_goles": 0.65},
+    {"nombre": "Facundo Colidio", "equipo": "River Plate", "prom_goles": 0.38},
+    {"nombre": "Edinson Cavani", "equipo": "Boca Juniors", "prom_goles": 0.58},
+    {"nombre": "Miguel Merentiel", "equipo": "Boca Juniors", "prom_goles": 0.45},
+    {"nombre": "Adrian Martinez", "equipo": "Racing Club", "prom_goles": 0.62},
+    {"nombre": "Maximiliano Salas", "equipo": "Racing Club", "prom_goles": 0.32},
+    {"nombre": "Braian Romero", "equipo": "Vélez Sarsfield", "prom_goles": 0.52},
+    {"nombre": "Claudio Aquino", "equipo": "Vélez Sarsfield", "prom_goles": 0.40},
+    {"nombre": "Walter Bou", "equipo": "Lanús", "prom_goles": 0.48},
+    {"nombre": "Marcelino Moreno", "equipo": "Lanús", "prom_goles": 0.35},
+    {"nombre": "Luciano Gondou", "equipo": "Argentinos Juniors", "prom_goles": 0.50},
+    {"nombre": "Guido Carrillo", "equipo": "Estudiantes", "prom_goles": 0.42},
+    {"nombre": "Edwar Lopez", "equipo": "Tigre", "prom_goles": 0.30},
+    {"nombre": "Federico Girotti", "equipo": "Talleres", "prom_goles": 0.41},
+    {"nombre": "Matias Coccaro", "equipo": "Huracán", "prom_goles": 0.38},
+    {"nombre": "Adam Bareiro", "equipo": "River Plate", "prom_goles": 0.36},
+    {"nombre": "Jaminton Campaz", "equipo": "Rosario Central", "prom_goles": 0.30},
+    {"nombre": "Marco Ruben", "equipo": "Rosario Central", "prom_goles": 0.35},
+    {"nombre": "Gabriel Avalos", "equipo": "Independiente", "prom_goles": 0.37},
+    {"nombre": "Santiago Rodriguez", "equipo": "Instituto", "prom_goles": 0.36},
+    {"nombre": "Jonathan Candia", "equipo": "Barracas Central", "prom_goles": 0.31},
+    {"nombre": "Florian Monzon", "equipo": "Tigre", "prom_goles": 0.33},
+    {"nombre": "Ignacio Pussetto", "equipo": "Huracán", "prom_goles": 0.40},
+    {"nombre": "Mateo Pellegrino", "equipo": "Platense", "prom_goles": 0.38}
+]
 
 def obtener_jerarquia(nombre_equipo):
     if not isinstance(nombre_equipo, str):
@@ -400,6 +425,64 @@ def render_h2h_pills(historial, local, visitante):
 
     html += "</div>"
     return html
+
+# =====================================================================
+# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA
+# =====================================================================
+def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
+    if df_unificado.empty or not partidos_del_dia:
+        return []
+
+    df_defensas = df_unificado.copy()
+    df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
+    df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
+    
+    # Ranking defensivo: Puesto 1 (recibe más) al Puesto 30 (menos recibe)
+    ranking_defensas = {}
+    for idx, row in df_defensas.iterrows():
+        ranking_defensas[row["Equipo"]] = idx + 1
+
+    candidatos = []
+
+    for partido in partidos_del_dia:
+        eq_loc = partido["Local"]
+        eq_vis = partido["Visitante"]
+
+        puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
+        puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
+
+        for jugador in JUGADORES_LPF:
+            nombre = jugador["nombre"]
+            eq_jugador = jugador["equipo"]
+            prom_goles = jugador["prom_goles"]
+
+            if buscar_equipo(eq_jugador, [eq_loc]):
+                rival = eq_vis
+                puesto_rival = puesto_vis_gc
+            elif buscar_equipo(eq_jugador, [eq_vis]):
+                rival = eq_loc
+                puesto_rival = puesto_loc_gc
+            else:
+                continue
+
+            prob_base = min(85.0, prom_goles * 100.0)
+
+            # Reducción proporcional a la fortaleza defensiva (1.5% a 45%)
+            descuento_pct = puesto_rival * 1.5
+            prob_final = max(5.0, prob_base - descuento_pct)
+            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
+
+            candidatos.append({
+                "nombre": nombre,
+                "equipo": eq_jugador,
+                "rival": rival,
+                "puesto_rival_defensa": puesto_rival,
+                "probabilidad": round(prob_final, 1),
+                "cuota_justa": cuota_justa
+            })
+
+    candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
+    return candidatos[:3]
 
 # =====================================================================
 # 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
@@ -726,29 +809,30 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
     return hubo_cambios, nuevos
 
 # =====================================================================
-# 8. NAVEGACIÓN Y ESTRUCTURA MULTIPÁGINA
+# 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
 # =====================================================================
+col_logo, col_titulo = st.columns([1, 6])
+with col_logo:
+    st.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=80)
 
-st.sidebar.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=90)
-st.sidebar.markdown("## **WIN PREDICTOR LPF**")
-st.sidebar.markdown("---")
+with col_titulo:
+    st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
 
-opcion_pantalla = st.sidebar.radio(
-    "Navegación / Menú",
-    [
-        "Predicciones y Métricas",
-        "Cuotas Justas y Opciones de Valor"
-    ],
-    index=0
+# Menú superior horizontal cómodo para dispositivos móviles
+opcion_pantalla = st.radio(
+    "Menú de Navegación:",
+    ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
+    horizontal=True,
+    label_visibility="collapsed"
 )
 
-st.sidebar.markdown("---")
-st.sidebar.caption("© 2026 Win Predictor LPF | Engine version 2.4")
+st.markdown("---")
 
 grupos = obtener_grupos_en_vivo_espn()
 
 if not grupos:
-    st.error("No se pudo obtener la informacion en vivo desde ESPN. Intente refrescar la pagina.")
+    st.error("No se pudo obtener la información en vivo desde ESPN. Intenta refrescar la página.")
 else:
     df_unificado = pd.concat(grupos.values(), ignore_index=True)
     lista_equipos = sorted(df_unificado["Equipo"].unique())
@@ -759,15 +843,6 @@ else:
     # PANTALLA 1: PREDICCIONES Y MÉTRICAS
     # =====================================================================
     if opcion_pantalla == "Predicciones y Métricas":
-        col_logo, col_titulo = st.columns([1, 6])
-        with col_logo:
-            st.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=100)
-        with col_titulo:
-            st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
-            st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
-
-        st.markdown("---")
-
         st.markdown("<h3 style='color: #cbd5e1;'>Partidos Programados para Hoy</h3>", unsafe_allow_html=True)
         if partidos_del_dia:
             for partido in partidos_del_dia:
@@ -979,7 +1054,6 @@ else:
         st.markdown('<div class="tech-sub">EVALUACIÓN AUTOMÁTICA DE MERCADOS Y OPORTUNIDADES ESTADÍSTICAS</div>', unsafe_allow_html=True)
         st.markdown("---")
 
-        # Cargar partidos del día o lista general para análisis
         partidos_evaluar = partidos_del_dia.copy()
 
         if not partidos_evaluar:
@@ -991,11 +1065,10 @@ else:
                 partidos_evaluar.append({"Local": equipos_disp[i], "Visitante": equipos_disp[i+1], "Hora": "Hoy"})
 
         # Matrices para guardar selecciones categorizadas
-        opciones_probables = []       # Probabilidad >= 70%
-        opciones_razonables = []      # 50% <= Probabilidad < 70%
-        opciones_poco_probables = [] # Probabilidad < 50%
-        mejores_opciones = []         # Probabilidad >= 60% + Cuota Teórica >= 1.50
-        goleadores_del_dia = []
+        opciones_probables = []
+        opciones_razonables = []
+        opciones_poco_probables = []
+        mejores_opciones = []
 
         FACTOR_LOCALIA = 0.15
 
@@ -1017,23 +1090,6 @@ else:
             pl, pe, pv, _ = realizar_prediccion(loc, vis, df_unificado, sl, sv, xgl, xgv, FACTOR_LOCALIA, h2h, paquete_ia)
             po25, pu25, pbtts = calcular_mercados_adicionales(xgl, xgv)
 
-            # Cálculo de Probabilidad de Goleadores
-            for eq_nombre, xg_eq in [(loc, xgl), (vis, xgv)]:
-                ref_list = REFERENTES_OFENSIVOS.get(eq_nombre, [("Delantero Titular", 0.35), ("Segundo Atacante", 0.25)])
-                for jug, ratio in ref_list:
-                    xg_jugador = xg_eq * ratio
-                    prob_gol = round((1.0 - math.exp(-xg_jugador)) * 100.0, 1)
-                    cuota_gol = round(100.0 / max(0.1, prob_gol), 2)
-                    goleadores_del_dia.append({
-                        "Jugador": jug,
-                        "Equipo": eq_nombre,
-                        "Partido": f"{loc} vs {vis}",
-                        "Probabilidad de Gol": f"{prob_gol}%",
-                        "Cuota Justa": cuota_gol,
-                        "_prob_num": prob_gol
-                    })
-
-            # Lista de todos los mercados principales del partido
             mercados = [
                 {"Partido": f"{loc} vs {vis}", "Mercado": f"Victoria {loc}", "Prob": pl},
                 {"Partido": f"{loc} vs {vis}", "Mercado": f"Victoria {vis}", "Prob": pv},
@@ -1059,7 +1115,6 @@ else:
                     "_cuota_num": cuota_teorica
                 }
 
-                # Categorización
                 if prob >= 70.0:
                     opciones_probables.append(item)
                 elif 50.0 <= prob < 70.0:
@@ -1072,16 +1127,28 @@ else:
                     mejores_opciones.append(item)
 
         # ---------------------------------------------------------------------
-        # SECCIÓN 1: JUGADORES CON MÁS PROBABILIDAD DE GOL DEL DÍA
+        # SECCIÓN 1: JUGADORES CON MÁS PROBABILIDAD DE GOL DEL DÍA (TOP 3)
         # ---------------------------------------------------------------------
         st.markdown("<h3 style='color: #00ffcc;'>Jugadores con más probabilidad de gol del día</h3>", unsafe_allow_html=True)
-        st.caption("Atacantes y referentes ofensivos con mayor expectativa estadística de convertir en la jornada.")
+        st.caption("Los 3 atacantes con mayor probabilidad de convertir tras descontar la fortaleza defensiva del rival.")
 
-        if goleadores_del_dia:
-            df_goleadores = pd.DataFrame(goleadores_del_dia).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num"])
-            st.dataframe(df_goleadores, use_container_width=True, hide_index=True)
+        top_3_jugadores = calcular_top_3_goleadores_dia(partidos_evaluar, df_unificado)
+
+        if top_3_jugadores:
+            cols_j = st.columns(3)
+            for i, jug in enumerate(top_3_jugadores):
+                with cols_j[i]:
+                    st.markdown(f"""
+                    <div class="player-card">
+                        <div class="player-team">{jug['equipo']}</div>
+                        <div class="player-name">{jug['nombre']}</div>
+                        <div class="player-stat">{jug['probabilidad']}%</div>
+                        <div class="player-sub">Rival: <b>{jug['rival']}</b> (Defensa #{jug['puesto_rival_defensa']})</div>
+                        <div class="player-sub" style="color: #00ffcc; font-weight: 700;">Cuota Justa: {jug['cuota_justa']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
         else:
-            st.info("Sin registros de goleadores disponibles para esta fecha.")
+            st.info("Sin datos suficientes para proyectar a los goleadores de la fecha.")
 
         st.markdown("---")
 
