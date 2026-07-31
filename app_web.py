@@ -108,6 +108,21 @@ st.markdown(
             color: #94a3b8;
             margin-top: 4px;
         }
+        /* Estilo para escudos en el duelo de equipos */
+        .team-shield-box {
+            text-align: center;
+            background: #0d1527;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .team-shield-img {
+            max-width: 90px;
+            max-height: 90px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 8px rgba(0,243,255,0.3));
+        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -157,6 +172,8 @@ JUGADORES_LPF = [
     {"nombre": "Mateo Pellegrino", "equipo": "Platense", "prom_goles": 0.38}
 ]
 
+ESCUDO_DEFAULT = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
+
 def obtener_jerarquia(nombre_equipo):
     if not isinstance(nombre_equipo, str):
         return 6.5
@@ -180,7 +197,7 @@ def cargar_modelo_ia():
 paquete_ia = cargar_modelo_ia()
 
 # =====================================================================
-# 3. EXTRAER TABLAS Y MAPA DE IDs DESDE ESPN
+# 3. EXTRAER TABLAS, ESCUDOS Y MAPA DE IDs DESDE ESPN
 # =====================================================================
 @st.cache_data(ttl=1800)
 def obtener_grupos_en_vivo_espn():
@@ -205,6 +222,9 @@ def obtener_grupos_en_vivo_espn():
                     team_info = entry.get("team", {})
                     nombre = team_info.get("displayName", "")
                     team_id = team_info.get("id", "")
+                    logos = team_info.get("logos", [])
+                    logo_url = logos[0].get("href", ESCUDO_DEFAULT) if logos else ESCUDO_DEFAULT
+
                     if not nombre:
                         continue
 
@@ -217,6 +237,7 @@ def obtener_grupos_en_vivo_espn():
                     pts = int(stats_map.get("points", 0))
 
                     lista_equipos_grupo.append({
+                        "Escudo": logo_url,
                         "Equipo": nombre,
                         "ID_ESPN": team_id,
                         "Puntos": pts,
@@ -240,6 +261,14 @@ def obtener_grupos_en_vivo_espn():
         pass
 
     return grupos
+
+def obtener_escudo_equipo(nombre_equipo, df_unificado):
+    if df_unificado.empty or "Equipo" not in df_unificado.columns:
+        return ESCUDO_DEFAULT
+    match = df_unificado[df_unificado["Equipo"] == nombre_equipo]
+    if not match.empty and "Escudo" in match.columns:
+        return match.iloc[0]["Escudo"]
+    return ESCUDO_DEFAULT
 
 # =====================================================================
 # 4. OBTENER ULTIMOS 10 PARTIDOS REALES DE ESPN
@@ -437,7 +466,6 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
     df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
     
-    # Ranking defensivo: Puesto 1 (recibe más) al Puesto 30 (menos recibe)
     ranking_defensas = {}
     for idx, row in df_defensas.iterrows():
         ranking_defensas[row["Equipo"]] = idx + 1
@@ -467,14 +495,15 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
 
             prob_base = min(85.0, prom_goles * 100.0)
 
-            # Reducción proporcional a la fortaleza defensiva (1.5% a 45%)
             descuento_pct = puesto_rival * 1.5
             prob_final = max(5.0, prob_base - descuento_pct)
             cuota_justa = round(100.0 / max(0.1, prob_final), 2)
+            escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
 
             candidatos.append({
                 "nombre": nombre,
                 "equipo": eq_jugador,
+                "escudo": escudo_jugador,
                 "rival": rival,
                 "puesto_rival_defensa": puesto_rival,
                 "probabilidad": round(prob_final, 1),
@@ -819,7 +848,6 @@ with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
     st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
 
-# Menú superior horizontal cómodo para dispositivos móviles
 opcion_pantalla = st.radio(
     "Menú de Navegación:",
     ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
@@ -846,7 +874,14 @@ else:
         st.markdown("<h3 style='color: #cbd5e1;'>Partidos Programados para Hoy</h3>", unsafe_allow_html=True)
         if partidos_del_dia:
             for partido in partidos_del_dia:
-                st.markdown(f"**{partido['Hora']} hs** | **{partido['Local']}** vs **{partido['Visitante']}**")
+                esc_l = obtener_escudo_equipo(partido['Local'], df_unificado)
+                esc_v = obtener_escudo_equipo(partido['Visitante'], df_unificado)
+                st.markdown(
+                    f"**{partido['Hora']} hs** | "
+                    f"<img src='{esc_l}' width='20' style='vertical-align:middle;'> **{partido['Local']}** vs "
+                    f"**{partido['Visitante']}** <img src='{esc_v}' width='20' style='vertical-align:middle;'>", 
+                    unsafe_allow_html=True
+                )
             if nuevos > 0:
                 st.success(f"El sistema guardó {nuevos} predicciones nuevas para hoy.")
         else:
@@ -860,7 +895,16 @@ else:
             with cols_grupos[idx]:
                 st.markdown(f"<h4 style='color: #00ffcc; text-align: center;'>{nombre_grupo}</h4>", unsafe_allow_html=True)
                 df_mostrar_grupo = df_g.drop(columns=["ID_ESPN"], errors="ignore")
-                st.dataframe(df_mostrar_grupo, use_container_width=True, hide_index=True)
+                
+                # Renderizar tabla con imágenes de escudos integradas
+                st.dataframe(
+                    df_mostrar_grupo,
+                    column_config={
+                        "Escudo": st.column_config.ImageColumn("Escudo", width="small"),
+                    },
+                    use_container_width=True, 
+                    hide_index=True
+                )
 
         st.markdown("---")
 
@@ -959,7 +1003,27 @@ else:
                     paquete_ia=paquete_ia
                 )
 
-                st.markdown(f"<h2 style='text-align: center; color: #fff; margin-top: 25px;'>{local.upper()} vs {visitante.upper()}</h2>", unsafe_allow_html=True)
+                escudo_loc = obtener_escudo_equipo(local, df_unificado)
+                escudo_vis = obtener_escudo_equipo(visitante, df_unificado)
+
+                # Mostrar Tarjetas de Escudos
+                col_esc1, col_esc2 = st.columns(2)
+                with col_esc1:
+                    st.markdown(f"""
+                    <div class="team-shield-box">
+                        <img src="{escudo_loc}" class="team-shield-img" />
+                        <div style="font-weight: 800; color: #ffffff; margin-top: 8px;">{local.upper()}</div>
+                        <div style="font-size: 11px; color: #00ffcc;">LOCAL</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col_esc2:
+                    st.markdown(f"""
+                    <div class="team-shield-box">
+                        <img src="{escudo_vis}" class="team-shield-img" />
+                        <div style="font-weight: 800; color: #ffffff; margin-top: 8px;">{visitante.upper()}</div>
+                        <div style="font-size: 11px; color: #ff3366;">VISITANTE</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 if es_ia:
                     st.success("Proyección ejecutada mediante Red Neural Recursiva & Árboles de Decisión Estocásticos")
@@ -1064,7 +1128,6 @@ else:
             for i in range(0, min(10, len(equipos_disp)-1), 2):
                 partidos_evaluar.append({"Local": equipos_disp[i], "Visitante": equipos_disp[i+1], "Hora": "Hoy"})
 
-        # Matrices para guardar selecciones categorizadas
         opciones_probables = []
         opciones_razonables = []
         opciones_poco_probables = []
@@ -1140,6 +1203,7 @@ else:
                 with cols_j[i]:
                     st.markdown(f"""
                     <div class="player-card">
+                        <img src="{jug['escudo']}" style="width: 45px; height: 45px; object-fit: contain; margin-bottom: 6px;" />
                         <div class="player-team">{jug['equipo']}</div>
                         <div class="player-name">{jug['nombre']}</div>
                         <div class="player-stat">{jug['probabilidad']}%</div>
