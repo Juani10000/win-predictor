@@ -197,7 +197,7 @@ def cargar_modelo_ia():
 paquete_ia = cargar_modelo_ia()
 
 # =====================================================================
-# 3. EXTRAER TABLAS Y MAPA DE IDs DESDE ESPN CON POSICIÓN
+# 3. EXTRAER TABLAS Y MAPA DE IDs DESDE ESPN CON POSICIÓN Y ESCUDO
 # =====================================================================
 @st.cache_data(ttl=1800)
 def obtener_grupos_en_vivo_espn():
@@ -222,6 +222,11 @@ def obtener_grupos_en_vivo_espn():
                     team_info = entry.get("team", {})
                     nombre = team_info.get("displayName", "")
                     team_id = team_info.get("id", "")
+                    
+                    # Obtener logo/escudo del equipo si está disponible
+                    logos = team_info.get("logos", [])
+                    logo_url = logos[0].get("href", "") if logos else ""
+
                     if not nombre:
                         continue
 
@@ -234,6 +239,7 @@ def obtener_grupos_en_vivo_espn():
                     pts = int(stats_map.get("points", 0))
 
                     lista_equipos_grupo.append({
+                        "Logo": logo_url,
                         "Equipo": nombre,
                         "ID_ESPN": team_id,
                         "Puntos": pts,
@@ -252,7 +258,7 @@ def obtener_grupos_en_vivo_espn():
                         ascending=[False, False, False]
                     ).drop(columns=["DG"]).reset_index(drop=True)
 
-                    # Insertar columna de Posición al inicio (#1, #2, #3...)
+                    # Insertar columna de Posición al inicio
                     df_grupo.insert(0, "Pos", range(1, len(df_grupo) + 1))
 
                 grupos[nombre_grupo] = df_grupo
