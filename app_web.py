@@ -25,13 +25,10 @@ ocultar_elementos_streamlit = """
     </style>
     """
 st.markdown(ocultar_elementos_streamlit, unsafe_allow_html=True)
-
-# Meta tag para optimizar la vista en celulares (evita zoom y desbordes)
 st.markdown(
     """
     <head>
         <meta name="google-site-verification" content="nGtul4qMmIIjYUn" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     </head>
     """,
     unsafe_allow_html=True
@@ -40,78 +37,6 @@ st.markdown(
 st.markdown(
     """
     <style>
-        /* 1. BLOQUEAR REFRESCO AL DESLIZAR HACIA ARRIBA (PULL-TO-REFRESH) */
-        html, body, .stApp {
-            background-color: #070b14;
-            color: #e2e8f0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overscroll-behavior-y: none !important; /* Clave para el refresh */
-            touch-action: pan-x pan-y !important;
-        }
-
-        /* 2. BOTÓN DE NAVEGACIÓN GIGANTE, FACHERO Y CÓMODO */
-        div[data-baseweb="select"] > div {
-            background: linear-gradient(135deg, #0a1128, #162a45) !important;
-            border: 2px solid #00f3ff !important;
-            border-radius: 20px !important;
-            padding: 5px !important;
-            min-height: 60px !important;
-            box-shadow: 0px 0px 20px 0px rgba(0, 243, 255, 0.4) !important;
-            cursor: pointer;
-        }
-        div[data-baseweb="select"] * {
-            color: #ffffff !important;
-            font-size: 18px !important; /* Evita el zoom automático en celulares */
-            font-weight: 900 !important;
-            text-align: center !important;
-        }
-        
-        /* Ajuste de los items cuando se despliega el menú */
-        ul[data-baseweb="menu"] {
-            background-color: #0a1128 !important;
-            border: 1px solid #00f3ff !important;
-            border-radius: 15px !important;
-        }
-        li[role="option"] {
-            font-size: 16px !important;
-            font-weight: bold !important;
-            padding: 15px !important;
-            border-bottom: 1px solid #1e293b;
-        }
-
-        /* 3. TÍTULOS Y MÉTRICAS ADAPTADAS */
-        .neon-title {
-            font-size: 32px;
-            font-weight: 900;
-            text-align: center;
-            color: #ffffff;
-            text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 30px #00f3ff;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-        .tech-sub {
-            text-align: center;
-            color: #94a3b8;
-            letter-spacing: 2px;
-            font-size: 13px;
-            margin-bottom: 25px;
-            font-weight: 600;
-        }
-        
-        /* Hacer que en el celular nada se salga de la pantalla */
-        @media (max-width: 768px) {
-            .stApp {
-                padding: 0.5rem !important;
-            }
-            .stDataFrame {
-                width: 100% !important;
-                overflow-x: auto !important;
-            }
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
         .stApp {
             background-color: #070b14;
             color: #e2e8f0;
