@@ -42,49 +42,6 @@ st.markdown(
             color: #e2e8f0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-
-        /* =========================================================
-           BOTÓN DE SELECCIÓN DE PANTALLA MEJORADO (FACHERO Y MÓVIL)
-           ========================================================= */
-        div[data-baseweb="select"] {
-            margin-top: 10px !important;
-            margin-bottom: 20px !important;
-        }
-        div[data-baseweb="select"] > div {
-            background: linear-gradient(135deg, #0d1b2a, #1b263b) !important;
-            border: 2px solid #00f3ff !important;
-            border-radius: 16px !important;
-            padding: 6px 12px !important;
-            min-height: 58px !important;
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.4) !important;
-            cursor: pointer;
-        }
-        div[data-baseweb="select"] * {
-            color: #00ffcc !important;
-            font-size: 17px !important;
-            font-weight: 800 !important;
-            text-align: center !important;
-        }
-        div[data-baseweb="select"] svg {
-            fill: #00f3ff !important;
-            width: 24px !important;
-            height: 24px !important;
-        }
-        
-        /* Desplegable en Celulares */
-        ul[data-baseweb="menu"] {
-            background-color: #0d1b2a !important;
-            border: 2px solid #00f3ff !important;
-            border-radius: 12px !important;
-        }
-        li[role="option"] {
-            font-size: 16px !important;
-            font-weight: 700 !important;
-            padding: 14px !important;
-            border-bottom: 1px solid #1e293b;
-        }
-
-        /* Estilos generales originales */
         .neon-title {
             font-size: 36px;
             font-weight: 900;
@@ -165,6 +122,23 @@ st.markdown(
             max-height: 90px;
             object-fit: contain;
             filter: drop-shadow(0 0 8px rgba(0,243,255,0.3));
+        /* ESTILOS PARA LA BARRA GRANDE DE BOTONES DE PANTALLA */
+        .stButton > button {
+            width: 100% !important;
+            min-height: 55px !important;
+            font-size: 15px !important;
+            font-weight: 800 !important;
+            border-radius: 12px !important;
+            border: 2px solid #00f3ff !important;
+            background: linear-gradient(135deg, #0d1b2a, #1b263b) !important;
+            color: #00ffcc !important;
+            box-shadow: 0 0 12px rgba(0, 243, 255, 0.3) !important;
+            transition: all 0.2s ease-in-out !important;
+        }
+        .stButton > button:active {
+            transform: scale(0.96) !important;
+            background: #00f3ff !important;
+            color: #070b14 !important;
         }
     </style>
     """,
