@@ -122,21 +122,6 @@ st.markdown(
             max-height: 90px;
             object-fit: contain;
             filter: drop-shadow(0 0 8px rgba(0,243,255,0.3));
-        /* Estilos para la barra grande de botones tipo selector */
-        .stButton > button {
-            width: 100% !important;
-            min-height: 52px !important;
-            font-size: 15px !important;
-            font-weight: 800 !important;
-            border-radius: 12px !important;
-            border: 2px solid #00f3ff !important;
-            background: linear-gradient(135deg, #0d1b2a, #1b263b) !important;
-            color: #00ffcc !important;
-            box-shadow: 0 0 10px rgba(0, 243, 255, 0.3) !important;
-        }
-        .stButton > button:active {
-            background: #00f3ff !important;
-            color: #070b14 !important;
         }
     </style>
     """,
@@ -854,24 +839,6 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
         df_hist.to_csv(RUTA_HISTORIAL, index=False)
 
     return hubo_cambios, nuevos
-    # ---------------------------------------------------------------------
-    # BARRA GRANDE DE NAVEGACION PARA CELULAR
-    # ---------------------------------------------------------------------
-    if "pantalla_activa" not in st.session_state:
-        st.session_state["pantalla_activa"] = "Predicción de Partido"
-
-    col_b1, col_b2 = st.columns(2)
-    with col_b1:
-        if st.button("PREDICCIONES Y MÉTRICAS", use_container_width=True):
-            st.session_state["pantalla_activa"] = "Predicción de Partido"
-            st.rerun()
-
-    with col_b2:
-        if st.button("CUOTAS JUSTAS Y OPCIONES DE VALOR", use_container_width=True):
-            st.session_state["pantalla_activa"] = "Cuotas Justas y Opciones de Valor"
-            st.rerun()
-
-    opcion_pantalla = st.session_state["pantalla_activa"]
 
 # =====================================================================
 # 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
