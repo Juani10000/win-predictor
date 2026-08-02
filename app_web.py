@@ -144,33 +144,6 @@ JERARQUIA_EQUIPOS = {
     "Atlético Tucumán": 6.2, "Aldosivi": 5.5, "San Martín (SJ)": 5.5
 }
 
-# Base de datos de principales atacantes y su promedio de gol por partido
-JUGADORES_LPF = [
-    {"nombre": "Miguel Borja", "equipo": "River Plate", "prom_goles": 0.65},
-    {"nombre": "Facundo Colidio", "equipo": "River Plate", "prom_goles": 0.38},
-    {"nombre": "Edinson Cavani", "equipo": "Boca Juniors", "prom_goles": 0.58},
-    {"nombre": "Miguel Merentiel", "equipo": "Boca Juniors", "prom_goles": 0.45},
-    {"nombre": "Adrian Martinez", "equipo": "Racing Club", "prom_goles": 0.62},
-    {"nombre": "Maximiliano Salas", "equipo": "Racing Club", "prom_goles": 0.32},
-    {"nombre": "Braian Romero", "equipo": "Vélez Sarsfield", "prom_goles": 0.52},
-    {"nombre": "Claudio Aquino", "equipo": "Vélez Sarsfield", "prom_goles": 0.40},
-    {"nombre": "Walter Bou", "equipo": "Lanús", "prom_goles": 0.48},
-    {"nombre": "Marcelino Moreno", "equipo": "Lanús", "prom_goles": 0.35},
-    {"nombre": "Luciano Gondou", "equipo": "Argentinos Juniors", "prom_goles": 0.50},
-    {"nombre": "Guido Carrillo", "equipo": "Estudiantes", "prom_goles": 0.42},
-    {"nombre": "Edwar Lopez", "equipo": "Tigre", "prom_goles": 0.30},
-    {"nombre": "Federico Girotti", "equipo": "Talleres", "prom_goles": 0.41},
-    {"nombre": "Matias Coccaro", "equipo": "Huracán", "prom_goles": 0.38},
-    {"nombre": "Adam Bareiro", "equipo": "River Plate", "prom_goles": 0.36},
-    {"nombre": "Jaminton Campaz", "equipo": "Rosario Central", "prom_goles": 0.30},
-    {"nombre": "Marco Ruben", "equipo": "Rosario Central", "prom_goles": 0.35},
-    {"nombre": "Gabriel Avalos", "equipo": "Independiente", "prom_goles": 0.37},
-    {"nombre": "Santiago Rodriguez", "equipo": "Instituto", "prom_goles": 0.36},
-    {"nombre": "Jonathan Candia", "equipo": "Barracas Central", "prom_goles": 0.31},
-    {"nombre": "Florian Monzon", "equipo": "Tigre", "prom_goles": 0.33},
-    {"nombre": "Ignacio Pussetto", "equipo": "Huracán", "prom_goles": 0.40},
-    {"nombre": "Mateo Pellegrino", "equipo": "Platense", "prom_goles": 0.38}
-]
 
 ESCUDO_DEFAULT = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
 
@@ -430,17 +403,46 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
-def obtener_historial_directo(equipo_a, equipo_b):
-    semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
-    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
-    rng = np.random.default_rng(seed)
+def obtener_historial_directo(equipo_a, equipo_b, df_partidos=None):
+    """
+    Calcula el historial de enfrentamientos directo usando los partidos reales del dataset.
+    Si no hay suficientes enfrentamientos registrados, completa con resultados neutros (E).
+    """
+    if df_partidos is None or df_partidos.empty:
+        return ['E', 'E', 'E', 'E', 'E']
 
-    es_inverso = equipo_a != min(equipo_a, equipo_b)
-    historial_base = rng.choice(['G', 'E', 'P'], 5, p=[0.38, 0.32, 0.30]).tolist()
+    historial = []
+    # Filtrar partidos entre equipo_a y equipo_b
+    partidos_h2h = df_partidos[
+        ((df_partidos["Local"] == equipo_a) & (df_partidos["Visitante"] == equipo_b)) |
+        ((df_partidos["Local"] == equipo_b) & (df_partidos["Visitante"] == equipo_a))
+    ]
 
-    if es_inverso:
-        return ['P' if r == 'G' else 'G' if r == 'P' else 'E' for r in historial_base]
-    return historial_base
+    for _, fila in partidos_h2h.iterrows():
+        g_loc = fila.get("Goles_Local")
+        g_vis = fila.get("Goles_Visitante")
+        
+        if pd.notna(g_loc) and pd.notna(g_vis):
+            if fila["Local"] == equipo_a:
+                if g_loc > g_vis:
+                    historial.append('G')
+                elif g_loc < g_vis:
+                    historial.append('P')
+                else:
+                    historial.append('E')
+            else:
+                if g_vis > g_loc:
+                    historial.append('G')
+                elif g_vis < g_loc:
+                    historial.append('P')
+                else:
+                    historial.append('E')
+
+    # Completar hasta tener 5 registros si jugaron menos veces
+    while len(historial) < 5:
+        historial.append('E')
+
+    return historial[:5]
 
 def render_h2h_pills(historial, local, visitante):
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
@@ -462,60 +464,53 @@ def render_h2h_pills(historial, local, visitante):
 # CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA
 # =====================================================================
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
-    if df_unificado.empty or not partidos_del_dia:
+    """
+    Genera los goleadores más probables de la fecha analizando el promedio de gol
+    y forma ofensiva de los equipos que juegan en el día actual.
+    """
+    if partidos_del_dia.empty or df_unificado.empty:
         return []
 
-    df_defensas = df_unificado.copy()
-    df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
-    df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
-    
-    ranking_defensas = {}
-    for idx, row in df_defensas.iterrows():
-        ranking_defensas[row["Equipo"]] = idx + 1
-
     candidatos = []
+    
+    for _, partido in partidos_del_dia.iterrows():
+        loc = partido["Local"]
+        vis = partido["Visitante"]
+        escudo_loc = partido.get("Escudo_Local", ESCUDO_DEFAULT)
+        escudo_vis = partido.get("Escudo_Visitante", ESCUDO_DEFAULT)
 
-    for partido in partidos_del_dia:
-        eq_loc = partido["Local"]
-        eq_vis = partido["Visitante"]
+        # Calcular promedios ofensivos reales desde el dataset
+        p_loc = df_unificado[df_unificado["Equipo"] == loc]
+        p_vis = df_unificado[df_unificado["Equipo"] == vis]
 
-        puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
-        puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
+        gf_loc = p_loc["GF_3P"].values[0] if not p_loc.empty else 1.2
+        gf_vis = p_vis["GF_3P"].values[0] if not p_vis.empty else 1.0
 
-        for jugador in JUGADORES_LPF:
-            nombre = jugador["nombre"]
-            eq_jugador = jugador["equipo"]
-            prom_goles = jugador["prom_goles"]
+        # Proyectar probabilidad para el delantero principal de cada equipo
+        prob_loc = round(min(75.0, max(30.0, gf_loc * 35.0)), 1)
+        prob_vis = round(min(70.0, max(25.0, gf_vis * 32.0)), 1)
 
-            if buscar_equipo(eq_jugador, [eq_loc]):
-                rival = eq_vis
-                puesto_rival = puesto_vis_gc
-            elif buscar_equipo(eq_jugador, [eq_vis]):
-                rival = eq_loc
-                puesto_rival = puesto_loc_gc
-            else:
-                continue
+        candidatos.append({
+            "nombre": f"Delantero Principal ({loc})",
+            "equipo": loc,
+            "escudo": escudo_loc,
+            "rival": vis,
+            "probabilidad": prob_loc,
+            "cuota_justa": round(100.0 / prob_loc, 2)
+        })
 
-            prob_base = min(85.0, prom_goles * 100.0)
+        candidatos.append({
+            "nombre": f"Delantero Principal ({vis})",
+            "equipo": vis,
+            "escudo": escudo_vis,
+            "rival": loc,
+            "probabilidad": prob_vis,
+            "cuota_justa": round(100.0 / prob_vis, 2)
+        })
 
-            descuento_pct = puesto_rival * 1.5
-            prob_final = max(5.0, prob_base - descuento_pct)
-            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
-            escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
-
-            candidatos.append({
-                "nombre": nombre,
-                "equipo": eq_jugador,
-                "escudo": escudo_jugador,
-                "rival": rival,
-                "puesto_rival_defensa": puesto_rival,
-                "probabilidad": round(prob_final, 1),
-                "cuota_justa": cuota_justa
-            })
-
-    candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
+    # Ordenar por mayor probabilidad de gol en la fecha
+    candidatos = sorted(candidatos, key=lambda x: x["probabilidad"], reverse=True)
     return candidatos[:3]
-
 # =====================================================================
 # 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
 # =====================================================================
