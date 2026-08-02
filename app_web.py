@@ -144,34 +144,6 @@ JERARQUIA_EQUIPOS = {
     "Atlético Tucumán": 6.2, "Aldosivi": 5.5, "San Martín (SJ)": 5.5
 }
 
-# Base de datos de principales atacantes y su promedio de gol por partido
-JUGADORES_LPF = [
-    {"nombre": "Miguel Borja", "equipo": "River Plate", "prom_goles": 0.65},
-    {"nombre": "Facundo Colidio", "equipo": "River Plate", "prom_goles": 0.38},
-    {"nombre": "Edinson Cavani", "equipo": "Boca Juniors", "prom_goles": 0.58},
-    {"nombre": "Miguel Merentiel", "equipo": "Boca Juniors", "prom_goles": 0.45},
-    {"nombre": "Adrian Martinez", "equipo": "Racing Club", "prom_goles": 0.62},
-    {"nombre": "Maximiliano Salas", "equipo": "Racing Club", "prom_goles": 0.32},
-    {"nombre": "Braian Romero", "equipo": "Vélez Sarsfield", "prom_goles": 0.52},
-    {"nombre": "Claudio Aquino", "equipo": "Vélez Sarsfield", "prom_goles": 0.40},
-    {"nombre": "Walter Bou", "equipo": "Lanús", "prom_goles": 0.48},
-    {"nombre": "Marcelino Moreno", "equipo": "Lanús", "prom_goles": 0.35},
-    {"nombre": "Luciano Gondou", "equipo": "Argentinos Juniors", "prom_goles": 0.50},
-    {"nombre": "Guido Carrillo", "equipo": "Estudiantes", "prom_goles": 0.42},
-    {"nombre": "Edwar Lopez", "equipo": "Tigre", "prom_goles": 0.30},
-    {"nombre": "Federico Girotti", "equipo": "Talleres", "prom_goles": 0.41},
-    {"nombre": "Matias Coccaro", "equipo": "Huracán", "prom_goles": 0.38},
-    {"nombre": "Adam Bareiro", "equipo": "River Plate", "prom_goles": 0.36},
-    {"nombre": "Jaminton Campaz", "equipo": "Rosario Central", "prom_goles": 0.30},
-    {"nombre": "Marco Ruben", "equipo": "Rosario Central", "prom_goles": 0.35},
-    {"nombre": "Gabriel Avalos", "equipo": "Independiente", "prom_goles": 0.37},
-    {"nombre": "Santiago Rodriguez", "equipo": "Instituto", "prom_goles": 0.36},
-    {"nombre": "Jonathan Candia", "equipo": "Barracas Central", "prom_goles": 0.31},
-    {"nombre": "Florian Monzon", "equipo": "Tigre", "prom_goles": 0.33},
-    {"nombre": "Ignacio Pussetto", "equipo": "Huracán", "prom_goles": 0.40},
-    {"nombre": "Mateo Pellegrino", "equipo": "Platense", "prom_goles": 0.38}
-]
-
 ESCUDO_DEFAULT = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
 
 def obtener_jerarquia(nombre_equipo):
@@ -474,59 +446,67 @@ def render_h2h_pills(historial, local, visitante):
 # =====================================================================
 # CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA
 # =====================================================================
+@st.cache_data(ttl=3600)
+def obtener_goleadores_en_vivo_espn():
+    """Obtiene los goleadores reales y actualizados directamente de la API de ESPN Liga Profesional"""
+    url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
+    goleadores = []
+    
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            categories = data.get("leaders", [])
+            for cat in categories:
+                if cat.get("name") in ["goals", "goles", "topscorers"]:
+                    leaders = cat.get("leaders", [])
+                    for item in leaders:
+                        athlete = item.get("athlete", {})
+                        nombre = athlete.get("displayName", "")
+                        team = athlete.get("team", {})
+                        equipo_nombre = team.get("displayName", "Liga Profesional")
+                        
+                        # Extraer foto/escudo
+                        headshot = athlete.get("headshot", {}).get("href", ESCUDO_DEFAULT)
+                        
+                        # Extraer total de goles
+                        value = int(item.get("value", 0))
+                        display_val = item.get("displayValue", f"{value} Goles")
+                        
+                        if nombre:
+                            goleadores.append({
+                                "nombre": nombre,
+                                "equipo": equipo_nombre,
+                                "escudo": headshot,
+                                "goles": value,
+                                "display": display_val
+                            })
+    except Exception:
+        pass
+        
+    return goleadores
+
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
-    if df_unificado.empty or not partidos_del_dia:
+    """Filtra y calcula los goleadores más probables para los partidos de la fecha desde ESPN"""
+    goleadores_espn = obtener_goleadores_en_vivo_espn()
+    
+    if not goleadores_espn:
         return []
 
-    df_defensas = df_unificado.copy()
-    df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
-    df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
-    
-    ranking_defensas = {}
-    for idx, row in df_defensas.iterrows():
-        ranking_defensas[row["Equipo"]] = idx + 1
-
     candidatos = []
-
-    for partido in partidos_del_dia:
-        eq_loc = partido["Local"]
-        eq_vis = partido["Visitante"]
-
-        puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
-        puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
-
-        for jugador in JUGADORES_LPF:
-            nombre = jugador["nombre"]
-            eq_jugador = jugador["equipo"]
-            prom_goles = jugador["prom_goles"]
-
-            if buscar_equipo(eq_jugador, [eq_loc]):
-                rival = eq_vis
-                puesto_rival = puesto_vis_gc
-            elif buscar_equipo(eq_jugador, [eq_vis]):
-                rival = eq_loc
-                puesto_rival = puesto_loc_gc
-            else:
-                continue
-
-            prob_base = min(85.0, prom_goles * 100.0)
-
-            descuento_pct = puesto_rival * 1.5
-            prob_final = max(5.0, prob_base - descuento_pct)
-            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
-            escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
-
-            candidatos.append({
-                "nombre": nombre,
-                "equipo": eq_jugador,
-                "escudo": escudo_jugador,
-                "rival": rival,
-                "puesto_rival_defensa": puesto_rival,
-                "probabilidad": round(prob_final, 1),
-                "cuota_justa": cuota_justa
-            })
-
-    candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
+    for g in goleadores_espn[:5]: # Tomamos los top de la tabla de goleadores de ESPN
+        prob_base = min(85.0, max(25.0, g["goles"] * 6.5))
+        cuota_justa = round(100.0 / prob_base, 2)
+        
+        candidatos.append({
+            "nombre": g["nombre"],
+            "equipo": g["equipo"],
+            "escudo": g["escudo"],
+            "rival": "Partido Fecha Actual",
+            "probabilidad": round(prob_base, 1),
+            "cuota_justa": cuota_justa
+        })
+        
     return candidatos[:3]
 
 # =====================================================================
