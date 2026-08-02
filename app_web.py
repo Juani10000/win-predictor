@@ -444,95 +444,101 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA (EN VIVO)
+# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA (CORREGIDO)
 # =====================================================================
-@st.cache_data(ttl=1800)
-def obtener_goleadores_espn_live():
-    """Consulta la API de ESPN en tiempo real para traer goleadores oficiales con foto."""
-    url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
-    goleadores = []
-    try:
-        r = requests.get(url, timeout=8)
-        if r.status_code == 200:
-            for cat in r.json().get("leaders", []):
-                if cat.get("name") in ["goals", "goles", "topScorers"]:
-                    for item in cat.get("leaders", []):
-                        athlete = item.get("athlete", {})
-                        nombre = athlete.get("displayName", "")
-                        team = athlete.get("team", {}).get("displayName", "")
-                        headshot = athlete.get("headshot", {}).get("href", ESCUDO_DEFAULT)
-                        goles = int(item.get("value", 0))
-                        if nombre and goles > 0:
-                            goleadores.append({
-                                "nombre": nombre,
-                                "equipo": team,
-                                "escudo": headshot,
-                                "goles": goles
-                            })
-    except Exception:
-        pass
-    return goleadores
-
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
-    if df_unificado.empty or not partidos_del_dia:
+    if df_unificado.empty:
         return []
 
-    # 1. Obtener goleadores reales actualizados desde ESPN
-    goleadores_live = obtener_goleadores_espn_live()
-    if not goleadores_live:
-        return []
-
-    # 2. Ranking defensivo real según goles recibidos por partido
+    # Ranking defensivo de rivales según goles concedidos
     df_defensas = df_unificado.copy()
     if "GC" in df_defensas.columns and "PJ" in df_defensas.columns:
         df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
         df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
-        ranking_defensas = {row["Equipo"]: idx + 1 for idx, row in df_defensas.iterrows()}
+        ranking_defensas = {str(row["Equipo"]): idx + 1 for idx, row in df_defensas.iterrows()}
     else:
         ranking_defensas = {}
 
-    # Normalizador de nombres para cruzar los equipos de ESPN con los de la App
     def norm(txt):
         return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").replace("ca", "").strip()
 
     candidatos = []
 
-    # Convertir partidos a lista si viene como DataFrame
-    partidos_list = partidos_del_dia.to_dict('records') if isinstance(partidos_del_dia, pd.DataFrame) else partidos_del_dia
+    # Convertir partidos a lista en caso de que venga como DataFrame o dict
+    partidos_list = []
+    if isinstance(partidos_del_dia, pd.DataFrame):
+        partidos_list = partidos_del_dia.to_dict('records')
+    elif isinstance(partidos_del_dia, list):
+        partidos_list = partidos_del_dia
 
-    for partido in partidos_list:
-        eq_loc = partido.get("Local", "")
-        eq_vis = partido.get("Visitante", "")
+    # 1. Intentar hacer el cruce entre los partidos cargados hoy y la lista de jugadores
+    if partidos_list:
+        for partido in partidos_list:
+            eq_loc = str(partido.get("Local", ""))
+            eq_vis = str(partido.get("Visitante", ""))
 
-        for g in goleadores_live:
-            eq_g = g["equipo"]
-            c_g = norm(eq_g)
-            c_loc = norm(eq_loc)
-            c_vis = norm(eq_vis)
+            puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
+            puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
 
-            # Verificar si el delantero de la API juega en el local o visitante de hoy
-            es_loc = (c_g in c_loc or c_loc in c_g) if c_g and c_loc else False
-            es_vis = (c_g in c_vis or c_vis in c_g) if c_g and c_vis else False
+            for jugador in JUGADORES_LPF:
+                nombre = jugador.get("nombre", "")
+                eq_jugador = jugador.get("equipo", "")
+                prom_goles = jugador.get("prom_goles", 0.35)
 
-            if es_loc or es_vis:
-                rival = eq_vis if es_loc else eq_loc
-                puesto_rival = ranking_defensas.get(rival, 15)
+                c_eq = norm(eq_jugador)
+                c_loc = norm(eq_loc)
+                c_vis = norm(eq_vis)
 
-                # Mismo cálculo original descontando la fortaleza defensiva del rival
-                prob_base = min(88.0, max(30.0, float(g["goles"]) * 7.5))
+                es_loc = (c_eq in c_loc or c_loc in c_eq) if c_eq and c_loc else False
+                es_vis = (c_eq in c_vis or c_vis in c_eq) if c_eq and c_vis else False
+
+                if es_loc:
+                    rival = eq_vis
+                    puesto_rival = puesto_vis_gc
+                elif es_vis:
+                    rival = eq_loc
+                    puesto_rival = puesto_loc_gc
+                else:
+                    continue
+
+                prob_base = min(85.0, float(prom_goles) * 100.0)
                 descuento_pct = puesto_rival * 1.2
                 prob_final = max(10.0, prob_base - descuento_pct)
+                cuota_justa = round(100.0 / max(0.1, prob_final), 2)
+                escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
 
                 candidatos.append({
-                    "nombre": g["nombre"],              # Nombre real del jugador
-                    "equipo": eq_g,                     # Nombre del equipo
-                    "escudo": g["escudo"],              # Foto oficial del jugador de ESPN
-                    "rival": rival,                     # Rival del día
-                    "puesto_rival_defensa": puesto_rival, # Puesto defensivo rival
+                    "nombre": nombre,                 # Muestra ej: "Adrian Martinez"
+                    "equipo": eq_jugador,
+                    "escudo": escudo_jugador,
+                    "rival": rival,
+                    "puesto_rival_defensa": puesto_rival,
                     "probabilidad": round(prob_final, 1),
-                    "cuota_justa": round(100.0 / max(0.1, prob_final), 2)
+                    "cuota_justa": cuota_justa
                 })
 
+    # 2. Si no hay partidos seleccionados hoy o los nombres no cruzaron, toma los mejores 3 proyectados
+    if not candidatos:
+        for jugador in JUGADORES_LPF:
+            nombre = jugador.get("nombre", "")
+            eq_jugador = jugador.get("equipo", "")
+            prom_goles = jugador.get("prom_goles", 0.35)
+
+            prob_final = min(85.0, float(prom_goles) * 100.0)
+            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
+            escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
+
+            candidatos.append({
+                "nombre": nombre,
+                "equipo": eq_jugador,
+                "escudo": escudo_jugador,
+                "rival": "Fecha Actual",
+                "puesto_rival_defensa": "-",
+                "probabilidad": round(prob_final, 1),
+                "cuota_justa": cuota_justa
+            })
+
+    # Ordenar de mayor a menor probabilidad y devolver el Top 3
     candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
     return candidatos[:3]
 # =====================================================================
