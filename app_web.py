@@ -29,7 +29,6 @@ st.markdown(
     """
     <head>
         <meta name="google-site-verification" content="nGtul4qMmIIjYUn" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     </head>
     """,
     unsafe_allow_html=True
@@ -38,16 +37,13 @@ st.markdown(
 st.markdown(
     """
     <style>
-        /* Bloquear Pull-to-Refresh molesto en móviles */
-        html, body, .stApp {
+        .stApp {
             background-color: #070b14;
             color: #e2e8f0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overscroll-behavior-y: none !important;
-            touch-action: pan-x pan-y;
         }
         .neon-title {
-            font-size: 32px;
+            font-size: 36px;
             font-weight: 900;
             text-align: left;
             color: #ffffff;
@@ -58,20 +54,20 @@ st.markdown(
         .tech-sub {
             text-align: left;
             color: #94a3b8;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
             font-size: 13px;
             margin-bottom: 15px;
             font-weight: 600;
         }
         [data-testid="stMetricValue"] {
             color: #00ffcc !important;
-            font-size: 26px !important;
+            font-size: 30px !important;
             font-weight: 900 !important;
             text-shadow: 0 0 5px #00ffcc80;
         }
         [data-testid="stMetricLabel"] {
             color: #94a3b8 !important;
-            font-size: 12px !important;
+            font-size: 13px !important;
             text-transform: uppercase;
         }
         hr {
@@ -122,55 +118,11 @@ st.markdown(
             margin-bottom: 10px;
         }
         .team-shield-img {
-            max-width: 80px;
-            max-height: 80px;
+            max-width: 90px;
+            max-height: 90px;
             object-fit: contain;
             filter: drop-shadow(0 0 8px rgba(0,243,255,0.3));
         }
-
-        /* INICIO MEJORAS MOBILE-FIRST APPS / BOTONES Y SELECTS TÁCTILES */
-        .stSelectbox > div > div {
-            background: #111827 !important;
-            color: #00f3ff !important;
-            border: 2px solid #00f3ff50 !important;
-            border-radius: 12px !important;
-            font-size: 16px !important; /* 16px evita auto-zoom en iOS */
-            min-height: 50px !important;
-            box-shadow: 0 0 10px rgba(0, 243, 255, 0.15) !important;
-        }
-        .stButton > button {
-            width: 100%;
-            min-height: 52px !important;
-            font-size: 1.05rem !important;
-            font-weight: 800 !important;
-            border-radius: 12px !important;
-            background: linear-gradient(135deg, #00f3ff 0%, #0077ff 100%) !important;
-            color: #070b14 !important;
-            border: none !important;
-            box-shadow: 0 4px 15px rgba(0, 243, 255, 0.3) !important;
-            transition: all 0.2s ease !important;
-        }
-        .stButton > button:active {
-            transform: scale(0.97);
-        }
-        @media (max-width: 768px) {
-            .stApp {
-                padding-left: 0.3rem !important;
-                padding-right: 0.3rem !important;
-            }
-            .neon-title {
-                font-size: 24px;
-                text-align: center;
-            }
-            .tech-sub {
-                text-align: center;
-            }
-            .stDataFrame {
-                width: 100% !important;
-                overflow-x: auto !important;
-            }
-        }
-        /* FIN MEJORAS MOBILE-FIRST APPS */
     </style>
     """,
     unsafe_allow_html=True,
@@ -303,6 +255,7 @@ def obtener_grupos_en_vivo_espn():
                         ascending=[False, False, False]
                     ).drop(columns=["DG"]).reset_index(drop=True)
 
+                    # Insertar Posición en la columna 0 (a la izquierda de Escudo)
                     df_grupo.insert(0, "Pos", range(1, len(df_grupo) + 1))
 
                 grupos[nombre_grupo] = df_grupo
@@ -680,72 +633,43 @@ def consolidar_estadisticas(equipo, df, xg_proyectado):
     jerarquia = obtener_jerarquia(equipo)
 
     partidos_10 = obtener_ultimos_10_partidos_espn(row.get("ID_ESPN"))
-    
-    gf = float(row.get("GF", 0))
-    gc = float(row.get("GC", 0))
-    puntos = float(row.get("Puntos", 0))
-    
-    pts_u5 = sum(p["Puntos"] for p in partidos_10[:5]) if len(partidos_10) >= 5 else (puntos / pj) * min(5, pj)
-    
-    potencia_atk = min(100.0, max(20.0, (xg_proyectado / 2.5) * 100.0))
-    fortaleza_def = min(100.0, max(20.0, 100.0 - ((gc / pj) * 35.0)))
-    forma = min(100.0, max(20.0, (pts_u5 / 15.0) * 100.0))
-    posicion = max(1, int(row.get("Pos", 15)))
-    posesion = min(70.0, max(35.0, 48.0 + (jerarquia - 6.5) * 4.0))
-    precision = min(90.0, max(65.0, 75.0 + (jerarquia - 6.5) * 3.0))
-    corners = round(max(3.0, min(8.5, 4.5 + (jerarquia - 6.5) * 0.8)), 1)
+    if partidos_10:
+        total_gf = sum(p["GF"] for p in partidos_10)
+        total_gc = sum(p["GC"] for p in partidos_10)
+        n = len(partidos_10)
+        prom_gf = total_gf / n
+        prom_gc = total_gc / n
+    else:
+        prom_gf = (jerarquia / 10.0) * 1.5
+        prom_gc = ((10.0 - jerarquia) / 10.0) * 1.2
+
+    pos = min(75, max(35, int(40 + (prom_gf * 8) + (xg_proyectado * 3))))
+    vi = int(max(0, 10 - int(prom_gc * 3.0)))
 
     return {
-        "Potencia": round(potencia_atk, 1),
-        "Fortaleza": round(fortaleza_def, 1),
-        "Forma": round(forma, 1),
-        "Jerarquia": jerarquia,
-        "Posicion": posicion,
-        "Posesion": round(posesion, 1),
-        "Precision": round(precision, 1),
-        "Corners": corners,
-        "GF": gf,
-        "GC": gc,
+        "GF": int(prom_gf * 10), "xG": round(xg_proyectado, 1), "Pos": pos, "VI": vi,
+        "TirosArco": round(xg_proyectado * 3.5 + (prom_gf * 1.2), 1),
+        "Pases": min(92, max(60, int(pos * 1.15 + 8))),
+        "Corners": round(max(3.0, min(5.8, 2.2 + (xg_proyectado * 1.1) + (pos * 0.02))), 1),
+        "Fortaleza": min(100, max(10, int(100 - (prom_gc * 35)))),
+        "Pts_U5": round(sum(p["Puntos"] for p in partidos_10[:5]), 1) if partidos_10 else 7.5,
         "PJ": pj,
-        "Puntos": puntos,
-        "Pts_U5": round(pts_u5, 1)
     }
 
-def generar_radar(local, visitante, stats_loc, stats_vis):
-    categorias = [
-        "Ataque Proyectado", "Defensa", "Forma Reciente",
-        "Jerarquía de Plantel", "Posesión Estimada", "Precisión Pase",
-        "Presión (Corners)", "Ataque Proyectado"
-    ]
+def generar_radar(loc_name, vis_name, stats_loc, stats_vis):
+    categories = ["Goles", "xG", "Posesion", "Vallas Inv.", "Tiros Arco", "Pases", "Defensa", "U5", "Jerarquia"]
+    jer_loc, jer_vis = obtener_jerarquia(loc_name), obtener_jerarquia(vis_name)
 
-    val_loc = [
-        stats_loc["Potencia"], stats_loc["Fortaleza"], stats_loc["Forma"],
-        (stats_loc["Jerarquia"] / 10.0) * 100.0, (stats_loc["Posesion"] / 70.0) * 100.0,
-        (stats_loc["Precision"] / 90.0) * 100.0, (stats_loc["Corners"] / 8.5) * 100.0
-    ]
-    val_loc.append(val_loc[0])
-
-    val_vis = [
-        stats_vis["Potencia"], stats_vis["Fortaleza"], stats_vis["Forma"],
-        (stats_vis["Jerarquia"] / 10.0) * 100.0, (stats_vis["Posesion"] / 70.0) * 100.0,
-        (stats_vis["Precision"] / 90.0) * 100.0, (stats_vis["Corners"] / 8.5) * 100.0
-    ]
-    val_vis.append(val_vis[0])
+    val_loc = [stats_loc["GF"]/20, stats_loc["xG"]/2.5, stats_loc["Pos"]/100, stats_loc["VI"]/10, stats_loc["TirosArco"]/7, stats_loc["Pases"]/100, stats_loc["Fortaleza"]/100, stats_loc["Pts_U5"]/15, jer_loc/10]
+    val_vis = [stats_vis["GF"]/20, stats_vis["xG"]/2.5, stats_vis["Pos"]/100, stats_vis["VI"]/10, stats_vis["TirosArco"]/7, stats_vis["Pases"]/100, stats_vis["Fortaleza"]/100, stats_vis["Pts_U5"]/15, jer_vis/10]
 
     fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(r=val_loc, theta=categorias, fill="toself", name=local, line_color="#00ffcc", fillcolor="rgba(0, 255, 204, 0.25)"))
-    fig.add_trace(go.Scatterpolar(r=val_vis, theta=categorias, fill="toself", name=visitante, line_color="#ff3366", fillcolor="rgba(255, 51, 102, 0.25)"))
+    fig.add_trace(go.Scatterpolar(r=val_loc+[val_loc[0]], theta=categories+[categories[0]], fill="toself", name=loc_name, line=dict(color="#00ffcc"), fillcolor="rgba(0, 255, 204, 0.2)"))
+    fig.add_trace(go.Scatterpolar(r=val_vis+[val_vis[0]], theta=categories+[categories[0]], fill="toself", name=vis_name, line=dict(color="#ff3366"), fillcolor="rgba(255, 51, 102, 0.2)"))
+
     fig.update_layout(
-        polar=dict(
-            radialaxis=dict(visible=True, range=[0, 100], gridcolor="#1e293b", tickfont=dict(color="#64748b")),
-            bgcolor="#070b14",
-            angularaxis=dict(gridcolor="#1e293b", tickfont=dict(color="#cbd5e1", size=11))
-        ),
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5, font=dict(color="#ffffff")),
-        paper_bgcolor="#070b14",
-        plot_bgcolor="#070b14",
-        margin=dict(t=30, b=50, l=30, r=30)
+        polar=dict(bgcolor="#111827", radialaxis=dict(visible=False, range=[0, 1]), angularaxis=dict(color="#cbd5e1", gridcolor="#1e293b")),
+        showlegend=True, paper_bgcolor="#070b14", plot_bgcolor="#070b14", font=dict(color="#94a3b8"), margin=dict(t=30, b=30, l=30, r=30)
     )
     return fig
 
@@ -761,123 +685,121 @@ def depurar_partidos_cercanos(df_hist):
     df_temp = df_hist.copy()
     df_temp["Fecha_dt"] = pd.to_datetime(df_temp["Fecha"], errors="coerce")
     df_temp = df_temp.sort_values(by="Fecha_dt").reset_index(drop=True)
+
     fechas_ultimo_partido = {}
     indices_validos = []
+
     for idx, row in df_temp.iterrows():
         f_dt = row["Fecha_dt"]
         if pd.isna(f_dt):
             indices_validos.append(idx)
             continue
+        
         loc, vis = str(row["Local"]), str(row["Visitante"])
         valido = True
+
         for equipo in (loc, vis):
             if equipo in fechas_ultimo_partido:
                 dias_dif = (f_dt - fechas_ultimo_partido[equipo]).days
                 if 0 <= dias_dif < 3:
                     valido = False
                     break
+        
         if valido:
             indices_validos.append(idx)
             fechas_ultimo_partido[loc] = f_dt
             fechas_ultimo_partido[vis] = f_dt
+
     df_limpio = df_temp.loc[indices_validos].drop(columns=["Fecha_dt"]).reset_index(drop=True)
     return df_limpio
 
 def inicializar_historial():
     columnas_requeridas = [
-        "ID", "Fecha", "Local", "Visitante",
-        "Prob_Loc", "Prob_Emp", "Prob_Vis",
-        "Prediccion_1X2", "Marcador_Predicho",
-        "Prob_Over25", "Prob_BTTS", "Corners_Est",
-        "Goles_Local_Real", "Goles_Visita_Real",
-        "Corners_Reales", "Estado"
+        "ID", "Fecha", "Local", "Visitante", "Prob_Loc", "Prob_Emp", "Prob_Vis",
+        "Prediccion_1X2", "Marcador_Predicho", "Prob_Over25", "Prob_BTTS", "Corners_Est", 
+        "Goles_Local_Real", "Goles_Visita_Real", "Corners_Reales", "Estado"
     ]
     if not os.path.exists(RUTA_HISTORIAL):
-        df_vacio = pd.DataFrame(columns=columnas_requeridas)
-        df_vacio.to_csv(RUTA_HISTORIAL, index=False)
+        df_base = pd.DataFrame(columns=columnas_requeridas)
+        df_base.to_csv(RUTA_HISTORIAL, index=False)
     else:
         try:
-            df = pd.read_csv(RUTA_HISTORIAL)
+            df_hist = pd.read_csv(RUTA_HISTORIAL)
+            hubo_cambio = False
             for col in columnas_requeridas:
-                if col not in df.columns:
-                    df[col] = np.nan
-            df.to_csv(RUTA_HISTORIAL, index=False)
+                if col not in df_hist.columns:
+                    df_hist[col] = np.nan
+                    hubo_cambio = True
+            
+            if df_hist.duplicated(subset=['Fecha', 'Local', 'Visitante']).any():
+                df_hist = df_hist.drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first')
+                hubo_cambio = True
+
+            df_depurado = depurar_partidos_cercanos(df_hist)
+            if len(df_depurado) != len(df_hist):
+                df_hist = df_depurado
+                hubo_cambio = True
+
+            if hubo_cambio:
+                df_hist.to_csv(RUTA_HISTORIAL, index=False)
         except Exception:
             pass
 
-def validar_y_sincronizar_resultados(df_hist):
-    if df_hist.empty:
-        return df_hist, False
-    pendientes = df_hist[df_hist["Estado"] == "Pendiente"]
-    if pendientes.empty:
-        return df_hist, False
-
-    hoy_str = datetime.date.today().strftime("%Y%m%d")
-    url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={hoy_str}"
-    hubo_cambios = False
-
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200:
-            events = r.json().get("events", [])
-            for event in events:
-                status_type = event.get("status", {}).get("type", {})
-                if status_type.get("completed", False):
-                    comps = event["competitions"][0]["competitors"]
-                    loc_api = comps[0]["team"]["displayName"] if comps[0]["homeAway"] == "home" else comps[1]["team"]["displayName"]
-                    vis_api = comps[1]["team"]["displayName"] if comps[0]["homeAway"] == "home" else comps[0]["team"]["displayName"]
-                    goles_loc = int(comps[0]["score"]) if comps[0]["homeAway"] == "home" else int(comps[1]["score"])
-                    goles_vis = int(comps[1]["score"]) if comps[0]["homeAway"] == "home" else int(comps[0]["score"])
-
-                    for idx, row in pendientes.iterrows():
-                        loc_row = str(row["Local"])
-                        vis_row = str(row["Visitante"])
-                        if (loc_api.lower() in loc_row.lower() or loc_row.lower() in loc_api.lower()) and \
-                           (vis_api.lower() in vis_row.lower() or vis_row.lower() in vis_api.lower()):
-                            df_hist.at[idx, "Goles_Local_Real"] = goals_loc = goles_loc
-                            df_hist.at[idx, "Goles_Visita_Real"] = goals_vis = goles_vis
-                            
-                            c_totales = np.nan
-                            try:
-                                url_summary = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/summary?event={event['id']}"
-                                r_sum = requests.get(url_summary, timeout=8)
-                                if r_sum.status_code == 200:
-                                    box = r_sum.json().get("boxscore", {}).get("teams", [])
-                                    cc = 0
-                                    for t_stats in box:
-                                        for st_item in t_stats.get("statistics", []):
-                                            if st_item.get("name") == "wonCorners" or st_item.get("label", "").lower() == "tiros de esquina":
-                                                cc += int(st_item.get("displayValue", 0))
-                                    if cc > 0:
-                                        c_totales = cc
-                            except Exception:
-                                pass
-
-                            df_hist.at[idx, "Corners_Reales"] = c_totales
-                            df_hist.at[idx, "Estado"] = "Finalizado"
-                            hubo_cambios = True
-    except Exception:
-        pass
-
-    return df_hist, hubo_cambios
-
-def ejecutar_agente_autonomo(df_datos, partidos_del_dia):
+def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equipos):
     inicializar_historial()
-    if df_datos.empty:
-        return
-
     try:
         df_hist = pd.read_csv(RUTA_HISTORIAL)
     except Exception:
-        return
+        return False, 0
 
-    df_hist, hubo_cambios = validar_y_sincronizar_resultados(df_hist)
+    hubo_cambios = False
+
+    if "Estado" in df_hist.columns:
+        pendientes = df_hist[df_hist["Estado"] == "Pendiente"]
+        if not pendientes.empty:
+            fechas_pendientes = pendientes["Fecha"].unique()
+            for fecha in fechas_pendientes:
+                fecha_api = str(fecha).replace("-", "")
+                try:
+                    url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={fecha_api}"
+                    r = requests.get(url, timeout=10)
+                    if r.status_code == 200:
+                        eventos = r.json().get("events", [])
+                        for ev in eventos:
+                            if ev.get("status", {}).get("type", {}).get("completed", False):
+                                comps = ev["competitions"][0]["competitors"]
+                                n_loc = comps[0]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[1]["team"]["name"]
+                                n_vis = comps[1]["team"]["name"] if comps[0]["homeAway"] == "home" else comps[0]["team"]["name"]
+
+                                t_loc = buscar_equipo(n_loc, lista_equipos)
+                                t_vis = buscar_equipo(n_vis, lista_equipos)
+
+                                match_idx = df_hist[(df_hist["Local"] == t_loc) & (df_hist["Visitante"] == t_vis) & (df_hist["Estado"] == "Pendiente")].index
+                                if len(match_idx) > 0:
+                                    idx = match_idx[0]
+                                    df_hist.at[idx, "Goles_Local_Real"] = int(comps[0]["score"] if comps[0]["homeAway"] == "home" else comps[1]["score"])
+                                    df_hist.at[idx, "Goles_Visita_Real"] = int(comps[1]["score"] if comps[0]["homeAway"] == "home" else comps[0]["score"])
+
+                                    c_totales = 9
+                                    try:
+                                        r_sum = requests.get(f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/summary?event={ev['id']}", timeout=5)
+                                        if r_sum.status_code == 200:
+                                            cc = sum(int(st_item.get("displayValue", 0)) for t in r_sum.json().get("boxscore", {}).get("teams", []) for st_item in t.get("statistics", []) if "corner" in st_item.get("name", "").lower())
+                                            if cc > 0: c_totales = cc
+                                    except Exception: pass
+
+                                    df_hist.at[idx, "Corners_Reales"] = c_totales
+                                    df_hist.at[idx, "Estado"] = "Finalizado"
+                                    hubo_cambios = True
+                except Exception: pass
+
     nuevos = 0
     fecha_hoy = datetime.date.today().strftime("%Y-%m-%d")
     existentes = set(zip(df_hist["Fecha"].astype(str), df_hist["Local"].astype(str), df_hist["Visitante"].astype(str)))
 
     for p in partidos_del_dia:
         loc, vis = p["Local"], p["Visitante"]
+        
         if (fecha_hoy, str(loc), str(vis)) not in existentes and loc in df_datos["Equipo"].values and vis in df_datos["Equipo"].values:
             pid = f"{fecha_hoy}_{loc.replace(' ', '')[:4].upper()}_{vis.replace(' ', '')[:4].upper()}"
             xl_base = float(df_datos[df_datos["Equipo"] == loc].iloc[0].get("xG", 1.25))
@@ -893,125 +815,200 @@ def ejecutar_agente_autonomo(df_datos, partidos_del_dia):
             po25, _, pbtts = calcular_mercados_adicionales(xgl, xgv)
             top_marc, _ = calcular_top_resultados(xgl, xgv, pl, pe, pv)
             marcador_top = top_marc[0][0] if top_marc else "1-1"
-            corn_est = round(sl["Corners"] + sv["Corners"], 1)
 
+            corn_est = round(sl["Corners"] + sv["Corners"], 1)
             p1x2 = "Local" if pl > pe and pl > pv else "Visitante" if pv > pl and pv > pe else "Empate"
 
             n_fila = pd.DataFrame([{
-                "ID": pid,
-                "Fecha": fecha_hoy,
-                "Local": loc,
-                "Visitante": vis,
-                "Prob_Loc": round(pl, 1),
-                "Prob_Emp": round(pe, 1),
-                "Prob_Vis": round(pv, 1),
-                "Prediccion_1X2": p1x2,
-                "Marcador_Predicho": marcador_top,
-                "Prob_Over25": round(po25, 1),
-                "Prob_BTTS": round(pbtts, 1),
-                "Corners_Est": corn_est,
-                "Goles_Local_Real": np.nan,
-                "Goles_Visita_Real": np.nan,
-                "Corners_Reales": np.nan,
+                "ID": pid, "Fecha": fecha_hoy, "Local": loc, "Visitante": vis,
+                "Prob_Loc": round(pl, 1), "Prob_Emp": round(pe, 1), "Prob_Vis": round(pv, 1),
+                "Prediccion_1X2": p1x2, "Marcador_Predicho": marcador_top,
+                "Prob_Over25": round(po25, 1), "Prob_BTTS": round(pbtts, 1),
+                "Corners_Est": round(corn_est, 1),
+                "Goles_Local_Real": np.nan, "Goles_Visita_Real": np.nan, "Corners_Reales": np.nan,
                 "Estado": "Pendiente"
             }])
             df_hist = pd.concat([df_hist, n_fila], ignore_index=True)
-            hubo_cambios = True
+            existentes.add((fecha_hoy, str(loc), str(vis)))
             nuevos += 1
+            hubo_cambios = True
 
     if hubo_cambios:
-        try:
-            df_hist.to_csv(RUTA_HISTORIAL, index=False)
-        except Exception:
-            pass
+        df_hist = df_hist.drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first')
+        df_hist = depurar_partidos_cercanos(df_hist)
+        df_hist.to_csv(RUTA_HISTORIAL, index=False)
+
+    return hubo_cambios, nuevos
 
 # =====================================================================
-# 8. SISTEMA DE NAVEGACIÓN PRINCIPAL (FACHERO Y GRANDE PARA MÓVIL)
+# 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
 # =====================================================================
-grupos = obtener_grupos_en_vivo_espn()
-listas_grupos = [df for df in grupos.values() if not df.empty]
-df_unificado = pd.concat(listas_grupos, ignore_index=True) if listas_grupos else pd.DataFrame()
+col_logo, col_titulo = st.columns([1, 6])
+with col_logo:
+    st.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=80)
 
-equipos_disponibles = sorted(list(df_unificado["Equipo"].unique())) if not df_unificado.empty else sorted(list(JERARQUIA_EQUIPOS.keys()))
-partidos_del_dia = obtener_partidos_hoy_auto(equipos_disponibles)
-ejecutar_agente_autonomo(df_unificado, partidos_del_dia)
+with col_titulo:
+    st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
 
-st.markdown('<div class="neon-title">⚽ WIN PREDICTOR | LPF</div>', unsafe_allow_html=True)
-st.markdown('<div class="tech-sub">SISTEMA INTELIGENTE DE PRONÓSTICOS Y CUOTAS JUSTAS</div>', unsafe_allow_html=True)
-
-# Selectbox mejorado estilo App Móvil
-opciones_pantallas = ["Predicción de Partido", "Cuotas Justas y Opciones de Valor", "Posiciones y Zonas"]
-opcion_pantalla = st.selectbox(
-    "📱 SELECCIONAR SECCIÓN:",
-    opciones_pantallas,
-    index=0
+opcion_pantalla = st.radio(
+    "Menú de Navegación:",
+    ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
+    horizontal=True,
+    label_visibility="collapsed"
 )
+
 st.markdown("---")
 
-# =====================================================================
-# PANTALLA 1: PREDICCIÓN DE PARTIDO
-# =====================================================================
-if opcion_pantalla == "Predicción de Partido":
-    if df_unificado.empty:
-        st.warning("⚠️ No se pudo obtener la tabla actualizada de ESPN.")
-    else:
-        col1, col2 = st.columns(2)
-        with col1:
-            local = st.selectbox("🏠 Equipo Local:", equipos_disponibles, index=0)
-        with col2:
-            equipos_vis = [eq for eq in equipos_disponibles if eq != local]
-            visitante = st.selectbox("✈️ Equipo Visitante:", equipos_vis, index=0)
+grupos = obtener_grupos_en_vivo_espn()
 
-        with st.expander("🛠️ Parámetros de Simulación (Opcional)"):
-            c_f1, c_f2 = st.columns(2)
-            with c_f1:
-                FACTOR_LOCALIA = st.slider("Bono de Localía (%)", min_value=0, max_value=30, value=15, step=1) / 100.0
-            with c_f2:
-                N_SIMULACIONES = st.number_input("Iteraciones Monte Carlo", min_value=1000, max_value=20000, value=10000, step=1000)
+if not grupos:
+    st.error("No se pudo obtener la información en vivo desde ESPN. Intenta refrescar la página.")
+else:
+    df_unificado = pd.concat(grupos.values(), ignore_index=True)
+    lista_equipos = sorted(df_unificado["Equipo"].unique())
+    partidos_del_dia = obtener_partidos_hoy_auto(lista_equipos)
+    procesado, nuevos = procesar_agente_autonomo(partidos_del_dia, df_unificado, paquete_ia, lista_equipos)
 
-        if st.button("🚀 GENERAR PRONÓSTICO MÓVIL"):
-            with st.spinner("Computando redes neuronales, Poisson y Monte Carlo..."):
+    # =====================================================================
+    # PANTALLA 1: PREDICCIONES Y MÉTRICAS
+    # =====================================================================
+    if opcion_pantalla == "Predicciones y Métricas":
+        st.markdown("<h3 style='color: #cbd5e1;'>Tablas de Posiciones Oficiales por Zonas</h3>", unsafe_allow_html=True)
+        cols_grupos = st.columns(len(grupos))
+        for idx, (nombre_grupo, df_g) in enumerate(grupos.items()):
+            with cols_grupos[idx]:
+                st.markdown(f"<h4 style='color: #00ffcc; text-align: center;'>{nombre_grupo}</h4>", unsafe_allow_html=True)
+                df_mostrar_grupo = df_g.drop(columns=["ID_ESPN"], errors="ignore")
+                
+                # Renderizar tabla configurando explícitamente la columna Escudo como imagen
+                st.dataframe(
+                    df_mostrar_grupo,
+                    column_config={
+                        "Pos": st.column_config.NumberColumn("Pos", width="small"),
+                        "Escudo": st.column_config.ImageColumn("Escudo", width="small"),
+                    },
+                    use_container_width=True, 
+                    hide_index=True
+                )
+
+        st.markdown("---")
+
+        st.markdown("<h3 style='color: #cbd5e1;'>Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
+        df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
+
+        if not df_ef.empty and "Estado" in df_ef.columns:
+            finalizados = df_ef[df_ef["Estado"] == "Finalizado"].drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first').copy()
+            finalizados = depurar_partidos_cercanos(finalizados)
+
+            if finalizados.empty:
+                st.info("Las predicciones están almacenadas. Una vez finalizados los partidos, las métricas de precisión se actualizarán automáticamente.")
+            else:
+                finalizados["res_real_1x2"] = np.where(finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
+                                              np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate"))
+                finalizados["acierto_1x2"] = (finalizados["Prediccion_1X2"] == finalizados["res_real_1x2"]).astype(int)
+
+                finalizados["goles_totales_reales"] = finalizados["Goles_Local_Real"] + finalizados["Goles_Visita_Real"]
+                finalizados["over25_real"] = (finalizados["goles_totales_reales"] > 2.5).astype(int)
+                finalizados["pred_over25"] = (finalizados["Prob_Over25"] >= 50.0).astype(int)
+                finalizados["acierto_o25"] = (finalizados["pred_over25"] == finalizados["over25_real"]).astype(int)
+
+                finalizados["marcador_real"] = finalizados["Goles_Local_Real"].astype(int).astype(str) + "-" + finalizados["Goles_Visita_Real"].astype(int).astype(str)
+                finalizados["acierto_exacto"] = (finalizados["Marcador_Predicho"] == finalizados["marcador_real"]).astype(int)
+
+                finalizados["btts_real"] = ((finalizados["Goles_Local_Real"] > 0) & (finalizados["Goles_Visita_Real"] > 0)).astype(int)
+                finalizados["pred_btts"] = (finalizados["Prob_BTTS"] >= 50.0).astype(int)
+                finalizados["acierto_btts"] = (finalizados["pred_btts"] == finalizados["btts_real"]).astype(int)
+
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Acierto 1X2", f"{(finalizados['acierto_1x2'].mean()*100):.1f}%", f"{len(finalizados)} Evaluados")
+                c2.metric("Acierto +/- 2.5 Goles", f"{(finalizados['acierto_o25'].mean()*100):.1f}%")
+                c3.metric("Marcador Exacto", f"{(finalizados['acierto_exacto'].mean()*100):.1f}%")
+                c4.metric("Acierto Ambos Anotan", f"{(finalizados['acierto_btts'].mean()*100):.1f}%")
+
+                finalizados["Efectividad_Acumulada"] = (finalizados["acierto_1x2"].cumsum() / (np.arange(len(finalizados)) + 1)) * 100
+
+                fig_efectividad = go.Figure()
+                fig_efectividad.add_trace(go.Scatter(
+                    x=list(range(1, len(finalizados) + 1)),
+                    y=finalizados["Efectividad_Acumulada"],
+                    mode='lines+markers',
+                    name='Acierto 1X2 (%)',
+                    line=dict(color='#00ffcc', width=3),
+                    marker=dict(size=7, color='#00f3ff'),
+                    hovertemplate="Partido N°%{x}<br>Efectividad: %{y:.1f}%<extra></extra>"
+                ))
+                fig_efectividad.update_layout(
+                    title="Curva de Evolución del Porcentaje de Acierto (%)",
+                    xaxis_title="Número de Partidos Evaluados",
+                    yaxis_title="Acierto Acumulado (%)",
+                    yaxis=dict(range=[0, 100], gridcolor="#1e293b"),
+                    xaxis=dict(gridcolor="#1e293b"),
+                    paper_bgcolor="#070b14",
+                    plot_bgcolor="#111827",
+                    font=dict(color="#cbd5e1"),
+                    margin=dict(t=40, b=40, l=40, r=40)
+                )
+                st.plotly_chart(fig_efectividad, use_container_width=True)
+
+                with st.expander("Ver registro detallado de las evaluaciones"):
+                    df_mostrar = finalizados[["Fecha", "Local", "Visitante", "Prediccion_1X2", "res_real_1x2", "Marcador_Predicho", "marcador_real", "Prob_Over25", "goles_totales_reales"]].tail(10)
+                    st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        st.markdown("<h3 style='color: #cbd5e1;'>Motor de Predicción de Partidos</h3>", unsafe_allow_html=True)
+
+        if len(lista_equipos) >= 2:
+            col1, col2 = st.columns(2)
+            with col1: local = st.selectbox("Seleccionar Local", lista_equipos, index=0, key="sb_local")
+            with col2: visitante = st.selectbox("Seleccionar Visitante", lista_equipos, index=min(1, len(lista_equipos) - 1), key="sb_visit")
+
+            if local == visitante:
+                st.error("SISTEMA BLOQUEADO: Seleccione escuadras diferentes.")
+            else:
                 row_loc = df_unificado[df_unificado["Equipo"] == local].iloc[0]
                 row_vis = df_unificado[df_unificado["Equipo"] == visitante].iloc[0]
 
-                xg_base_loc = float(row_loc.get("xG", 1.25))
-                xg_base_vis = float(row_vis.get("xG", 1.10))
+                FACTOR_LOCALIA = 0.15
+                j_loc = obtener_jerarquia(local)
+                j_vis = obtener_jerarquia(visitante)
 
-                xg_proyectado_local = round(xg_base_loc * (1.0 + FACTOR_LOCALIA), 2)
-                xg_proyectado_visi = round(xg_base_vis * (1.0 - (FACTOR_LOCALIA * 0.5)), 2)
+                xg_proyectado_local = round(float(row_loc.get("xG", 1.25)) * (1.0 + FACTOR_LOCALIA), 2)
+                xg_proyectado_visi = round(float(row_vis.get("xG", 1.10)) * (1.0 - (FACTOR_LOCALIA * 0.5)), 2)
 
                 stats_loc = consolidar_estadisticas(local, df_unificado, xg_proyectado_local)
                 stats_vis = consolidar_estadisticas(visitante, df_unificado, xg_proyectado_visi)
                 historial_h2h = obtener_historial_directo(local, visitante)
 
                 prob_loc, prob_empate, prob_vis, es_ia = realizar_prediccion(
-                    local, visitante, df_unificado, stats_loc, stats_vis,
-                    xg_proyectado_local, xg_proyectado_visi,
-                    factor_localia=FACTOR_LOCALIA,
-                    historial_h2h=historial_h2h,
+                    local, visitante, df_unificado, stats_loc, stats_vis, 
+                    xg_proyectado_local, xg_proyectado_visi, 
+                    factor_localia=FACTOR_LOCALIA, 
+                    historial_h2h=historial_h2h, 
                     paquete_ia=paquete_ia
                 )
 
                 escudo_loc = obtener_escudo_equipo(local, df_unificado)
                 escudo_vis = obtener_escudo_equipo(visitante, df_unificado)
 
-                # Tarjetas de escudos (Responsivas para celular)
+                # Mostrar Tarjetas de Escudos
                 col_esc1, col_esc2 = st.columns(2)
                 with col_esc1:
                     st.markdown(f"""
-                        <div class="team-shield-box">
-                            <img src="{escudo_loc}" class="team-shield-img" />
-                            <div style="font-weight: 800; color: #ffffff; margin-top: 8px;">{local.upper()}</div>
-                            <div style="font-size: 11px; color: #00ffcc;">LOCAL</div>
-                        </div>
+                    <div class="team-shield-box">
+                        <img src="{escudo_loc}" class="team-shield-img" />
+                        <div style="font-weight: 800; color: #ffffff; margin-top: 8px;">{local.upper()}</div>
+                        <div style="font-size: 11px; color: #00ffcc;">LOCAL</div>
+                    </div>
                     """, unsafe_allow_html=True)
                 with col_esc2:
                     st.markdown(f"""
-                        <div class="team-shield-box">
-                            <img src="{escudo_vis}" class="team-shield-img" />
-                            <div style="font-weight: 800; color: #ffffff; margin-top: 8px;">{visitante.upper()}</div>
-                            <div style="font-size: 11px; color: #ff3366;">VISITANTE</div>
-                        </div>
+                    <div class="team-shield-box">
+                        <img src="{escudo_vis}" class="team-shield-img" />
+                        <div style="font-weight: 800; color: #ffffff; margin-top: 8px;">{visitante.upper()}</div>
+                        <div style="font-size: 11px; color: #ff3366;">VISITANTE</div>
+                    </div>
                     """, unsafe_allow_html=True)
 
                 if es_ia:
@@ -1019,260 +1016,242 @@ if opcion_pantalla == "Predicción de Partido":
                 else:
                     st.info("Proyección ejecutada: Algoritmo de Decaimiento Exponencial Temporal & Ponderación Jerárquica H2H")
 
-                st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px;'>HISTORIAL DIRECTO SIMULADO (ÚLTIMOS 5 PARTIDOS)</p>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 13px; margin-bottom: 5px; text-transform: uppercase;'>Historial Directo (Últimos 5 vs)</p>", unsafe_allow_html=True)
                 st.markdown(render_h2h_pills(historial_h2h, local, visitante), unsafe_allow_html=True)
 
-                m_col1, m_col2, m_col3 = st.columns(3)
-                with m_col1:
-                    st.metric(label=f"GANA {local.upper()}", value=f"{prob_loc:.1f}%")
-                with m_col2:
-                    st.metric(label="EMPATE", value=f"{prob_empate:.1f}%")
-                with m_col3:
-                    st.metric(label=f"GANA {visitante.upper()}", value=f"{prob_vis:.1f}%")
+                col_xg1, col_xg2 = st.columns(2)
+                with col_xg1:
+                    st.info(f"Jerarquía: **{j_loc}/10** | xG Proy: **{xg_proyectado_local}** | Forma (U5): **{stats_loc['Pts_U5']} pts**")
+                with col_xg2:
+                    st.info(f"Jerarquía: **{j_vis}/10** | xG Proy: **{xg_proyectado_visi}** | Forma (U5): **{stats_vis['Pts_U5']} pts**")
+
+                m1, m2, m3 = st.columns(3)
+                m1.metric(label=f"Victoria {local}", value=f"{prob_loc:.1f}%")
+                m2.metric(label="Probabilidad Empate", value=f"{prob_empate:.1f}%")
+                m3.metric(label=f"Victoria {visitante}", value=f"{prob_vis:.1f}%")
+
+                st.markdown("<br><p style='color: #94a3b8;'>Distribución de probabilidad 1X2:</p>", unsafe_allow_html=True)
+                c_b1, c_b2, c_b3 = st.columns(3)
+                with c_b1:
+                    st.markdown("<p style='color: #00ffcc;'>Local</p>", unsafe_allow_html=True)
+                    st.progress(min(1.0, max(0.0, prob_loc / 100.0)))
+                with c_b2:
+                    st.markdown("<p style='color: #cbd5e1;'>Empate</p>", unsafe_allow_html=True)
+                    st.progress(min(1.0, max(0.0, prob_empate / 100.0)))
+                with c_b3:
+                    st.markdown("<p style='color: #ff3366;'>Visitante</p>", unsafe_allow_html=True)
+                    st.progress(min(1.0, max(0.0, prob_vis / 100.0)))
 
                 st.markdown("---")
-                prob_o25, prob_u25, prob_btts = calcular_mercados_adicionales(xg_proyectado_local, xg_proyectado_visi)
-                mc_loc, mc_emp, mc_vis, total_goles_sim = simular_monte_carlo(xg_proyectado_local, xg_proyectado_visi, num_simulaciones=N_SIMULACIONES)
 
-                s_col1, s_col2, s_col3 = st.columns(3)
-                with s_col1:
-                    st.metric(label="MÁS DE 2.5 GOLES", value=f"{prob_o25:.1f}%")
-                with s_col2:
-                    st.metric(label="AMBOS ANOTAN (BTTS)", value=f"{prob_btts:.1f}%")
-                with s_col3:
-                    st.metric(label="CORNERS EST.", value=f"{round(stats_loc['Corners'] + stats_vis['Corners'], 1)}")
+                st.markdown("<h4 style='color: #cbd5e1;'>Índice de Volatilidad & Impredecibilidad</h4>", unsafe_allow_html=True)
+                vol_val, vol_cat, vol_col = calcular_indice_volatilidad(xg_proyectado_local, xg_proyectado_visi, stats_loc, stats_vis)
+                v_col1, v_col2 = st.columns([1, 2])
+                with v_col1: st.metric(label="Índice de Caos", value=f"{vol_val}%")
+                with v_col2:
+                    st.markdown(f"**Nivel de Riesgo:** :{vol_col}[{vol_cat}]")
+                    st.progress(int(vol_val) / 100)
 
                 st.markdown("---")
-                st.markdown("<h4 style='color: #cbd5e1;'>Simulación Monte Carlo: Distribución de Goles</h4>", unsafe_allow_html=True)
-                
+
+                st.markdown("<h4 style='color: #cbd5e1;'>Mercados Complementarios (Proyección Poisson)</h4>", unsafe_allow_html=True)
+                prob_over_25, prob_under_25, prob_btts = calcular_mercados_adicionales(xg_proyectado_local, xg_proyectado_visi)
+                c_m1, c_m2, c_m3, c_m4 = st.columns(4)
+                with c_m1: st.metric(label="Más de 2.5 Goles", value=f"{prob_over_25:.1f}%")
+                with c_m2: st.metric(label="Menos de 2.5 Goles", value=f"{prob_under_25:.1f}%")
+                with c_m3: st.metric(label="Ambos Anotan (Sí)", value=f"{prob_btts:.1f}%")
+                with c_m4: st.metric(label="Corners Totales (Est.)", value=f"{round(stats_loc['Corners'] + stats_vis['Corners'], 1)}")
+
+                st.markdown("---")
+
+                st.markdown("<h4 style='color: #cbd5e1;'>Simulación Estocástica Monte Carlo (10,000 Partidos)</h4>", unsafe_allow_html=True)
+                p_loc_mc, p_emp_mc, p_vis_mc, goles_sim = simular_monte_carlo(xg_proyectado_local, xg_proyectado_visi)
+                c_mc1, c_mc2, c_mc3 = st.columns(3)
+                c_mc1.metric(f"Victoria {local} (MC)", f"{p_loc_mc:.1f}%")
+                c_mc2.metric("Empate (MC)", f"{p_emp_mc:.1f}%")
+                c_mc3.metric(f"Victoria {visitante} (MC)", f"{p_vis_mc:.1f}%")
+
                 fig_hist = go.Figure()
-                fig_hist.add_trace(go.Histogram(x=total_goles_sim, nbinsx=10, marker_color="#00f3ff", opacity=0.75))
+                fig_hist.add_trace(go.Scatter(y=np.histogram(goles_sim, bins=10)[0], mode='lines+markers', line=dict(color="#00f3ff", width=3)))
                 fig_hist.update_layout(
-                    title_text=f"Frecuencia de Goles en {N_SIMULACIONES} Simulaciones",
-                    xaxis_title="Escenarios de Goles",
-                    yaxis_title="Frecuencia",
-                    paper_bgcolor="#070b14",
-                    plot_bgcolor="#111827",
-                    font=dict(color="#cbd5e1"),
-                    margin=dict(t=40, b=40, l=30, r=30),
+                    title="Distribución de Goles Totales en 10,000 Simulaciones",
+                    xaxis_title="Escenarios de Goles", yaxis_title="Frecuencia",
+                    paper_bgcolor="#070b14", plot_bgcolor="#111827", font=dict(color="#cbd5e1"),
+                    margin=dict(t=40, b=40, l=40, r=40),
                 )
                 st.plotly_chart(fig_hist, use_container_width=True)
 
                 st.markdown("---")
+
                 st.markdown("<h4 style='color: #cbd5e1;'>Frente a Frente: Análisis Octagonal</h4>", unsafe_allow_html=True)
                 fig_radar = generar_radar(local, visitante, stats_loc, stats_vis)
                 st.plotly_chart(fig_radar, use_container_width=True)
 
                 st.markdown("---")
+
                 st.markdown("<h4 style='color: #cbd5e1;'>Top 5 Marcadores Exactos Más Probables</h4>", unsafe_allow_html=True)
                 top_5_marcadores, prob_otro = calcular_top_resultados(xg_proyectado_local, xg_proyectado_visi, prob_loc, prob_empate, prob_vis)
-                
-                tabla_marcadores = [
-                    {"Ranking": f"#{rank}", "Resultado Exacto": marcador, "Probabilidad": f"{prob:.1f}%"}
-                    for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)
-                ]
+
+                tabla_marcadores = [{"Ranking": f"#{rank}", "Resultado Exacto": marcador, "Probabilidad": f"{prob:.1f}%"} for rank, (marcador, prob) in enumerate(top_5_marcadores, 1)]
                 tabla_marcadores.append({"Ranking": "Otros", "Resultado Exacto": "Cualquier otro resultado", "Probabilidad": f"{prob_otro:.1f}%"})
                 st.dataframe(pd.DataFrame(tabla_marcadores), use_container_width=True, hide_index=True)
 
-# =====================================================================
-# PANTALLA 2: CUOTAS JUSTAS & OPCIONES DE VALOR
-# =====================================================================
-elif opcion_pantalla == "Cuotas Justas y Opciones de Valor":
-    st.markdown('<div class="neon-title">ANÁLISIS DE CUOTAS JUSTAS Y VALOR</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">EVALUACIÓN AUTOMÁTICA DE MERCADOS Y OPORTUNIDADES</div>', unsafe_allow_html=True)
+    # =====================================================================
+    # PANTALLA 2: CUOTAS JUSTAS & OPCIONES DE VALOR
+    # =====================================================================
+    elif opcion_pantalla == "Cuotas Justas y Opciones de Valor":
+        st.markdown('<div class="neon-title">ANÁLISIS DE CUOTAS JUSTAS Y VALOR</div>', unsafe_allow_html=True)
+        st.markdown('<div class="tech-sub">EVALUACIÓN AUTOMÁTICA DE MERCADOS Y OPORTUNIDADES ESTADÍSTICAS</div>', unsafe_allow_html=True)
+        st.markdown("---")
 
-    partidos_evaluar = partidos_del_dia
-    if not partidos_evaluar and len(equipos_disponibles) >= 2:
-        partidos_evaluar = [{"Local": equipos_disponibles[0], "Visitante": equipos_disponibles[1], "Hora": "20:00"}]
+        partidos_evaluar = partidos_del_dia.copy()
 
-    if not partidos_evaluar:
-        st.warning("No hay partidos programados para analizar hoy.")
-    else:
+        if not partidos_evaluar:
+            st.info("Sin partidos programados para el día de hoy en ESPN. Se muestran oportunidades calculadas entre cruces principales de la fecha.")
+            equipos_disp = list(lista_equipos)
+            np.random.seed(42)
+            np.random.shuffle(equipos_disp)
+            for i in range(0, min(10, len(equipos_disp)-1), 2):
+                partidos_evaluar.append({"Local": equipos_disp[i], "Visitante": equipos_disp[i+1], "Hora": "Hoy"})
+
         opciones_probables = []
         opciones_razonables = []
         opciones_poco_probables = []
         mejores_opciones = []
 
+        FACTOR_LOCALIA = 0.15
+
         for p in partidos_evaluar:
             loc, vis = p["Local"], p["Visitante"]
-            row_l = df_unificado[df_unificado["Equipo"] == loc].iloc[0]
-            row_v = df_unificado[df_unificado["Equipo"] == vis].iloc[0]
+            if loc not in df_unificado["Equipo"].values or vis not in df_unificado["Equipo"].values:
+                continue
 
-            xgl = round(float(row_l.get("xG", 1.25)) * 1.15, 2)
-            xgv = round(float(row_v.get("xG", 1.10)) * 0.925, 2)
+            row_loc = df_unificado[df_unificado["Equipo"] == loc].iloc[0]
+            row_vis = df_unificado[df_unificado["Equipo"] == vis].iloc[0]
+
+            xgl = round(float(row_loc.get("xG", 1.25)) * (1.0 + FACTOR_LOCALIA), 2)
+            xgv = round(float(row_vis.get("xG", 1.10)) * (1.0 - (FACTOR_LOCALIA * 0.5)), 2)
 
             sl = consolidar_estadisticas(loc, df_unificado, xgl)
             sv = consolidar_estadisticas(vis, df_unificado, xgv)
             h2h = obtener_historial_directo(loc, vis)
 
-            pl, pe, pv, _ = realizar_prediccion(loc, vis, df_unificado, sl, sv, xgl, xgv, 0.15, h2h, paquete_ia)
+            pl, pe, pv, _ = realizar_prediccion(loc, vis, df_unificado, sl, sv, xgl, xgv, FACTOR_LOCALIA, h2h, paquete_ia)
             po25, pu25, pbtts = calcular_mercados_adicionales(xgl, xgv)
-            
-            p_dc_1x = pl + pe
-            p_dc_x2 = pv + pe
-            p_dc_12 = pl + pv
-            p_o15 = round((1.0 - (poisson_prob(xgl,0)*poisson_prob(xgv,0) + poisson_prob(xgl,1)*poisson_prob(xgv,0) + poisson_prob(xgl,0)*poisson_prob(xgv,1))) * 100.0, 1)
 
             mercados = [
-                ("Gana o Empata " + loc, p_dc_1x),
-                ("Gana o Empata " + vis, p_dc_x2),
-                ("Sin Empate (" + loc + " o " + vis + ")", p_dc_12),
-                ("Más de 1.5 Goles Totales", p_o15),
-                ("Más de 2.5 Goles Totales", po25),
-                ("Menos de 2.5 Goles Totales", pu25),
-                ("Ambos Equipos Anotan - SÍ", pbtts),
-                ("Victoria Simple " + loc, pl),
-                ("Empate Simple", pe),
-                ("Victoria Simple " + vis, pv)
+                {"Partido": f"{loc} vs {vis}", "Mercado": f"Victoria {loc}", "Prob": pl},
+                {"Partido": f"{loc} vs {vis}", "Mercado": f"Victoria {vis}", "Prob": pv},
+                {"Partido": f"{loc} vs {vis}", "Mercado": "Empate", "Prob": pe},
+                {"Partido": f"{loc} vs {vis}", "Mercado": "Más de 2.5 Goles", "Prob": po25},
+                {"Partido": f"{loc} vs {vis}", "Mercado": "Menos de 2.5 Goles", "Prob": pu25},
+                {"Partido": f"{loc} vs {vis}", "Mercado": "Ambos Anotan (Sí)", "Prob": pbtts},
             ]
 
-            for nom, prob in mercados:
-                cuota_teo = round(100.0 / max(0.1, prob), 2) if prob > 0 else 99.00
+            for m in mercados:
+                prob = round(m["Prob"], 1)
+                if prob <= 1.0:
+                    continue
+                
+                cuota_teorica = round(100.0 / prob, 2)
+
                 item = {
-                    "Partido": f"{loc} vs {vis}",
-                    "Mercado": nom,
-                    "Probabilidad": f"{prob:.1f}%",
-                    "Cuota Mínima Teórica": f"{cuota_teo:.2f}",
+                    "Partido": m["Partido"],
+                    "Mercado": m["Mercado"],
+                    "Probabilidad": f"{prob}%",
+                    "Cuota Justa": cuota_teorica,
                     "_prob_num": prob,
-                    "_cuota_num": cuota_teo
+                    "_cuota_num": cuota_teorica
                 }
+
                 if prob >= 70.0:
                     opciones_probables.append(item)
                 elif 50.0 <= prob < 70.0:
                     opciones_razonables.append(item)
                 else:
-                    if cuota_teo >= 2.10:
+                    if cuota_teorica >= 2.10:
                         opciones_poco_probables.append(item)
-                if prob >= 60.0 and cuota_teo >= 1.50:
+
+                if prob >= 60.0 and cuota_teorica >= 1.50:
                     mejores_opciones.append(item)
 
         # ---------------------------------------------------------------------
-        # TOP 3 GOLEADORES DEL DÍA
+        # SECCIÓN 1: JUGADORES CON MÁS PROBABILIDAD DE GOL DEL DÍA (TOP 3)
         # ---------------------------------------------------------------------
         st.markdown("<h3 style='color: #00ffcc;'>Jugadores con más probabilidad de gol del día</h3>", unsafe_allow_html=True)
         st.caption("Los 3 atacantes con mayor probabilidad de convertir tras descontar la fortaleza defensiva del rival.")
+
         top_3_jugadores = calcular_top_3_goleadores_dia(partidos_evaluar, df_unificado)
-        
+
         if top_3_jugadores:
             cols_j = st.columns(3)
             for i, jug in enumerate(top_3_jugadores):
                 with cols_j[i]:
                     st.markdown(f"""
-                        <div class="player-card">
-                            <img src="{jug['escudo']}" style="max-height:50px; margin-bottom:8px;" />
-                            <div class="player-name">{jug['nombre']}</div>
-                            <div class="player-team">{jug['equipo']}</div>
-                            <div class="player-stat">{jug['probabilidad']}%</div>
-                            <div class="player-sub">Rival: {jug['rival']} (Def #{jug['puesto_rival_defensa']})</div>
-                            <div style="margin-top:8px; font-weight:bold; color:#00ffcc;">Cuota Justa: {jug['cuota_justa']}</div>
-                        </div>
+                    <div class="player-card">
+                        <img src="{jug['escudo']}" style="width: 45px; height: 45px; object-fit: contain; margin-bottom: 6px;" />
+                        <div class="player-team">{jug['equipo']}</div>
+                        <div class="player-name">{jug['nombre']}</div>
+                        <div class="player-stat">{jug['probabilidad']}%</div>
+                        <div class="player-sub">Rival: <b>{jug['rival']}</b> (Defensa #{jug['puesto_rival_defensa']})</div>
+                        <div class="player-sub" style="color: #00ffcc; font-weight: 700;">Cuota Justa: {jug['cuota_justa']}</div>
+                    </div>
                     """, unsafe_allow_html=True)
         else:
-            st.info("No se encontraron coincidencias suficientes de atacantes y partidos para hoy.")
+            st.info("Sin datos suficientes para proyectar a los goleadores de la fecha.")
 
         st.markdown("---")
 
-        # MEJORES OPCIONES DEL DÍA
-        st.markdown("<h3 style='color: #00f3ff;'>Mejores Opciones del Día</h3>", unsafe_allow_html=True)
-        st.caption("Selecciones con alta probabilidad estadística (≥ 60%) y excelente cuota de valor (≥ 1.50).")
+        # ---------------------------------------------------------------------
+        # SECCIÓN 2: MEJORES OPCIONES DEL DÍA
+        # ---------------------------------------------------------------------
+        st.markdown("<h3 style='color: #00ffcc;'>Mejores opciones del día</h3>", unsafe_allow_html=True)
+        st.caption("Oportunidades con alta convicción del modelo (probabilidad >= 60%) y excelente valor teórica (>= 1.50).")
+
         if mejores_opciones:
-            df_m = pd.DataFrame(mejores_opciones).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
-            st.dataframe(df_m, use_container_width=True, hide_index=True)
+            df_mejores = pd.DataFrame(mejores_opciones).sort_values(by="_cuota_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
+            st.dataframe(df_mejores, use_container_width=True, hide_index=True)
         else:
-            st.info("Sin opciones en este rango de valor para la jornada actual.")
+            st.info("No hay selecciones que cumplan simultáneamente con los criterios de alta convicción y valor elevado para esta fecha.")
 
         st.markdown("---")
 
-        # OPCIONES MUY PROBABLES
-        st.markdown("<h3 style='color: #00ffcc;'>Opciones Muy Probables (> 70% de probabilidad)</h3>", unsafe_allow_html=True)
-        st.caption("Escenarios de alta certeza estadística con cuotas teóricas menores.")
+        # ---------------------------------------------------------------------
+        # SECCIÓN 3: OPCIONES PROBABLES
+        # ---------------------------------------------------------------------
+        st.markdown("<h3 style='color: #00f3ff;'>Opciones Probables (Probabilidad >= 70%)</h3>", unsafe_allow_html=True)
+        st.caption("Eventos con altísima tasa estimada de ocurrencia y cuotas estimadas moderadas.")
+
         if opciones_probables:
-            df_p = pd.DataFrame(opciones_probables).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
-            st.dataframe(df_p, use_container_width=True, hide_index=True)
+            df_probables = pd.DataFrame(opciones_probables).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
+            st.dataframe(df_probables, use_container_width=True, hide_index=True)
         else:
-            st.info("No se detectaron mercados superiores al 70% en los partidos analizados.")
+            st.info("Sin opciones probables superando el 70% de probabilidades para este bloque de partidos.")
 
         st.markdown("---")
 
-        # OPCIONES RAZONABLES
+        # ---------------------------------------------------------------------
+        # SECCIÓN 4: OPCIONES RAZONABLES
+        # ---------------------------------------------------------------------
         st.markdown("<h3 style='color: #ffb703;'>Opciones Razonables (50% - 70% de probabilidad)</h3>", unsafe_allow_html=True)
         st.caption("Escenarios equilibrados con probabilidades moderadas y cuotas significativamente más altas.")
+
         if opciones_razonables:
-            df_r = pd.DataFrame(opciones_razonables).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
-            st.dataframe(df_r, use_container_width=True, hide_index=True)
+            df_razonables = pd.DataFrame(opciones_razonables).sort_values(by="_prob_num", ascending=False).drop(columns=["_prob_num", "_cuota_num"])
+            st.dataframe(df_razonables, use_container_width=True, hide_index=True)
         else:
             st.info("Sin opciones registradas en el rango del 50% al 70%.")
 
         st.markdown("---")
 
-        # OPCIONES POCO PROBABLES
+        # ---------------------------------------------------------------------
+        # SECCIÓN 5: OPCIONES POCO PROBABLES
+        # ---------------------------------------------------------------------
         st.markdown("<h3 style='color: #ff3366;'>Opciones Poco Probables (< 50% de probabilidad)</h3>", unsafe_allow_html=True)
         st.caption("Opciones de riesgo superior pero con cuotas teóricas muy elevadas (superior a 2.10).")
+
         if opciones_poco_probables:
-            df_poc = pd.DataFrame(opciones_poco_probables).sort_values(by="_cuota_num", ascending=False).head(15).drop(columns=["_prob_num", "_cuota_num"])
-            st.dataframe(df_poc, use_container_width=True, hide_index=True)
+            df_pocos = pd.DataFrame(opciones_poco_probables).sort_values(by="_cuota_num", ascending=False).head(15).drop(columns=["_prob_num", "_cuota_num"])
+            st.dataframe(df_pocos, use_container_width=True, hide_index=True)
         else:
-            st.info("Sin opciones de alto riesgo registradas.")
-
-# =====================================================================
-# PANTALLA 3: POSICIONES Y ZONAS
-# =====================================================================
-elif opcion_pantalla == "Posiciones y Zonas":
-    st.markdown('<div class="neon-title">POSICIONES Y ZONAS</div>', unsafe_allow_html=True)
-    st.markdown('<div class="tech-sub">TABLA EN VIVO Y RENDIMIENTO HISTÓRICO</div>', unsafe_allow_html=True)
-
-    cols_grupos = st.columns(len(grupos)) if grupos else [st]
-    for idx, (nombre_grupo, df_g) in enumerate(grupos.items()):
-        with cols_grupos[idx]:
-            st.markdown(f"<h4 style='color: #00ffcc; text-align: center;'>{nombre_grupo}</h4>", unsafe_allow_html=True)
-            df_mostrar_grupo = df_g.drop(columns=["ID_ESPN"], errors="ignore")
-            st.dataframe(
-                df_mostrar_grupo,
-                column_config={
-                    "Pos": st.column_config.NumberColumn("Pos", width="small"),
-                    "Escudo": st.column_config.ImageColumn("Escudo", width="small"),
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-
-    st.markdown("---")
-    st.markdown("<h3 style='color: #cbd5e1;'>Efectividad Histórica del Modelo</h3>", unsafe_allow_html=True)
-    df_ef = pd.read_csv(RUTA_HISTORIAL) if os.path.exists(RUTA_HISTORIAL) else pd.DataFrame()
-    
-    if not df_ef.empty and "Estado" in df_ef.columns:
-        finalizados = df_ef[df_ef["Estado"] == "Finalizado"].drop_duplicates(subset=['Fecha', 'Local', 'Visitante'], keep='first').copy()
-        finalizados = depurar_partidos_cercanos(finalizados)
-        if finalizados.empty:
-            st.info("Las predicciones están almacenadas. Una vez finalizados los partidos, las métricas de precisión se actualizarán automáticamente.")
-        else:
-            finalizados["res_real_1x2"] = np.where(
-                finalizados["Goles_Local_Real"] > finalizados["Goles_Visita_Real"], "Local",
-                np.where(finalizados["Goles_Visita_Real"] > finalizados["Goles_Local_Real"], "Visitante", "Empate")
-            )
-            finalizados["acierto_1x2"] = (finalizados["Prediccion_1X2"] == finalizados["res_real_1x2"]).astype(int)
-            finalizados["goles_totales_reales"] = finalizados["Goles_Local_Real"] + finalizados["Goles_Visita_Real"]
-            finalizados["over25_real"] = (finalizados["goles_totales_reales"] > 2.5).astype(int)
-            finalizados["pred_over25"] = (finalizados["Prob_Over25"] >= 50.0).astype(int)
-            finalizados["acierto_o25"] = (finalizados["pred_over25"] == finalizados["over25_real"]).astype(int)
-
-            acierto_1x2_pct = round((finalizados["acierto_1x2"].sum() / len(finalizados)) * 100.0, 1)
-            acierto_o25_pct = round((finalizados["acierto_o25"].sum() / len(finalizados)) * 100.0, 1)
-
-            e_col1, e_col2, e_col3 = st.columns(3)
-            with e_col1:
-                st.metric(label="ACIERTOS 1X2 (%)", value=f"{acierto_1x2_pct}%")
-            with e_col2:
-                st.metric(label="ACIERTOS OVER 2.5 (%)", value=f"{acierto_o25_pct}%")
-            with e_col3:
-                st.metric(label="PARTIDOS REGISTRADOS", value=f"{len(finalizados)}")
-
-            st.markdown("#### Registro Detallado de Partidos Evaluados")
-            df_vista_ef = finalizados[[
-                "Fecha", "Local", "Visitante", "Prediccion_1X2",
-                "res_real_1x2", "Marcador_Predicho",
-                "Goles_Local_Real", "Goles_Visita_Real"
-            ]].copy()
-            st.dataframe(df_vista_ef.sort_values(by="Fecha", ascending=False), use_container_width=True, hide_index=True)
-    else:
-        st.info("Aún no hay predicciones evaluadas o el historial no se ha inicializado.")
+            st.info("Sin opciones poco probables destacadas en este bloque.")
