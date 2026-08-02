@@ -25,10 +25,13 @@ ocultar_elementos_streamlit = """
     </style>
     """
 st.markdown(ocultar_elementos_streamlit, unsafe_allow_html=True)
+
+# Meta tag para optimizar la vista en celulares (evita zoom y desbordes)
 st.markdown(
     """
     <head>
         <meta name="google-site-verification" content="nGtul4qMmIIjYUn" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     </head>
     """,
     unsafe_allow_html=True
@@ -37,91 +40,73 @@ st.markdown(
 st.markdown(
     """
     <style>
-        .stApp {
+        /* 1. BLOQUEAR REFRESCO AL DESLIZAR HACIA ARRIBA (PULL-TO-REFRESH) */
+        html, body, .stApp {
             background-color: #070b14;
             color: #e2e8f0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overscroll-behavior-y: none !important; /* Clave para el refresh */
+            touch-action: pan-x pan-y !important;
         }
+
+        /* 2. BOTÓN DE NAVEGACIÓN GIGANTE, FACHERO Y CÓMODO */
+        div[data-baseweb="select"] > div {
+            background: linear-gradient(135deg, #0a1128, #162a45) !important;
+            border: 2px solid #00f3ff !important;
+            border-radius: 20px !important;
+            padding: 5px !important;
+            min-height: 60px !important;
+            box-shadow: 0px 0px 20px 0px rgba(0, 243, 255, 0.4) !important;
+            cursor: pointer;
+        }
+        div[data-baseweb="select"] * {
+            color: #ffffff !important;
+            font-size: 18px !important; /* Evita el zoom automático en celulares */
+            font-weight: 900 !important;
+            text-align: center !important;
+        }
+        
+        /* Ajuste de los items cuando se despliega el menú */
+        ul[data-baseweb="menu"] {
+            background-color: #0a1128 !important;
+            border: 1px solid #00f3ff !important;
+            border-radius: 15px !important;
+        }
+        li[role="option"] {
+            font-size: 16px !important;
+            font-weight: bold !important;
+            padding: 15px !important;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        /* 3. TÍTULOS Y MÉTRICAS ADAPTADAS */
         .neon-title {
-            font-size: 36px;
+            font-size: 32px;
             font-weight: 900;
-            text-align: left;
+            text-align: center;
             color: #ffffff;
             text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 30px #00f3ff;
             margin-bottom: 5px;
             text-transform: uppercase;
         }
         .tech-sub {
-            text-align: left;
+            text-align: center;
             color: #94a3b8;
             letter-spacing: 2px;
             font-size: 13px;
-            margin-bottom: 15px;
+            margin-bottom: 25px;
             font-weight: 600;
         }
-        [data-testid="stMetricValue"] {
-            color: #00ffcc !important;
-            font-size: 30px !important;
-            font-weight: 900 !important;
-            text-shadow: 0 0 5px #00ffcc80;
-        }
-        [data-testid="stMetricLabel"] {
-            color: #94a3b8 !important;
-            font-size: 13px !important;
-            text-transform: uppercase;
-        }
-        hr {
-            border-top: 1px solid #1e293b;
-        }
-        /* Estilos para Tarjetas de Goleadores (Móvil) */
-        .player-card {
-            background: linear-gradient(135deg, #0d1527 0%, #111e38 100%);
-            border: 1px solid #00f3ff40;
-            border-radius: 12px;
-            padding: 16px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0, 243, 255, 0.1);
-            margin-bottom: 12px;
-        }
-        .player-name {
-            font-size: 19px;
-            font-weight: 800;
-            color: #ffffff;
-            margin-bottom: 4px;
-        }
-        .player-team {
-            font-size: 12px;
-            color: #00ffcc;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-        }
-        .player-stat {
-            font-size: 28px;
-            font-weight: 900;
-            color: #00f3ff;
-            text-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
-        }
-        .player-sub {
-            font-size: 12px;
-            color: #94a3b8;
-            margin-top: 4px;
-        }
-        /* Estilo para escudos en el duelo de equipos */
-        .team-shield-box {
-            text-align: center;
-            background: #0d1527;
-            border: 1px solid #1e293b;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 10px;
-        }
-        .team-shield-img {
-            max-width: 90px;
-            max-height: 90px;
-            object-fit: contain;
-            filter: drop-shadow(0 0 8px rgba(0,243,255,0.3));
+        
+        /* Hacer que en el celular nada se salga de la pantalla */
+        @media (max-width: 768px) {
+            .stApp {
+                padding: 0.5rem !important;
+            }
+            .stDataFrame {
+                width: 100% !important;
+                overflow-x: auto !important;
+            }
         }
     </style>
     """,
