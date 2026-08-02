@@ -430,17 +430,30 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
-def obtener_historial_directo(equipo_a, equipo_b):
-    semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
-    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
-    rng = np.random.default_rng(seed)
+@st.cache_data(ttl=3600)
+def obtener_historial_directo(id_local, id_visitante, local_nombre, visitante_nombre):
+    """Consulta los últimos partidos en ESPN para encontrar los enfrentamientos directos reales (H2H)"""
+    if not id_local or not id_visitante:
+        return ['E', 'E', 'E', 'E', 'E']
 
-    es_inverso = equipo_a != min(equipo_a, equipo_b)
-    historial_base = rng.choice(['G', 'E', 'P'], 5, p=[0.38, 0.32, 0.30]).tolist()
+    partidos_local = obtener_ultimos_10_partidos_espn(id_local)
+    historial = []
 
-    if es_inverso:
-        return ['P' if r == 'G' else 'G' if r == 'P' else 'E' for r in historial_base]
-    return historial_base
+    for p in partidos_local:
+        # Si en los partidos del local aparece el nombre del visitante en el Rival
+        if visitante_nombre.lower() in p["Rival"].lower() or p["Rival"].lower() in visitante_nombre.lower():
+            if p["Puntos"] == 3:
+                historial.append('G')  # Ganó Local
+            elif p["Puntos"] == 1:
+                historial.append('E')  # Empate
+            else:
+                historial.append('P')  # Ganó Visitante
+
+    # Si no hay 5 enfrentamientos recientes registrados entre ellos, rellenar de forma neutra
+    while len(historial) < 5:
+        historial.append('E')
+
+    return historial[:5]
 
 def render_h2h_pills(historial, local, visitante):
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
