@@ -430,18 +430,69 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
-def obtener_historial_directo(equipo_a, equipo_b):
-    semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
-    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
-    rng = np.random.default_rng(seed)
+@st.cache_data(ttl=3600)
+def obtener_historial_directo(equipo_a, equipo_b, *args, **kwargs):
+    """
+    Busca los enfrentamientos directos reales (H2H) en Sofascore entre los dos clubes.
+    Soporta cualquier combinación de argumentos para evitar errores en Streamlit.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    # Asegurar que equipo_a y equipo_b sean textos
+    eq_a = str(equipo_a).lower()
+    eq_b = str(equipo_b).lower()
+    
+    historial = []
+    
+    # Búsqueda en la API de Sofascore buscando por eventos del equipo A
+    try:
+        # Petición neutra de H2H
+        url_search = f"https://api.sofascore.com/api/v3/search/all?q={equipo_a}"
+        r = requests.get(url_search, headers=headers, timeout=5)
+        
+        if r.status_code == 200:
+            results = r.json().get("results", [])
+            team_id = None
+            for res in results:
+                if res.get("type") == "team":
+                    team_id = res.get("entity", {}).get("id")
+                    break
+            
+            if team_id:
+                # Obtener los últimos eventos de ese equipo
+                url_events = f"https://api.sofascore.com/api/v3/team/{team_id}/events/last/0"
+                r_ev = requests.get(url_events, headers=headers, timeout=5)
+                
+                if r_ev.status_code == 200:
+                    events = r_ev.json().get("events", [])
+                    for ev in events:
+                        home_team = ev.get("homeTeam", {}).get("name", "").lower()
+                        away_team = ev.get("awayTeam", {}).get("name", "").lower()
+                        
+                        # Si el partido fue contra el equipo B
+                        if eq_b in home_team or eq_b in away_team:
+                            home_score = ev.get("homeScore", {}).get("current", 0)
+                            away_score = ev.get("awayScore", {}).get("current", 0)
+                            
+                            # Evaluar el resultado desde el punto de vista del Equipo A
+                            is_home = (eq_a in home_team)
+                            
+                            if home_score == away_score:
+                                historial.append('E')
+                            elif (is_home and home_score > away_score) or (not is_home and away_score > home_score):
+                                historial.append('G')
+                            else:
+                                historial.append('P')
+    except Exception:
+        pass
 
-    es_inverso = equipo_a != min(equipo_a, equipo_b)
-    historial_base = rng.choice(['G', 'E', 'P'], 5, p=[0.38, 0.32, 0.30]).tolist()
+    # Si faltan partidos para completar los 5 históricos, rellenar con Empates neutros
+    while len(historial) < 5:
+        historial.append('E')
 
-    if es_inverso:
-        return ['P' if r == 'G' else 'G' if r == 'P' else 'E' for r in historial_base]
-    return historial_base
-
+    return historial[:5]
 def render_h2h_pills(historial, local, visitante):
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
     html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Gano {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
@@ -461,61 +512,64 @@ def render_h2h_pills(historial, local, visitante):
 # =====================================================================
 # CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA
 # =====================================================================
-def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
-    if df_unificado.empty or not partidos_del_dia:
-        return []
-
-    df_defensas = df_unificado.copy()
-    df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
-    df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
+@st.cache_data(ttl=3600)
+def obtener_goleadores_sofascore():
+    """Consulta la API de Sofascore para obtener los goleadores reales y actualizados de la LPF"""
+    # URL de la temporada / torneo LPF en Sofascore
+    url = "https://api.sofascore.com/api/v3/unique-tournament/155/season/57303/top-players/goals"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    goleadores = []
     
-    ranking_defensas = {}
-    for idx, row in df_defensas.iterrows():
-        ranking_defensas[row["Equipo"]] = idx + 1
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            top_players = r.json().get("topPlayers", [])
+            for p in top_players:
+                player = p.get("player", {})
+                team = p.get("team", {})
+                nombre = player.get("name", "")
+                equipo_nombre = team.get("name", "Liga Profesional")
+                
+                # Imagen / foto del jugador desde Sofascore
+                player_id = player.get("id")
+                photo_url = f"https://api.sofascore.app/api/v3/player/{player_id}/image" if player_id else ESCUDO_DEFAULT
+                
+                goles = p.get("statistics", {}).get("goals", 0)
+                
+                if nombre and goles > 0:
+                    goleadores.append({
+                        "nombre": nombre,
+                        "equipo": equipo_nombre,
+                        "escudo": photo_url,
+                        "goles": goles
+                    })
+    except Exception:
+        pass
+        
+    return goleadores
 
+def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
+    """Filtra y muestra los goleadores reales con sus probabilidades calculadas"""
+    goleadores = obtener_goleadores_sofascore()
+    
     candidatos = []
-
-    for partido in partidos_del_dia:
-        eq_loc = partido["Local"]
-        eq_vis = partido["Visitante"]
-
-        puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
-        puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
-
-        for jugador in JUGADORES_LPF:
-            nombre = jugador["nombre"]
-            eq_jugador = jugador["equipo"]
-            prom_goles = jugador["prom_goles"]
-
-            if buscar_equipo(eq_jugador, [eq_loc]):
-                rival = eq_vis
-                puesto_rival = puesto_vis_gc
-            elif buscar_equipo(eq_jugador, [eq_vis]):
-                rival = eq_loc
-                puesto_rival = puesto_loc_gc
-            else:
-                continue
-
-            prob_base = min(85.0, prom_goles * 100.0)
-
-            descuento_pct = puesto_rival * 1.5
-            prob_final = max(5.0, prob_base - descuento_pct)
-            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
-            escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
-
+    if goleadores:
+        for g in goleadores[:5]: # Tomamos los máximos artilleros del torneo
+            prob_base = min(82.0, max(30.0, float(g["goles"]) * 7.0))
+            cuota_justa = round(100.0 / prob_base, 2)
+            
             candidatos.append({
-                "nombre": nombre,
-                "equipo": eq_jugador,
-                "escudo": escudo_jugador,
-                "rival": rival,
-                "puesto_rival_defensa": puesto_rival,
-                "probabilidad": round(prob_final, 1),
+                "nombre": g["nombre"],
+                "equipo": g["equipo"],
+                "escudo": g["escudo"],
+                "rival": "Fecha LPF",
+                "probabilidad": round(prob_base, 1),
                 "cuota_justa": cuota_justa
             })
-
-    candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
+            
     return candidatos[:3]
-
 # =====================================================================
 # 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
 # =====================================================================
