@@ -477,13 +477,13 @@ def obtener_goleadores_oficiales_espn():
 
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     """
-    Calcula los 3 atacantes con mayor probabilidad de gol para los partidos que juegan hoy.
-    Normaliza los nombres de los equipos para que coincidan siempre.
+    Calcula los 3 atacantes con mayor probabilidad de gol para los partidos de la fecha
+    usando los datos reales del dataset unificado.
     """
-    if partidos_del_dia is None or len(partidos_del_dia) == 0:
+    if partidos_del_dia is None or len(partidos_del_dia) == 0 or df_unificado.empty:
         return []
 
-    # Convertir a lista de diccionarios si viene como DataFrame
+    # Convertir a lista si viene como DataFrame
     if isinstance(partidos_del_dia, pd.DataFrame):
         partidos_list = partidos_del_dia.to_dict('records')
     else:
@@ -491,38 +491,43 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
 
     candidatos = []
 
-    # Función auxiliar para comparar nombres de equipos sin importar acentos/mayúsculas
-    def equip_match(eq1, eq2):
-        e1 = str(eq1).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
-        e2 = str(eq2).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
-        return e1 in e2 or e2 in e1
-
-    # Recorrer los partidos del día
     for p in partidos_list:
         loc = p.get("Local", "")
         vis = p.get("Visitante", "")
 
-        for jug in JUGADORES_LPF:
-            eq_jug = jug.get("equipo", "")
-            
-            # Verificar si el jugador pertenece a alguno de los equipos que juegan hoy
-            if equip_match(eq_jug, loc) or equip_match(eq_jug, vis):
-                rival = vis if equip_match(eq_jug, loc) else loc
-                escudo_jug = obtener_escudo_equipo(eq_jug, df_unificado) if 'obtener_escudo_equipo' in globals() else ESCUDO_DEFAULT
+        # Obtener datos ofensivos reales del dataset para los dos equipos
+        p_loc = df_unificado[df_unificado["Equipo"] == loc]
+        p_vis = df_unificado[df_unificado["Equipo"] == vis]
 
-                prom_gol = jug.get("prom_goles", 0.40)
-                prob_base = min(85.0, max(25.0, prom_gol * 100.0))
+        escudo_loc = p_loc["Escudo"].values[0] if not p_loc.empty and "Escudo" in p_loc.columns else ESCUDO_DEFAULT
+        escudo_vis = p_vis["Escudo"].values[0] if not p_vis.empty and "Escudo" in p_vis.columns else ESCUDO_DEFAULT
 
-                candidatos.append({
-                    "nombre": jug.get("nombre", "Atacante"),
-                    "equipo": eq_jug,
-                    "escudo": escudo_jug,
-                    "rival": rival,
-                    "probabilidad": round(prob_base, 1),
-                    "cuota_justa": round(100.0 / prob_base, 2)
-                })
+        gf_loc = p_loc["GF_3P"].values[0] if not p_loc.empty and "GF_3P" in p_loc.columns else 1.2
+        gf_vis = p_vis["GF_3P"].values[0] if not p_vis.empty and "GF_3P" in p_vis.columns else 1.0
 
-    # Ordenar por mayor probabilidad de gol y devolver los mejores 3
+        # Proyectar los 2 delanteros principales del partido (Local y Visitante)
+        prob_loc = round(min(80.0, max(30.0, float(gf_loc) * 32.0)), 1)
+        prob_vis = round(min(75.0, max(25.0, float(gf_vis) * 28.0)), 1)
+
+        candidatos.append({
+            "nombre": f"Atacante Principal ({loc})",
+            "equipo": loc,
+            "escudo": escudo_loc,
+            "rival": vis,
+            "probabilidad": prob_loc,
+            "cuota_justa": round(100.0 / prob_loc, 2)
+        })
+
+        candidatos.append({
+            "nombre": f"Atacante Principal ({vis})",
+            "equipo": vis,
+            "escudo": escudo_vis,
+            "rival": loc,
+            "probabilidad": prob_vis,
+            "cuota_justa": round(100.0 / prob_vis, 2)
+        })
+
+    # Ordenar por mayor probabilidad y devolver los mejores 3
     candidatos = sorted(candidatos, key=lambda x: x["probabilidad"], reverse=True)
     return candidatos[:3]
 # =====================================================================
