@@ -448,7 +448,7 @@ def render_h2h_pills(historial, local, visitante):
 # =====================================================================
 @st.cache_data(ttl=1800)
 def obtener_goleadores_espn_live():
-    """Trae la lista de goleadores actualizados con nombre y apellido real desde ESPN"""
+    """Consulta la API de ESPN en tiempo real para traer goleadores con nombre, apellido y foto."""
     url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
     goleadores = []
     try:
@@ -475,70 +475,59 @@ def obtener_goleadores_espn_live():
 
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     """
-    Calcula los 3 atacantes con sus nombres reales para los partidos de la fecha
-    evaluando la efectividad ofensiva y la defensa rival.
+    Busca estrictamente los goleadores reales que juegan en los partidos del día de hoy.
     """
     if partidos_del_dia is None or len(partidos_del_dia) == 0 or df_unificado.empty:
         return []
 
-    # Convertir partidos a lista si vienen como DataFrame
+    # Convertir a lista si es DataFrame
     if isinstance(partidos_del_dia, pd.DataFrame):
         partidos_list = partidos_del_dia.to_dict('records')
     else:
         partidos_list = partidos_del_dia
 
-    goleadores_live = obtener_goleadores_espn_live()
-    candidatos = []
+    goleadores_api = obtener_goleadores_espn_live()
+    if not goleadores_api:
+        return []
 
-    def norm(txt):
-        return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
+    # Función de coincidencias parciales inteligente (ej: 'river' coincide con 'river plate')
+    def coincide_equipo(nombre_api, nombre_local):
+        n1 = str(nombre_api).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
+        n2 = str(nombre_local).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
+        return (n1 in n2) or (n2 in n1)
+
+    candidatos = []
 
     for p in partidos_list:
         loc = str(p.get("Local", ""))
         vis = str(p.get("Visitante", ""))
 
-        # Buscar si algún goleador de la API juega en los equipos que se enfrentan hoy
-        for g in goleadores_live:
+        for g in goleadores_api:
             eq_g = g["equipo"]
-            es_local = norm(eq_g) in norm(loc) or norm(loc) in norm(eq_g)
-            es_vis = norm(eq_g) in norm(vis) or norm(vis) in norm(eq_g)
+            es_local = coincide_equipo(eq_g, loc)
+            es_vis = coincide_equipo(eq_g, vis)
 
             if es_local or es_vis:
                 rival = vis if es_local else loc
-                
-                # Obtener la fortaleza defensiva del rival desde df_unificado
-                p_rival = df_unificado[df_unificado["Equipo"] == rival]
+
+                # Calcular la debilidad defensiva del rival
+                p_rival = df_unificado[df_unificado["Equipo"].apply(lambda x: coincide_equipo(x, rival))]
                 gc_rival = p_rival["GC_3P"].values[0] if not p_rival.empty and "GC_3P" in p_rival.columns else 1.0
-                
-                # Calcular probabilidad considerando goles del jugador y debilidad del rival
-                prob_base = min(88.0, max(28.0, (float(g["goles"]) * 6.5) + (float(gc_rival) * 8.0)))
+
+                # Calcular la probabilidad según goles anotados por el jugador + goles recibidos por el rival
+                prob_base = min(88.0, max(28.0, (float(g["goles"]) * 6.5) + (float(gc_rival) * 7.5)))
 
                 candidatos.append({
-                    "nombre": g["nombre"],  # <-- NOMBRE REAL DEL JUGADOR
+                    "nombre": g["nombre"],             # Nombre y Apellido REAL del jugador
                     "equipo": eq_g,
-                    "escudo": g["escudo"],
+                    "escudo": g["escudo"],             # Foto oficial de ESPN
                     "rival": rival,
-                    "puesto_rival_defensa": "-", # Evita error de plantilla HTML
+                    "puesto_rival_defensa": "-",       # Clave obligatoria para el HTML
                     "probabilidad": round(prob_base, 1),
                     "cuota_justa": round(100.0 / prob_base, 2)
                 })
 
-    # Si no hubo cruce exacto de nombres con los partidos de hoy,
-    # toma los 3 goleadores principales del torneo actual
-    if not candidatos and goleadores_live:
-        for g in goleadores_live[:3]:
-            prob_base = min(85.0, max(30.0, float(g["goles"]) * 7.5))
-            candidatos.append({
-                "nombre": g["nombre"],
-                "equipo": g["equipo"],
-                "escudo": g["escudo"],
-                "rival": "Fecha LPF",
-                "puesto_rival_defensa": "-",
-                "probabilidad": round(prob_base, 1),
-                "cuota_justa": round(100.0 / prob_base, 2)
-            })
-
-    # Ordenar por probabilidad descendente y devolver los mejores 3
+    # Ordenar estrictamente por mayor probabilidad y devolver los 3 mejores de los partidos de hoy
     candidatos = sorted(candidatos, key=lambda x: x["probabilidad"], reverse=True)
     return candidatos[:3]
 # =====================================================================
