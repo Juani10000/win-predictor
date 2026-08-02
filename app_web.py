@@ -1225,47 +1225,6 @@ else:
                 if prob >= 60.0 and cuota_teorica >= 1.50:
                     mejores_opciones.append(item)
 
-# =====================================================================
-# SECCIÓN VISUAL DE GOLEADORES (LÍNEA ~1200 EN ADELANTE)
-# =====================================================================
-st.subheader("⚽ Jugadores con más probabilidad de gol del día")
-st.caption("Los 3 atacantes con mayor probabilidad de convertir tras descontar la fortaleza defensiva del rival.")
-
-top_3_jugadores = calcular_top_3_goleadores_dia(partidos_evaluar, df_unificado)
-
-# Si la lista vuelve vacía o falla el fetch, mostramos las tarjetas estándar sin romper el script
-if not top_3_jugadores:
-    top_3_jugadores = [
-        {
-            "nombre": "Atacante Destacado",
-            "equipo": "Liga Profesional",
-            "escudo": ESCUDO_DEFAULT,
-            "rival": "Fecha LPF",
-            "puesto_rival_defensa": "-",
-            "probabilidad": 50.0,
-            "cuota_justa": 2.00
-        }
-    ]
-
-# Dibujar las tarjetas dinámicas
-cols = st.columns(len(top_3_jugadores))
-for idx, jug in enumerate(top_3_jugadores):
-    with cols[idx]:
-        st.markdown(f"""
-            <div style="border: 1px solid #444; padding: 12px; border-radius: 8px; text-align: center; background-color: #1e1e1e;">
-                <img src="{jug['escudo']}" width="55" style="margin-bottom: 8px;">
-                <h4 style="margin: 0; color: #fff;">{jug['nombre']}</h4>
-                <p style="margin: 0; color: #aaa; font-size: 14px;">{jug['equipo']}</p>
-                <hr style="margin: 8px 0; border-color: #333;">
-                <p style="margin: 2px 0; color: #ddd;">Rival: <b>{jug['rival']}</b></p>
-                <p style="margin: 2px 0; color: #00ff88; font-size: 16px;"><b>Probabilidad:</b> {jug['probabilidad']}%</p>
-                <p style="margin: 2px 0; color: #ffcc00;"><b>Cuota Justa:</b> {jug['cuota_justa']}</p>
-            </div>
-        """, unsafe_allow_html=True)
-        else:
-            st.info("Sin datos suficientes para proyectar a los goleadores de la fecha.")
-
-        st.markdown("---")
 
         # ---------------------------------------------------------------------
         # SECCIÓN 2: MEJORES OPCIONES DEL DÍA
