@@ -403,30 +403,40 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
     return round(indice, 1), categoria, color
 
 @st.cache_data(ttl=3600)
-def obtener_historial_directo(id_local, id_visitante, local_nombre, visitante_nombre):
-    """Consulta los últimos partidos en ESPN para encontrar los enfrentamientos directos reales (H2H)"""
-    if not id_local or not id_visitante:
+def obtener_historial_directo(id_local=None, id_visitante=None, local_nombre="", visitante_nombre=""):
+    """
+    Soporta llamadas tanto de 2 parámetros (solo nombres/equipos)
+    como de 4 parámetros (IDs + nombres).
+    """
+    # Si fue llamada con 2 argumentos posicionales (ej: obtener_historial_directo(equipo_a, equipo_b))
+    if id_local and not local_nombre and isinstance(id_local, str) and not id_local.isdigit():
+        local_nombre = id_local
+        visitante_nombre = str(id_visitante) if id_visitante else ""
+        id_local = None
+        id_visitante = None
+
+    if not local_nombre or not visitante_nombre:
         return ['E', 'E', 'E', 'E', 'E']
 
-    partidos_local = obtener_ultimos_10_partidos_espn(id_local)
-    historial = []
+    partidos_local = []
+    if id_local:
+        partidos_local = obtener_ultimos_10_partidos_espn(id_local)
 
+    historial = []
     for p in partidos_local:
-        # Si en los partidos del local aparece el nombre del visitante en el Rival
         if visitante_nombre.lower() in p["Rival"].lower() or p["Rival"].lower() in visitante_nombre.lower():
             if p["Puntos"] == 3:
-                historial.append('G')  # Ganó Local
+                historial.append('G')
             elif p["Puntos"] == 1:
-                historial.append('E')  # Empate
+                historial.append('E')
             else:
-                historial.append('P')  # Ganó Visitante
+                historial.append('P')
 
-    # Si no hay 5 enfrentamientos recientes registrados entre ellos, rellenar de forma neutra
+    # Si no hay suficientes enfrentamientos recientes o se llamó sin ID, rellenar neutro
     while len(historial) < 5:
         historial.append('E')
 
     return historial[:5]
-
 def render_h2h_pills(historial, local, visitante):
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
     html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Gano {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
