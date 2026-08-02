@@ -447,29 +447,27 @@ def render_h2h_pills(historial, local, visitante):
 # CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA
 # =====================================================================
 @st.cache_data(ttl=1800)
-def obtener_goleadores_oficiales_espn():
-    """Obtiene la tabla oficial de goleadores actualizada en tiempo real desde la API de ESPN"""
+def obtener_goleadores_espn_live():
+    """Obtiene la lista oficial de goleadores actualizados con nombre y apellido desde la API de ESPN"""
     url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
     goleadores = []
     try:
         r = requests.get(url, timeout=8)
         if r.status_code == 200:
-            categories = r.json().get("leaders", [])
-            for cat in categories:
+            for cat in r.json().get("leaders", []):
                 if cat.get("name") in ["goals", "goles", "topScorers"]:
                     for item in cat.get("leaders", []):
                         athlete = item.get("athlete", {})
                         nombre = athlete.get("displayName", "")
-                        team = athlete.get("team", {}).get("displayName", "LPF")
+                        team = athlete.get("team", {}).get("displayName", "")
                         headshot = athlete.get("headshot", {}).get("href", ESCUDO_DEFAULT)
-                        value = item.get("value", 0)
-                        
-                        if nombre and value > 0:
+                        goles = int(item.get("value", 0))
+                        if nombre and goles > 0:
                             goleadores.append({
                                 "nombre": nombre,
                                 "equipo": team,
                                 "escudo": headshot,
-                                "goles": int(value)
+                                "goles": goles
                             })
     except Exception:
         pass
@@ -477,59 +475,63 @@ def obtener_goleadores_oficiales_espn():
 
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     """
-    Calcula los 3 atacantes con mayor probabilidad de gol para los partidos de la fecha
-    usando los datos reales del dataset unificado.
+    Filtra los goleadores reales de la API de ESPN que juegan en los partidos de hoy
+    y muestra sus nombres reales en las tarjetas.
     """
     if partidos_del_dia is None or len(partidos_del_dia) == 0 or df_unificado.empty:
         return []
 
-    # Convertir a lista de diccionarios si viene como DataFrame
+    # Convertir a lista si viene como DataFrame
     if isinstance(partidos_del_dia, pd.DataFrame):
         partidos_list = partidos_del_dia.to_dict('records')
     else:
         partidos_list = partidos_del_dia
 
+    # Obtener goleadores reales con nombre y apellido desde la API de ESPN
+    goleadores_api = obtener_goleadores_espn_live()
     candidatos = []
 
+    # Función auxiliar para comparar nombres de equipos sin importar variaciones de texto
+    def norm(txt):
+        return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
+
     for p in partidos_list:
-        loc = p.get("Local", "")
-        vis = p.get("Visitante", "")
+        loc = str(p.get("Local", ""))
+        vis = str(p.get("Visitante", ""))
 
-        # Obtener datos ofensivos reales del dataset para los dos equipos
-        p_loc = df_unificado[df_unificado["Equipo"] == loc]
-        p_vis = df_unificado[df_unificado["Equipo"] == vis]
+        for g in goleadores_api:
+            eq_g = g["equipo"]
+            # Si el equipo del goleador de la API juega en el partido de hoy
+            if norm(eq_g) in norm(loc) or norm(loc) in norm(eq_g) or norm(eq_g) in norm(vis) or norm(vis) in norm(eq_g):
+                rival = vis if (norm(eq_g) in norm(loc) or norm(loc) in norm(eq_g)) else loc
+                prob_base = min(85.0, max(30.0, float(g["goles"]) * 7.5))
 
-        escudo_loc = p_loc["Escudo"].values[0] if not p_loc.empty and "Escudo" in p_loc.columns else ESCUDO_DEFAULT
-        escudo_vis = p_vis["Escudo"].values[0] if not p_vis.empty and "Escudo" in p_vis.columns else ESCUDO_DEFAULT
+                candidatos.append({
+                    "nombre": g["nombre"],  # <-- NOMBRE REAL DEL JUGADOR (Ej: "Adrián Martínez")
+                    "equipo": eq_g,
+                    "escudo": g["escudo"],
+                    "rival": rival,
+                    "puesto_rival_defensa": "-",  # Evita el KeyError en la plantilla HTML
+                    "probabilidad": round(prob_base, 1),
+                    "cuota_justa": round(100.0 / prob_base, 2)
+                })
 
-        gf_loc = p_loc["GF_3P"].values[0] if not p_loc.empty and "GF_3P" in p_loc.columns else 1.2
-        gf_vis = p_vis["GF_3P"].values[0] if not p_vis.empty and "GF_3P" in p_vis.columns else 1.0
+    # Si por algún motivo no hay coincidencia de nombres en los partidos de hoy,
+    # tomar los 3 goleadores principales del torneo para no dejar la vista vacía.
+    if not candidatos and goleadores_api:
+        for g in goleadores_api[:3]:
+            prob_base = min(85.0, max(30.0, float(g["goles"]) * 7.5))
+            candidatos.append({
+                "nombre": g["nombre"],
+                "equipo": g["equipo"],
+                "escudo": g["escudo"],
+                "rival": "Fecha Actual LPF",
+                "puesto_rival_defensa": "-",
+                "probabilidad": round(prob_base, 1),
+                "cuota_justa": round(100.0 / prob_base, 2)
+            })
 
-        # Proyectar los 2 delanteros principales del partido (Local y Visitante)
-        prob_loc = round(min(80.0, max(30.0, float(gf_loc) * 32.0)), 1)
-        prob_vis = round(min(75.0, max(25.0, float(gf_vis) * 28.0)), 1)
-
-        candidatos.append({
-            "nombre": f"Atacante Principal ({loc})",
-            "equipo": loc,
-            "escudo": escudo_loc,
-            "rival": vis,
-            "puesto_rival_defensa": "-",
-            "probabilidad": prob_loc,
-            "cuota_justa": round(100.0 / prob_loc, 2)
-        })
-
-        candidatos.append({
-            "nombre": f"Atacante Principal ({vis})",
-            "equipo": vis,
-            "escudo": escudo_vis,
-            "rival": loc,
-            "puesto_rival_defensa": "-",
-            "probabilidad": prob_vis,
-            "cuota_justa": round(100.0 / prob_vis, 2)
-        })
-
-    # Ordenar por mayor probabilidad y devolver los mejores 3
+    # Ordenar por mayor probabilidad y devolver los top 3
     candidatos = sorted(candidatos, key=lambda x: x["probabilidad"], reverse=True)
     return candidatos[:3]
 # =====================================================================
