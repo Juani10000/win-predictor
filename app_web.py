@@ -444,13 +444,41 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA (CORREGIDO)
+# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA (ROBUSTO SIN NAMEERROR)
 # =====================================================================
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     if df_unificado.empty:
         return []
 
-    # Ranking defensivo de rivales según goles concedidos
+    # Lista local de atacantes para garantizar disponibilidad en ejecuciones asíncronas / cache
+    jugadores_base = [
+        {"nombre": "Miguel Borja", "equipo": "River Plate", "prom_goles": 0.65},
+        {"nombre": "Facundo Colidio", "equipo": "River Plate", "prom_goles": 0.38},
+        {"nombre": "Edinson Cavani", "equipo": "Boca Juniors", "prom_goles": 0.58},
+        {"nombre": "Miguel Merentiel", "equipo": "Boca Juniors", "prom_goles": 0.45},
+        {"nombre": "Adrian Martinez", "equipo": "Racing Club", "prom_goles": 0.62},
+        {"nombre": "Maximiliano Salas", "equipo": "Racing Club", "prom_goles": 0.32},
+        {"nombre": "Braian Romero", "equipo": "Vélez Sarsfield", "prom_goles": 0.52},
+        {"nombre": "Claudio Aquino", "equipo": "Vélez Sarsfield", "prom_goles": 0.40},
+        {"nombre": "Walter Bou", "equipo": "Lanús", "prom_goles": 0.48},
+        {"nombre": "Marcelino Moreno", "equipo": "Lanús", "prom_goles": 0.35},
+        {"nombre": "Luciano Gondou", "equipo": "Argentinos Juniors", "prom_goles": 0.50},
+        {"nombre": "Guido Carrillo", "equipo": "Estudiantes", "prom_goles": 0.42},
+        {"nombre": "Edwar Lopez", "equipo": "Tigre", "prom_goles": 0.30},
+        {"nombre": "Federico Girotti", "equipo": "Talleres", "prom_goles": 0.41},
+        {"nombre": "Matias Coccaro", "equipo": "Huracán", "prom_goles": 0.38},
+        {"nombre": "Adam Bareiro", "equipo": "River Plate", "prom_goles": 0.36},
+        {"nombre": "Jaminton Campaz", "equipo": "Rosario Central", "prom_goles": 0.30},
+        {"nombre": "Marco Ruben", "equipo": "Rosario Central", "prom_goles": 0.35},
+        {"nombre": "Gabriel Avalos", "equipo": "Independiente", "prom_goles": 0.37},
+        {"nombre": "Santiago Rodriguez", "equipo": "Instituto", "prom_goles": 0.36},
+        {"nombre": "Jonathan Candia", "equipo": "Barracas Central", "prom_goles": 0.31},
+        {"nombre": "Florian Monzon", "equipo": "Tigre", "prom_goles": 0.33},
+        {"nombre": "Ignacio Pussetto", "equipo": "Huracán", "prom_goles": 0.40},
+        {"nombre": "Mateo Pellegrino", "equipo": "Platense", "prom_goles": 0.38}
+    ]
+
+    # Ranking defensivo según goles encajados
     df_defensas = df_unificado.copy()
     if "GC" in df_defensas.columns and "PJ" in df_defensas.columns:
         df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
@@ -464,14 +492,14 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
 
     candidatos = []
 
-    # Convertir partidos a lista en caso de que venga como DataFrame o dict
+    # Convertir partidos_del_dia a formato procesable si viene como DataFrame o Lista
     partidos_list = []
     if isinstance(partidos_del_dia, pd.DataFrame):
         partidos_list = partidos_del_dia.to_dict('records')
     elif isinstance(partidos_del_dia, list):
         partidos_list = partidos_del_dia
 
-    # 1. Intentar hacer el cruce entre los partidos cargados hoy y la lista de jugadores
+    # 1. Cruzar partidos de la fecha con atacantes
     if partidos_list:
         for partido in partidos_list:
             eq_loc = str(partido.get("Local", ""))
@@ -480,7 +508,7 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
             puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
             puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
 
-            for jugador in JUGADORES_LPF:
+            for jugador in jugadores_base:
                 nombre = jugador.get("nombre", "")
                 eq_jugador = jugador.get("equipo", "")
                 prom_goles = jugador.get("prom_goles", 0.35)
@@ -508,7 +536,7 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
                 escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
 
                 candidatos.append({
-                    "nombre": nombre,                 # Muestra ej: "Adrian Martinez"
+                    "nombre": nombre,
                     "equipo": eq_jugador,
                     "escudo": escudo_jugador,
                     "rival": rival,
@@ -517,28 +545,7 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
                     "cuota_justa": cuota_justa
                 })
 
-    # 2. Si no hay partidos seleccionados hoy o los nombres no cruzaron, toma los mejores 3 proyectados
-    if not candidatos:
-        for jugador in JUGADORES_LPF:
-            nombre = jugador.get("nombre", "")
-            eq_jugador = jugador.get("equipo", "")
-            prom_goles = jugador.get("prom_goles", 0.35)
-
-            prob_final = min(85.0, float(prom_goles) * 100.0)
-            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
-            escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
-
-            candidatos.append({
-                "nombre": nombre,
-                "equipo": eq_jugador,
-                "escudo": escudo_jugador,
-                "rival": "Fecha Actual",
-                "puesto_rival_defensa": "-",
-                "probabilidad": round(prob_final, 1),
-                "cuota_justa": cuota_justa
-            })
-
-    # Ordenar de mayor a menor probabilidad y devolver el Top 3
+    # Devuelve Top 3
     candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
     return candidatos[:3]
 # =====================================================================
