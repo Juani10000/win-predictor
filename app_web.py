@@ -476,24 +476,55 @@ def obtener_goleadores_oficiales_espn():
     return goleadores
 
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
-    """Muestra los líderes de goleo del torneo actual combinados con la fecha"""
-    goleadores = obtener_goleadores_oficiales_espn()
+    """
+    Calcula los 3 atacantes con mayor probabilidad de gol para los partidos que juegan hoy.
+    Normaliza los nombres de los equipos para que coincidan siempre.
+    """
+    if partidos_del_dia is None or len(partidos_del_dia) == 0:
+        return []
+
+    # Convertir a lista de diccionarios si viene como DataFrame
+    if isinstance(partidos_del_dia, pd.DataFrame):
+        partidos_list = partidos_del_dia.to_dict('records')
+    else:
+        partidos_list = partidos_del_dia
+
     candidatos = []
-    
-    if goleadores:
-        for g in goleadores[:3]:
-            # Calcular probabilidad estimada en base a su cantidad de goles
-            prob_base = min(85.0, max(30.0, float(g["goles"]) * 7.5))
-            candidatos.append({
-                "nombre": g["nombre"],
-                "equipo": g["equipo"],
-                "escudo": g["escudo"],
-                "rival": "Fecha Actual LPF",
-                "probabilidad": round(prob_base, 1),
-                "cuota_justa": round(100.0 / prob_base, 2)
-            })
+
+    # Función auxiliar para comparar nombres de equipos sin importar acentos/mayúsculas
+    def equip_match(eq1, eq2):
+        e1 = str(eq1).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
+        e2 = str(eq2).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
+        return e1 in e2 or e2 in e1
+
+    # Recorrer los partidos del día
+    for p in partidos_list:
+        loc = p.get("Local", "")
+        vis = p.get("Visitante", "")
+
+        for jug in JUGADORES_LPF:
+            eq_jug = jug.get("equipo", "")
             
-    return candidatos
+            # Verificar si el jugador pertenece a alguno de los equipos que juegan hoy
+            if equip_match(eq_jug, loc) or equip_match(eq_jug, vis):
+                rival = vis if equip_match(eq_jug, loc) else loc
+                escudo_jug = obtener_escudo_equipo(eq_jug, df_unificado) if 'obtener_escudo_equipo' in globals() else ESCUDO_DEFAULT
+
+                prom_gol = jug.get("prom_goles", 0.40)
+                prob_base = min(85.0, max(25.0, prom_gol * 100.0))
+
+                candidatos.append({
+                    "nombre": jug.get("nombre", "Atacante"),
+                    "equipo": eq_jug,
+                    "escudo": escudo_jug,
+                    "rival": rival,
+                    "probabilidad": round(prob_base, 1),
+                    "cuota_justa": round(100.0 / prob_base, 2)
+                })
+
+    # Ordenar por mayor probabilidad de gol y devolver los mejores 3
+    candidatos = sorted(candidatos, key=lambda x: x["probabilidad"], reverse=True)
+    return candidatos[:3]
 # =====================================================================
 # 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
 # =====================================================================
