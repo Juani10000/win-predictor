@@ -972,7 +972,12 @@ else:
 
                 stats_loc = consolidar_estadisticas(local, df_unificado, xg_proyectado_local)
                 stats_vis = consolidar_estadisticas(visitante, df_unificado, xg_proyectado_visi)
-                historial_h2h = obtener_historial_directo(local, visitante)
+                historial_h2h = obtener_historial_directo(
+    row_loc.get("ID_ESPN"), 
+    row_vis.get("ID_ESPN"), 
+    equipo_local, 
+    equipo_visitante
+)
 
                 prob_loc, prob_empate, prob_vis, es_ia = realizar_prediccion(
                     local, visitante, df_unificado, stats_loc, stats_vis, 
