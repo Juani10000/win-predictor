@@ -444,47 +444,13 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# CALCULO TOP 3 GOLEADORES EN VIVO DESDE LA API DE ESPN
+# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA (CORREGIDO Y ROBUSTO)
 # =====================================================================
-@st.cache_data(ttl=1800)
-def obtener_goleadores_actuales_espn():
-    """Obtiene los goleadores vigentes directo de la API oficial de ESPN."""
-    url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
-    goleadores = []
-    try:
-        r = requests.get(url, timeout=8)
-        if r.status_code == 200:
-            for cat in r.json().get("leaders", []):
-                # Filtrar solo la categoría de goles
-                if cat.get("name") in ["goals", "goles", "topScorers"]:
-                    for item in cat.get("leaders", []):
-                        athlete = item.get("athlete", {})
-                        nombre = athlete.get("displayName", "")
-                        team = athlete.get("team", {}).get("displayName", "")
-                        headshot = athlete.get("headshot", {}).get("href", ESCUDO_DEFAULT)
-                        goles = int(item.get("value", 0))
-                        
-                        if nombre and team and goles > 0:
-                            goleadores.append({
-                                "nombre": nombre,
-                                "equipo": team,
-                                "escudo": headshot,
-                                "goles": goles
-                            })
-    except Exception:
-        pass
-    return goleadores
-
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     if df_unificado.empty:
         return []
 
-    # 1. Traer la lista en vivo directamente de ESPN
-    goleadores_vivo = obtener_goleadores_actuales_espn()
-    if not goleadores_vivo:
-        return []
-
-    # 2. Ranking defensivo según goles recibidos
+    # Ranking defensivo según goles recibidos por partido
     df_defensas = df_unificado.copy()
     if "GC" in df_defensas.columns and "PJ" in df_defensas.columns:
         df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
@@ -498,14 +464,14 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
 
     candidatos = []
 
-    # Normalizar partidos
+    # Convertir partidos_del_dia a formato iterable
     partidos_list = []
     if isinstance(partidos_del_dia, pd.DataFrame):
         partidos_list = partidos_del_dia.to_dict('records')
     elif isinstance(partidos_del_dia, list):
         partidos_list = partidos_del_dia
 
-    # 3. Hacer match entre partidos del día y los delanteros reales vigentes
+    # 1. Cruzar partidos de la fecha con atacantes
     if partidos_list:
         for partido in partidos_list:
             eq_loc = str(partido.get("Local", ""))
@@ -514,10 +480,10 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
             puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
             puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
 
-            for g in goleadores_vivo:
-                nombre = g["nombre"]
-                eq_jugador = g["equipo"]
-                goles = g["goles"]
+            for jugador in JUGADORES_LPF:
+                nombre = jugador.get("nombre", "")
+                eq_jugador = jugador.get("equipo", "")
+                prom_goles = jugador.get("prom_goles", 0.35)
 
                 c_eq = norm(eq_jugador)
                 c_loc = norm(eq_loc)
@@ -535,31 +501,37 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
                 else:
                     continue
 
-                prob_base = min(88.0, max(25.0, float(goles) * 8.0))
+                prob_base = min(85.0, float(prom_goles) * 100.0)
                 descuento_pct = puesto_rival * 1.2
                 prob_final = max(10.0, prob_base - descuento_pct)
                 cuota_justa = round(100.0 / max(0.1, prob_final), 2)
+                escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
 
                 candidatos.append({
                     "nombre": nombre,
                     "equipo": eq_jugador,
-                    "escudo": g["escudo"],
+                    "escudo": escudo_jugador,
                     "rival": rival,
                     "puesto_rival_defensa": puesto_rival,
                     "probabilidad": round(prob_final, 1),
                     "cuota_justa": cuota_justa
                 })
 
-    # Si los partidos del día aún no arrancan o no hay match, muestra el Top 3 vigente general de la tabla
+    # 2. Si no hay partidos hoy o no hubo coincidencias directas, proyecta los mejores atacantes generales
     if not candidatos:
-        for g in goleadores_vivo:
-            prob_final = min(88.0, max(25.0, float(g["goles"]) * 8.0))
+        for jugador in JUGADORES_LPF:
+            nombre = jugador.get("nombre", "")
+            eq_jugador = jugador.get("equipo", "")
+            prom_goles = jugador.get("prom_goles", 0.35)
+
+            prob_final = min(85.0, float(prom_goles) * 100.0)
             cuota_justa = round(100.0 / max(0.1, prob_final), 2)
+            escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
 
             candidatos.append({
-                "nombre": g["nombre"],
-                "equipo": g["equipo"],
-                "escudo": g["escudo"],
+                "nombre": nombre,
+                "equipo": eq_jugador,
+                "escudo": escudo_jugador,
                 "rival": "Fecha Actual",
                 "puesto_rival_defensa": "-",
                 "probabilidad": round(prob_final, 1),
