@@ -483,7 +483,7 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     if partidos_del_dia is None or len(partidos_del_dia) == 0 or df_unificado.empty:
         return []
 
-    # Convertir a lista si viene como DataFrame
+    # Convertir a lista de diccionarios si viene como DataFrame
     if isinstance(partidos_del_dia, pd.DataFrame):
         partidos_list = partidos_del_dia.to_dict('records')
     else:
@@ -514,6 +514,7 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
             "equipo": loc,
             "escudo": escudo_loc,
             "rival": vis,
+            "puesto_rival_defensa": "-",
             "probabilidad": prob_loc,
             "cuota_justa": round(100.0 / prob_loc, 2)
         })
@@ -523,6 +524,7 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
             "equipo": vis,
             "escudo": escudo_vis,
             "rival": loc,
+            "puesto_rival_defensa": "-",
             "probabilidad": prob_vis,
             "cuota_justa": round(100.0 / prob_vis, 2)
         })
