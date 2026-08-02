@@ -444,48 +444,44 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# GOLEADORES EN VIVO DESDE ESPN (SIN LISTAS ESTÁTICAS NI JUGADORES_LPF)
+# GOLEADORES EN VIVO (ESPN API - ROBUSTO Y SIN BLOQUEOS)
 # =====================================================================
-@st.cache_data(ttl=1800)
-def obtener_goleadores_promiedos():
-    """Extrae la tabla de goleadores actual de Promiedos."""
-    url = "https://www.promiedos.com.ar/league/liga-profesional/goleadores/"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
+@st.cache_data(ttl=900)
+def obtener_goleadores_espn_vivo():
+    """Consulta la API pública de ESPN para traer los goleadores del torneo actual."""
+    url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
     goleadores = []
     try:
-        r = requests.get(url, headers=headers, timeout=8)
+        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
         if r.status_code == 200:
-            soup = BeautifulSoup(r.text, 'html.parser')
-            # Buscar la tabla de goleadores
-            filas = soup.find_all('tr')
-            for fila in filas:
-                cols = fila.find_all('td')
-                # Verificamos que tenga las columnas esperadas (Jugador, Equipo, Goles)
-                if len(cols) >= 3:
-                    nombre = cols[0].text.strip()
-                    equipo = cols[1].text.strip()
-                    goles_str = cols[2].text.strip()
-                    
-                    if goles_str.isdigit():
-                        goleadores.append({
-                            "nombre": nombre,
-                            "equipo": equipo,
-                            "goles": int(goles_str),
-                            "escudo": ESCUDO_DEFAULT # Usa el escudo genérico definido en tu app
-                        })
-    except Exception as e:
+            data = r.json()
+            for cat in data.get("leaders", []):
+                # Extraer la lista de la categoría de goles
+                if cat.get("name") in ["goals", "goles", "topScorers"]:
+                    for item in cat.get("leaders", []):
+                        athlete = item.get("athlete", {})
+                        nombre = athlete.get("displayName", "")
+                        team = athlete.get("team", {}).get("displayName", "")
+                        headshot = athlete.get("headshot", {}).get("href", ESCUDO_DEFAULT)
+                        goles = int(item.get("value", 0))
+                        
+                        if nombre and team and goles > 0:
+                            goleadores.append({
+                                "nombre": nombre,
+                                "equipo": team,
+                                "escudo": headshot,
+                                "goles": goles
+                            })
+    except Exception:
         pass
-    
     return goleadores
 
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     if df_unificado.empty:
         return []
 
-    # 1. Obtener goleadores reales de Promiedos
-    goleadores_vivo = obtener_goleadores_promiedos()
+    # 1. Traer lista en vivo de ESPN
+    goleadores_vivo = obtener_goleadores_espn_vivo()
     if not goleadores_vivo:
         return []
 
@@ -503,14 +499,14 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
 
     candidatos = []
 
-    # Normalizar lista de partidos
+    # Convertir partidos a lista
     partidos_list = []
     if isinstance(partidos_del_dia, pd.DataFrame):
         partidos_list = partidos_del_dia.to_dict('records')
     elif isinstance(partidos_del_dia, list):
         partidos_list = partidos_del_dia
 
-    # 3. Cruzar partidos de hoy con los delanteros de Promiedos
+    # 3. Cruzar con partidos de la fecha
     if partidos_list:
         for partido in partidos_list:
             eq_loc = str(partido.get("Local", ""))
@@ -555,9 +551,9 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
                     "cuota_justa": cuota_justa
                 })
 
-    # Si no coinciden los partidos del día, mostrar el Top 3 general de Promiedos
+    # Si no coinciden partidos hoy, muestra directamente al top 3 de goleadores reales de la liga
     if not candidatos:
-        for g in goleadores_vivo:
+        for g in goleadores_vivo[:3]:
             prob_final = min(88.0, max(25.0, float(g["goles"]) * 8.0))
             cuota_justa = round(100.0 / max(0.1, prob_final), 2)
 
