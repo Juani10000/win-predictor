@@ -444,11 +444,11 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA
+# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA (EN VIVO)
 # =====================================================================
 @st.cache_data(ttl=1800)
 def obtener_goleadores_espn_live():
-    """Consulta la API de ESPN en tiempo real para traer goleadores con nombre, apellido y foto."""
+    """Consulta la API de ESPN en tiempo real para traer goleadores oficiales con foto."""
     url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
     goleadores = []
     try:
@@ -474,61 +474,66 @@ def obtener_goleadores_espn_live():
     return goleadores
 
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
-    """
-    Busca estrictamente los goleadores reales que juegan en los partidos del día de hoy.
-    """
-    if partidos_del_dia is None or len(partidos_del_dia) == 0 or df_unificado.empty:
+    if df_unificado.empty or not partidos_del_dia:
         return []
 
-    # Convertir a lista si es DataFrame
-    if isinstance(partidos_del_dia, pd.DataFrame):
-        partidos_list = partidos_del_dia.to_dict('records')
+    # 1. Obtener goleadores reales actualizados desde ESPN
+    goleadores_live = obtener_goleadores_espn_live()
+    if not goleadores_live:
+        return []
+
+    # 2. Ranking defensivo real según goles recibidos por partido
+    df_defensas = df_unificado.copy()
+    if "GC" in df_defensas.columns and "PJ" in df_defensas.columns:
+        df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
+        df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
+        ranking_defensas = {row["Equipo"]: idx + 1 for idx, row in df_defensas.iterrows()}
     else:
-        partidos_list = partidos_del_dia
+        ranking_defensas = {}
 
-    goleadores_api = obtener_goleadores_espn_live()
-    if not goleadores_api:
-        return []
-
-    # Función de coincidencias parciales inteligente (ej: 'river' coincide con 'river plate')
-    def coincide_equipo(nombre_api, nombre_local):
-        n1 = str(nombre_api).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
-        n2 = str(nombre_local).lower().replace("club", "").replace("atletico", "").replace("atlético", "").strip()
-        return (n1 in n2) or (n2 in n1)
+    # Normalizador de nombres para cruzar los equipos de ESPN con los de la App
+    def norm(txt):
+        return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").replace("ca", "").strip()
 
     candidatos = []
 
-    for p in partidos_list:
-        loc = str(p.get("Local", ""))
-        vis = str(p.get("Visitante", ""))
+    # Convertir partidos a lista si viene como DataFrame
+    partidos_list = partidos_del_dia.to_dict('records') if isinstance(partidos_del_dia, pd.DataFrame) else partidos_del_dia
 
-        for g in goleadores_api:
+    for partido in partidos_list:
+        eq_loc = partido.get("Local", "")
+        eq_vis = partido.get("Visitante", "")
+
+        for g in goleadores_live:
             eq_g = g["equipo"]
-            es_local = coincide_equipo(eq_g, loc)
-            es_vis = coincide_equipo(eq_g, vis)
+            c_g = norm(eq_g)
+            c_loc = norm(eq_loc)
+            c_vis = norm(eq_vis)
 
-            if es_local or es_vis:
-                rival = vis if es_local else loc
+            # Verificar si el delantero de la API juega en el local o visitante de hoy
+            es_loc = (c_g in c_loc or c_loc in c_g) if c_g and c_loc else False
+            es_vis = (c_g in c_vis or c_vis in c_g) if c_g and c_vis else False
 
-                # Calcular la debilidad defensiva del rival
-                p_rival = df_unificado[df_unificado["Equipo"].apply(lambda x: coincide_equipo(x, rival))]
-                gc_rival = p_rival["GC_3P"].values[0] if not p_rival.empty and "GC_3P" in p_rival.columns else 1.0
+            if es_loc or es_vis:
+                rival = eq_vis if es_loc else eq_loc
+                puesto_rival = ranking_defensas.get(rival, 15)
 
-                # Calcular la probabilidad según goles anotados por el jugador + goles recibidos por el rival
-                prob_base = min(88.0, max(28.0, (float(g["goles"]) * 6.5) + (float(gc_rival) * 7.5)))
+                # Mismo cálculo original descontando la fortaleza defensiva del rival
+                prob_base = min(88.0, max(30.0, float(g["goles"]) * 7.5))
+                descuento_pct = puesto_rival * 1.2
+                prob_final = max(10.0, prob_base - descuento_pct)
 
                 candidatos.append({
-                    "nombre": g["nombre"],             # Nombre y Apellido REAL del jugador
-                    "equipo": eq_g,
-                    "escudo": g["escudo"],             # Foto oficial de ESPN
-                    "rival": rival,
-                    "puesto_rival_defensa": "-",       # Clave obligatoria para el HTML
-                    "probabilidad": round(prob_base, 1),
-                    "cuota_justa": round(100.0 / prob_base, 2)
+                    "nombre": g["nombre"],              # Nombre real del jugador
+                    "equipo": eq_g,                     # Nombre del equipo
+                    "escudo": g["escudo"],              # Foto oficial del jugador de ESPN
+                    "rival": rival,                     # Rival del día
+                    "puesto_rival_defensa": puesto_rival, # Puesto defensivo rival
+                    "probabilidad": round(prob_final, 1),
+                    "cuota_justa": round(100.0 / max(0.1, prob_final), 2)
                 })
 
-    # Ordenar estrictamente por mayor probabilidad y devolver los 3 mejores de los partidos de hoy
-    candidatos = sorted(candidatos, key=lambda x: x["probabilidad"], reverse=True)
+    candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
     return candidatos[:3]
 # =====================================================================
 # 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
