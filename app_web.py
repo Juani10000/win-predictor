@@ -444,41 +444,47 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA (ROBUSTO SIN NAMEERROR)
+# CALCULO TOP 3 GOLEADORES EN VIVO DESDE LA API DE ESPN
 # =====================================================================
+@st.cache_data(ttl=1800)
+def obtener_goleadores_actuales_espn():
+    """Obtiene los goleadores vigentes directo de la API oficial de ESPN."""
+    url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
+    goleadores = []
+    try:
+        r = requests.get(url, timeout=8)
+        if r.status_code == 200:
+            for cat in r.json().get("leaders", []):
+                # Filtrar solo la categoría de goles
+                if cat.get("name") in ["goals", "goles", "topScorers"]:
+                    for item in cat.get("leaders", []):
+                        athlete = item.get("athlete", {})
+                        nombre = athlete.get("displayName", "")
+                        team = athlete.get("team", {}).get("displayName", "")
+                        headshot = athlete.get("headshot", {}).get("href", ESCUDO_DEFAULT)
+                        goles = int(item.get("value", 0))
+                        
+                        if nombre and team and goles > 0:
+                            goleadores.append({
+                                "nombre": nombre,
+                                "equipo": team,
+                                "escudo": headshot,
+                                "goles": goles
+                            })
+    except Exception:
+        pass
+    return goleadores
+
 def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
     if df_unificado.empty:
         return []
 
-    # Lista local de atacantes para garantizar disponibilidad en ejecuciones asíncronas / cache
-    jugadores_base = [
-        {"nombre": "Miguel Borja", "equipo": "River Plate", "prom_goles": 0.65},
-        {"nombre": "Facundo Colidio", "equipo": "River Plate", "prom_goles": 0.38},
-        {"nombre": "Edinson Cavani", "equipo": "Boca Juniors", "prom_goles": 0.58},
-        {"nombre": "Miguel Merentiel", "equipo": "Boca Juniors", "prom_goles": 0.45},
-        {"nombre": "Adrian Martinez", "equipo": "Racing Club", "prom_goles": 0.62},
-        {"nombre": "Maximiliano Salas", "equipo": "Racing Club", "prom_goles": 0.32},
-        {"nombre": "Braian Romero", "equipo": "Vélez Sarsfield", "prom_goles": 0.52},
-        {"nombre": "Claudio Aquino", "equipo": "Vélez Sarsfield", "prom_goles": 0.40},
-        {"nombre": "Walter Bou", "equipo": "Lanús", "prom_goles": 0.48},
-        {"nombre": "Marcelino Moreno", "equipo": "Lanús", "prom_goles": 0.35},
-        {"nombre": "Luciano Gondou", "equipo": "Argentinos Juniors", "prom_goles": 0.50},
-        {"nombre": "Guido Carrillo", "equipo": "Estudiantes", "prom_goles": 0.42},
-        {"nombre": "Edwar Lopez", "equipo": "Tigre", "prom_goles": 0.30},
-        {"nombre": "Federico Girotti", "equipo": "Talleres", "prom_goles": 0.41},
-        {"nombre": "Matias Coccaro", "equipo": "Huracán", "prom_goles": 0.38},
-        {"nombre": "Adam Bareiro", "equipo": "River Plate", "prom_goles": 0.36},
-        {"nombre": "Jaminton Campaz", "equipo": "Rosario Central", "prom_goles": 0.30},
-        {"nombre": "Marco Ruben", "equipo": "Rosario Central", "prom_goles": 0.35},
-        {"nombre": "Gabriel Avalos", "equipo": "Independiente", "prom_goles": 0.37},
-        {"nombre": "Santiago Rodriguez", "equipo": "Instituto", "prom_goles": 0.36},
-        {"nombre": "Jonathan Candia", "equipo": "Barracas Central", "prom_goles": 0.31},
-        {"nombre": "Florian Monzon", "equipo": "Tigre", "prom_goles": 0.33},
-        {"nombre": "Ignacio Pussetto", "equipo": "Huracán", "prom_goles": 0.40},
-        {"nombre": "Mateo Pellegrino", "equipo": "Platense", "prom_goles": 0.38}
-    ]
+    # 1. Traer la lista en vivo directamente de ESPN
+    goleadores_vivo = obtener_goleadores_actuales_espn()
+    if not goleadores_vivo:
+        return []
 
-    # Ranking defensivo según goles encajados
+    # 2. Ranking defensivo según goles recibidos
     df_defensas = df_unificado.copy()
     if "GC" in df_defensas.columns and "PJ" in df_defensas.columns:
         df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
@@ -492,14 +498,14 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
 
     candidatos = []
 
-    # Convertir partidos_del_dia a formato procesable si viene como DataFrame o Lista
+    # Normalizar partidos
     partidos_list = []
     if isinstance(partidos_del_dia, pd.DataFrame):
         partidos_list = partidos_del_dia.to_dict('records')
     elif isinstance(partidos_del_dia, list):
         partidos_list = partidos_del_dia
 
-    # 1. Cruzar partidos de la fecha con atacantes
+    # 3. Hacer match entre partidos del día y los delanteros reales vigentes
     if partidos_list:
         for partido in partidos_list:
             eq_loc = str(partido.get("Local", ""))
@@ -508,10 +514,10 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
             puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
             puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
 
-            for jugador in jugadores_base:
-                nombre = jugador.get("nombre", "")
-                eq_jugador = jugador.get("equipo", "")
-                prom_goles = jugador.get("prom_goles", 0.35)
+            for g in goleadores_vivo:
+                nombre = g["nombre"]
+                eq_jugador = g["equipo"]
+                goles = g["goles"]
 
                 c_eq = norm(eq_jugador)
                 c_loc = norm(eq_loc)
@@ -529,23 +535,37 @@ def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
                 else:
                     continue
 
-                prob_base = min(85.0, float(prom_goles) * 100.0)
+                prob_base = min(88.0, max(25.0, float(goles) * 8.0))
                 descuento_pct = puesto_rival * 1.2
                 prob_final = max(10.0, prob_base - descuento_pct)
                 cuota_justa = round(100.0 / max(0.1, prob_final), 2)
-                escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
 
                 candidatos.append({
                     "nombre": nombre,
                     "equipo": eq_jugador,
-                    "escudo": escudo_jugador,
+                    "escudo": g["escudo"],
                     "rival": rival,
                     "puesto_rival_defensa": puesto_rival,
                     "probabilidad": round(prob_final, 1),
                     "cuota_justa": cuota_justa
                 })
 
-    # Devuelve Top 3
+    # Si los partidos del día aún no arrancan o no hay match, muestra el Top 3 vigente general de la tabla
+    if not candidatos:
+        for g in goleadores_vivo:
+            prob_final = min(88.0, max(25.0, float(g["goles"]) * 8.0))
+            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
+
+            candidatos.append({
+                "nombre": g["nombre"],
+                "equipo": g["equipo"],
+                "escudo": g["escudo"],
+                "rival": "Fecha Actual",
+                "puesto_rival_defensa": "-",
+                "probabilidad": round(prob_final, 1),
+                "cuota_justa": cuota_justa
+            })
+
     candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
     return candidatos[:3]
 # =====================================================================
