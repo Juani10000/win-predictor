@@ -459,64 +459,6 @@ def render_h2h_pills(historial, local, visitante):
     return html
 
 # =====================================================================
-# CALCULO TOP 3 JUGADORES CON MAS PROBABILIDAD DEL DIA
-# =====================================================================
-def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
-    if df_unificado.empty or not partidos_del_dia:
-        return []
-
-    df_defensas = df_unificado.copy()
-    df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
-    df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
-    
-    ranking_defensas = {}
-    for idx, row in df_defensas.iterrows():
-        ranking_defensas[row["Equipo"]] = idx + 1
-
-    candidatos = []
-
-    for partido in partidos_del_dia:
-        eq_loc = partido["Local"]
-        eq_vis = partido["Visitante"]
-
-        puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
-        puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
-
-        for jugador in JUGADORES_LPF:
-            nombre = jugador["nombre"]
-            eq_jugador = jugador["equipo"]
-            prom_goles = jugador["prom_goles"]
-
-            if buscar_equipo(eq_jugador, [eq_loc]):
-                rival = eq_vis
-                puesto_rival = puesto_vis_gc
-            elif buscar_equipo(eq_jugador, [eq_vis]):
-                rival = eq_loc
-                puesto_rival = puesto_loc_gc
-            else:
-                continue
-
-            prob_base = min(85.0, prom_goles * 100.0)
-
-            descuento_pct = puesto_rival * 1.5
-            prob_final = max(5.0, prob_base - descuento_pct)
-            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
-            escudo_jugador = obtener_escudo_equipo(eq_jugador, df_unificado)
-
-            candidatos.append({
-                "nombre": nombre,
-                "equipo": eq_jugador,
-                "escudo": escudo_jugador,
-                "rival": rival,
-                "puesto_rival_defensa": puesto_rival,
-                "probabilidad": round(prob_final, 1),
-                "cuota_justa": cuota_justa
-            })
-
-    candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
-    return candidatos[:3]
-
-# =====================================================================
 # 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
 # =====================================================================
 def realizar_prediccion(local, visitante, df, stats_loc, stats_vis, xg_proyectado_local, xg_proyectado_visi, factor_localia=0.15, historial_h2h=[], paquete_ia=None):
@@ -1175,33 +1117,7 @@ else:
                 if prob >= 60.0 and cuota_teorica >= 1.50:
                     mejores_opciones.append(item)
 
-        # ---------------------------------------------------------------------
-        # SECCIÓN 1: JUGADORES CON MÁS PROBABILIDAD DE GOL DEL DÍA (TOP 3)
-        # ---------------------------------------------------------------------
-        st.markdown("<h3 style='color: #00ffcc;'>Jugadores con más probabilidad de gol del día</h3>", unsafe_allow_html=True)
-        st.caption("Los 3 atacantes con mayor probabilidad de convertir tras descontar la fortaleza defensiva del rival.")
-
-        top_3_jugadores = calcular_top_3_goleadores_dia(partidos_evaluar, df_unificado)
-
-        if top_3_jugadores:
-            cols_j = st.columns(3)
-            for i, jug in enumerate(top_3_jugadores):
-                with cols_j[i]:
-                    st.markdown(f"""
-                    <div class="player-card">
-                        <img src="{jug['escudo']}" style="width: 45px; height: 45px; object-fit: contain; margin-bottom: 6px;" />
-                        <div class="player-team">{jug['equipo']}</div>
-                        <div class="player-name">{jug['nombre']}</div>
-                        <div class="player-stat">{jug['probabilidad']}%</div>
-                        <div class="player-sub">Rival: <b>{jug['rival']}</b> (Defensa #{jug['puesto_rival_defensa']})</div>
-                        <div class="player-sub" style="color: #00ffcc; font-weight: 700;">Cuota Justa: {jug['cuota_justa']}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-        else:
-            st.info("Sin datos suficientes para proyectar a los goleadores de la fecha.")
-
-        st.markdown("---")
-
+    
         # ---------------------------------------------------------------------
         # SECCIÓN 2: MEJORES OPCIONES DEL DÍA
         # ---------------------------------------------------------------------
