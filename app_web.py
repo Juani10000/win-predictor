@@ -430,29 +430,103 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
-def obtener_historial_directo(equipo_a, equipo_b):
-    semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
-    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
-    rng = np.random.default_rng(seed)
+# =====================================================================
+# HISTORIAL DIRECTO (H2H) REAL - VÍA SOFASCORE API (NO ESPN)
+# =====================================================================
+@st.cache_data(ttl=86400)
+def obtener_historial_directo(local, visitante, *args, **kwargs):
+    """
+    Obtiene el historial H2H real buscando en la API pública de SofaScore.
+    No requiere API Key y es 100% independiente de ESPN.
+    """
+    # Encabezados para que SofaScore no bloquee la petición
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Origin": "https://www.sofascore.com",
+        "Referer": "https://www.sofascore.com/"
+    }
 
-    es_inverso = equipo_a != min(equipo_a, equipo_b)
-    historial_base = rng.choice(['G', 'E', 'P'], 5, p=[0.38, 0.32, 0.30]).tolist()
+    def buscar_id_sofascore(nombre_equipo):
+        try:
+            # Limpiamos el nombre para que el buscador lo encuentre fácil
+            busqueda = str(nombre_equipo).lower().replace("club", "").replace("atlético", "atletico").replace("ca ", "").strip()
+            url_search = f"https://api.sofascore.com/api/v1/search/teams?q={busqueda}"
+            r = requests.get(url_search, headers=headers, timeout=5)
+            if r.status_code == 200:
+                equipos = r.json().get("teams", [])
+                for eq in equipos:
+                    # Filtramos que sea equipo de fútbol y de Argentina si es posible
+                    if eq.get("sport", {}).get("name") == "Football":
+                        return str(eq.get("id"))
+        except Exception:
+            pass
+        return None
 
-    if es_inverso:
-        return ['P' if r == 'G' else 'G' if r == 'P' else 'E' for r in historial_base]
-    return historial_base
+    # 1. Obtener los IDs de ambos equipos en la base de datos de SofaScore
+    id_loc = buscar_id_sofascore(local)
+    id_vis = buscar_id_sofascore(visitante)
+
+    if not id_loc or not id_vis:
+        return []
+
+    historial = []
+    
+    # 2. Buscar en los últimos ~100 partidos (páginas 0, 1 y 2) del equipo local
+    try:
+        for pagina in range(3):
+            if len(historial) >= 5:
+                break
+                
+            url_partidos = f"https://api.sofascore.com/api/v1/team/{id_loc}/events/last/{pagina}"
+            r = requests.get(url_partidos, headers=headers, timeout=5)
+            
+            if r.status_code == 200:
+                eventos = r.json().get("events", [])
+                for ev in eventos:
+                    # Solo evaluamos partidos terminados
+                    if ev.get("status", {}).get("type") != "finished":
+                        continue
+                        
+                    eq_casa = str(ev.get("homeTeam", {}).get("id", ""))
+                    eq_fuera = str(ev.get("awayTeam", {}).get("id", ""))
+                    
+                    # Verificamos si es un partido entre nuestro Local y nuestro Visitante
+                    if (eq_casa == id_loc and eq_fuera == id_vis) or (eq_casa == id_vis and eq_fuera == id_loc):
+                        goles_casa = int(ev.get("homeScore", {}).get("current", 0))
+                        goles_fuera = int(ev.get("awayScore", {}).get("current", 0))
+                        
+                        soy_local_en_este_partido = (eq_casa == id_loc)
+                        
+                        # Determinar G, E, P desde la perspectiva del equipo LOCAL de la app
+                        if goles_casa == goles_fuera:
+                            historial.append("E")
+                        elif (goles_casa > goles_fuera and soy_local_en_este_partido) or (goles_casa < goles_fuera and not soy_local_en_este_partido):
+                            historial.append("G")
+                        else:
+                            historial.append("P")
+                            
+                        if len(historial) >= 5:
+                            break
+    except Exception:
+        pass
+
+    return historial[:5]
 
 def render_h2h_pills(historial, local, visitante):
+    if not historial:
+        return "<div style='text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 20px;'>No hay historial directo reciente registrado entre ambos.</div>"
+        
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
-    html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Gano {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
+    html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Ganó {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
     html += "<span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; "
-    html += f"<span style='color: #ff3366; font-weight: bold;'>P</span> = Gano {visitante}</div>"
+    html += f"<span style='color: #ff3366; font-weight: bold;'>P</span> = Ganó {visitante}</div>"
     html += "<div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>"
 
     for res in historial:
         color = "#00ffcc" if res == 'G' else "#cbd5e1" if res == 'E' else "#ff3366"
         bg = "rgba(0, 255, 204, 0.2)" if res == 'G' else "rgba(203, 213, 225, 0.2)" if res == 'E' else "rgba(255, 51, 102, 0.2)"
-        tooltip = f"Gano {local}" if res == 'G' else "Empate" if res == 'E' else f"Gano {visitante}"
+        tooltip = f"Ganó {local}" if res == 'G' else "Empate" if res == 'E' else f"Ganó {visitante}"
         html += f"<div title='{tooltip}' style='background-color: {bg}; color: {color}; width: 32px; height: 32px; border: 2px solid {color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; box-shadow: 0 0 5px {color}80; cursor: help;'>{res}</div>"
 
     html += "</div>"
