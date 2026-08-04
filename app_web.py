@@ -402,46 +402,58 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
-@st.cache_data(ttl=3600)
-def obtener_historial_directo(equipo_a, equipo_b, *args, **kwargs):
-    """
-    Calcula el historial reciente de enfrentamientos o genera un balance de forma 
-    basado en la jerarquía actual de ambos equipos si no hay cruces recientes en el dataset.
-    """
-    eq_a = str(equipo_a).strip()
-    eq_b = str(equipo_b).strip()
+@st.cache_data(ttl=86400)
+def obtener_historial_directo(local, visitante, df_unificado=None):
+    """Busca el historial H2H real en los últimos 3 años sin depender de Promiedos"""
+    if df_unificado is None or df_unificado.empty:
+        return []
+        
+    try:
+        id_loc = df_unificado.loc[df_unificado['Equipo'] == local, 'ID_ESPN'].values[0]
+        id_vis = df_unificado.loc[df_unificado['Equipo'] == visitante, 'ID_ESPN'].values[0]
+    except Exception:
+        return []
 
-    # Si se pasan dataframes o IDs en los argumentos opcionales, los procesa sin fallar
-    # Calcular un hash consistente basado en ambos nombres
-    semilla_str = f"{min(eq_a, eq_b)}_{max(eq_a, eq_b)}"
-    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
-    rng = np.random.default_rng(seed)
-
-    # Evaluar jerarquía para inclinar levemente el historial en vez de llenar solo con Empates ('E')
-    j_a = obtener_jerarquia(eq_a)
-    j_b = obtener_jerarquia(eq_b)
+    historial = []
+    año_actual = datetime.datetime.now().year
     
-    p_win_a = min(0.55, max(0.20, 0.35 + (j_a - j_b) * 0.04))
-    p_draw = 0.30
-    p_win_b = max(0.15, 1.0 - p_win_a - p_draw)
-    
-    historial = rng.choice(['G', 'E', 'P'], 5, p=[p_win_a, p_draw, p_win_b]).tolist()
-    return historial
-def render_h2h_pills(historial, local, visitante):
-    html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
-    html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Gano {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
-    html += "<span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; "
-    html += f"<span style='color: #ff3366; font-weight: bold;'>P</span> = Gano {visitante}</div>"
-    html += "<div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>"
+    # Buscamos de forma ultra rápida en los calendarios de los últimos 3 años
+    for anio in [año_actual, año_actual - 1, año_actual - 2]:
+        if len(historial) >= 5: break
+            
+        url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{id_loc}/schedule?season={anio}"
+        try:
+            r = requests.get(url, timeout=6)
+            if r.status_code == 200:
+                events = r.json().get("events", [])
+                for ev in events:
+                    if not ev.get("status", {}).get("type", {}).get("completed", False): continue
+                        
+                    comps = ev.get("competitions", [])
+                    if not comps or len(comps[0].get("competitors", [])) < 2: continue
+                    
+                    competitors = comps[0]["competitors"]
+                    id_1 = str(competitors[0].get("team", {}).get("id", ""))
+                    id_2 = str(competitors[1].get("team", {}).get("id", ""))
+                    
+                    if (id_1 == str(id_loc) and id_2 == str(id_vis)) or (id_1 == str(id_vis) and id_2 == str(id_loc)):
+                        eq_loc_data = competitors[0] if id_1 == str(id_loc) else competitors[1]
+                        eq_vis_data = competitors[1] if id_1 == str(id_loc) else competitors[0]
+                        
+                        goles_loc = int(eq_loc_data.get("score", {}).get("value", 0))
+                        goles_vis = int(eq_vis_data.get("score", {}).get("value", 0))
+                        
+                        fecha_str = ev.get("date", "")
+                        res = 'E'
+                        if goles_loc > goles_vis: res = 'G'
+                        elif goles_loc < goles_vis: res = 'P'
+                            
+                        historial.append({"res": res, "fecha": fecha_str})
+        except Exception:
+            continue
 
-    for res in historial:
-        color = "#00ffcc" if res == 'G' else "#cbd5e1" if res == 'E' else "#ff3366"
-        bg = "rgba(0, 255, 204, 0.2)" if res == 'G' else "rgba(203, 213, 225, 0.2)" if res == 'E' else "rgba(255, 51, 102, 0.2)"
-        tooltip = f"Gano {local}" if res == 'G' else "Empate" if res == 'E' else f"Gano {visitante}"
-        html += f"<div title='{tooltip}' style='background-color: {bg}; color: {color}; width: 32px; height: 32px; border: 2px solid {color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; box-shadow: 0 0 5px {color}80; cursor: help;'>{res}</div>"
-
-    html += "</div>"
-    return html
+    historial.sort(key=lambda x: x["fecha"], reverse=True)
+    return [h["res"] for h in historial[:5]]
 
 # =====================================================================
 # GOLEADORES EN VIVO (ESPN API - ROBUSTO Y SIN BLOQUEOS)
