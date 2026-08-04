@@ -144,33 +144,7 @@ JERARQUIA_EQUIPOS = {
     "Atlético Tucumán": 6.2, "Aldosivi": 5.5, "San Martín (SJ)": 5.5
 }
 
-# Base de datos de principales atacantes y su promedio de gol por partido
-JUGADORES_LPF = [
-    {"nombre": "Miguel Borja", "equipo": "River Plate", "prom_goles": 0.65},
-    {"nombre": "Facundo Colidio", "equipo": "River Plate", "prom_goles": 0.38},
-    {"nombre": "Edinson Cavani", "equipo": "Boca Juniors", "prom_goles": 0.58},
-    {"nombre": "Miguel Merentiel", "equipo": "Boca Juniors", "prom_goles": 0.45},
-    {"nombre": "Adrian Martinez", "equipo": "Racing Club", "prom_goles": 0.62},
-    {"nombre": "Maximiliano Salas", "equipo": "Racing Club", "prom_goles": 0.32},
-    {"nombre": "Braian Romero", "equipo": "Vélez Sarsfield", "prom_goles": 0.52},
-    {"nombre": "Claudio Aquino", "equipo": "Vélez Sarsfield", "prom_goles": 0.40},
-    {"nombre": "Walter Bou", "equipo": "Lanús", "prom_goles": 0.48},
-    {"nombre": "Marcelino Moreno", "equipo": "Lanús", "prom_goles": 0.35},
-    {"nombre": "Luciano Gondou", "equipo": "Argentinos Juniors", "prom_goles": 0.50},
-    {"nombre": "Guido Carrillo", "equipo": "Estudiantes", "prom_goles": 0.42},
-    {"nombre": "Edwar Lopez", "equipo": "Tigre", "prom_goles": 0.30},
-    {"nombre": "Federico Girotti", "equipo": "Talleres", "prom_goles": 0.41},
-    {"nombre": "Matias Coccaro", "equipo": "Huracán", "prom_goles": 0.38},
-    {"nombre": "Adam Bareiro", "equipo": "River Plate", "prom_goles": 0.36},
-    {"nombre": "Jaminton Campaz", "equipo": "Rosario Central", "prom_goles": 0.30},
-    {"nombre": "Marco Ruben", "equipo": "Rosario Central", "prom_goles": 0.35},
-    {"nombre": "Gabriel Avalos", "equipo": "Independiente", "prom_goles": 0.37},
-    {"nombre": "Santiago Rodriguez", "equipo": "Instituto", "prom_goles": 0.36},
-    {"nombre": "Jonathan Candia", "equipo": "Barracas Central", "prom_goles": 0.31},
-    {"nombre": "Florian Monzon", "equipo": "Tigre", "prom_goles": 0.33},
-    {"nombre": "Ignacio Pussetto", "equipo": "Huracán", "prom_goles": 0.40},
-    {"nombre": "Mateo Pellegrino", "equipo": "Platense", "prom_goles": 0.38}
-]
+
 
 ESCUDO_DEFAULT = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
 
@@ -430,19 +404,94 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
-def obtener_historial_directo(equipo_a, equipo_b):
-    semilla_str = f"{min(equipo_a, equipo_b)}_{max(equipo_a, equipo_b)}"
-    seed = int(hashlib.sha256(semilla_str.encode('utf-8')).hexdigest(), 16) % (2**32 - 1)
-    rng = np.random.default_rng(seed)
+# =====================================================================
+# MOTOR DE HISTORIAL DIRECTO (H2H) REAL DESDE PROMIEDOS
+# =====================================================================
+def normalizar_nombre_promiedos(nombre):
+    """Adapta el nombre del equipo de la App al formato exacto que usa la URL de Promiedos."""
+    if not isinstance(nombre, str): return ""
+    
+    # Sacar tildes y pasar a minúsculas
+    nombre = unicodedata.normalize('NFD', nombre.lower().strip()).encode('ascii', 'ignore').decode("utf-8")
+    
+    # Diccionario de traducción exacta a Promiedos
+    reemplazos = {
+        "boca juniors": "boca", "river plate": "river", "racing club": "racing",
+        "san lorenzo": "sanlorenzo", "rosario central": "rosariocentral", 
+        "estudiantes": "estudianteslp", "velez sarsfield": "velez", 
+        "argentinos juniors": "argentinos", "gimnasia lp": "gimnasialp", 
+        "newell's": "newells", "talleres": "talleres(c)",
+        "atletico tucuman": "atltucuman", "central cordoba": "centralcordoba(sde)",
+        "defensa y justicia": "defensayjusticia", "godoy cruz": "godoycruz",
+        "barracas central": "barracascentral", "sarmiento": "sarmiento(j)",
+        "deportivo riestra": "riestra", "independiente rivadavia": "indrivadavia"
+    }
+    
+    for clave, valor_promiedos in reemplazos.items():
+        if clave in nombre:
+            return valor_promiedos
+            
+    return nombre.replace(" ", "")
 
-    es_inverso = equipo_a != min(equipo_a, equipo_b)
-    historial_base = rng.choice(['G', 'E', 'P'], 5, p=[0.38, 0.32, 0.30]).tolist()
+@st.cache_data(ttl=86400) # Se actualiza una vez al día para no saturar
+def obtener_historial_directo(equipo_a, equipo_b, *args, **kwargs):
+    """Extrae el historial directo REAL (últimos 5 partidos) desde Promiedos."""
+    eq_a = normalizar_nombre_promiedos(equipo_a)
+    eq_b = normalizar_nombre_promiedos(equipo_b)
+    
+    url = f"https://www.promiedos.com.ar/historial.php?equipo1={eq_a}&equipo2={eq_b}"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    
+    historial = []
+    try:
+        r = requests.get(url, headers=headers, timeout=8)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            
+            # Promiedos guarda los partidos en divs con id="fixturein"
+            partidos = soup.find_all('div', id='fixturein')
+            
+            for p in partidos:
+                if len(historial) >= 5: # Solo necesitamos los últimos 5
+                    break
+                    
+                texto_partido = p.text.lower()
+                
+                # Buscamos la parte del resultado, suele estar después de los dos puntos
+                if ":" in texto_partido:
+                    detalle = texto_partido.split(":")[1].strip()
+                else:
+                    detalle = texto_partido
+                    
+                # Extraemos los números (goles) del string
+                goles = [int(s) for s in detalle.split() if s.isdigit()]
+                
+                if len(goles) >= 2:
+                    goles_local_partido = goles[0]
+                    goles_visita_partido = goles[1]
+                    
+                    # Verificamos si eq_a aparece ANTES del guion para saber si fue local en ese partido
+                    mitad_texto = detalle.split("-")[0]
+                    eq_a_es_local = eq_a in mitad_texto.replace(" ", "")
+                    
+                    if goles_local_partido == goles_visita_partido:
+                        historial.append('E')
+                    elif (goles_local_partido > goles_visita_partido and eq_a_es_local) or \
+                         (goles_local_partido < goles_visita_partido and not eq_a_es_local):
+                        historial.append('G') # Ganó nuestro equipo A
+                    else:
+                        historial.append('P') # Perdió nuestro equipo A
 
-    if es_inverso:
-        return ['P' if r == 'G' else 'G' if r == 'P' else 'E' for r in historial_base]
-    return historial_base
+    except Exception as e:
+        pass
+        
+    # Si nunca jugaron o falló la página, devolvemos lista vacía para que no invente datos
+    return historial[:5]
 
 def render_h2h_pills(historial, local, visitante):
+    if not historial:
+        return "<div style='text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 20px;'>No hay historial directo reciente registrado entre ambos.</div>"
+        
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
     html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Gano {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
     html += "<span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; "
@@ -452,7 +501,7 @@ def render_h2h_pills(historial, local, visitante):
     for res in historial:
         color = "#00ffcc" if res == 'G' else "#cbd5e1" if res == 'E' else "#ff3366"
         bg = "rgba(0, 255, 204, 0.2)" if res == 'G' else "rgba(203, 213, 225, 0.2)" if res == 'E' else "rgba(255, 51, 102, 0.2)"
-        tooltip = f"Gano {local}" if res == 'G' else "Empate" if res == 'E' else f"Gano {visitante}"
+        tooltip = f"Ganó {local}" if res == 'G' else "Empate" if res == 'E' else f"Ganó {visitante}"
         html += f"<div title='{tooltip}' style='background-color: {bg}; color: {color}; width: 32px; height: 32px; border: 2px solid {color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; box-shadow: 0 0 5px {color}80; cursor: help;'>{res}</div>"
 
     html += "</div>"
