@@ -402,185 +402,68 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
+# =====================================================================
+# HISTORIAL DIRECTO (H2H) REAL - VERSIÓN AUTÓNOMA Y BLINDADA
+# =====================================================================
 @st.cache_data(ttl=86400)
-def obtener_historial_directo(local, visitante, df_unificado=None):
-    """Busca el historial H2H real en los últimos 3 años sin depender de Promiedos"""
-    if df_unificado is None or df_unificado.empty:
-        return []
+def obtener_historial_directo(local, visitante, *args, **kwargs):
+    """Busca el historial H2H real en los últimos 3 años consultando calendarios oficiales."""
+    id_loc, id_vis = None, None
+    
+    def norm(txt):
+        return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").replace("ca", "").strip()
         
-    try:
-        id_loc = df_unificado.loc[df_unificado['Equipo'] == local, 'ID_ESPN'].values[0]
-        id_vis = df_unificado.loc[df_unificado['Equipo'] == visitante, 'ID_ESPN'].values[0]
-    except Exception:
+    n_loc, n_vis = norm(local), norm(visitante)
+
+    # 1. Buscar los IDs oficiales de los equipos (Para no depender del resto del código)
+    for torneo in ["arg.1", "arg.copa.liga"]:
+        if id_loc and id_vis: break
+        try:
+            url_equipos = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{torneo}/teams"
+            r = requests.get(url_equipos, timeout=5)
+            teams_data = r.json().get("sports", [])[0].get("leagues", [])[0].get("teams", [])
+            
+            for t in teams_data:
+                nombre_api = norm(t["team"]["displayName"])
+                if not id_loc and (n_loc in nombre_api or nombre_api in n_loc):
+                    id_loc = str(t["team"]["id"])
+                if not id_vis and (n_vis in nombre_api or nombre_api in n_vis):
+                    id_vis = str(t["team"]["id"])
+        except Exception:
+            pass
+
+    # Si no encontró los IDs, devuelve vacío para no romper la app
+    if not id_loc or not id_vis:
         return []
 
+    # 2. Buscar en los calendarios los cruces entre ambos en los últimos 3 años
     historial = []
     año_actual = datetime.datetime.now().year
     
-    # Buscamos de forma ultra rápida en los calendarios de los últimos 3 años
     for anio in [año_actual, año_actual - 1, año_actual - 2]:
         if len(historial) >= 5: break
             
-        url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{id_loc}/schedule?season={anio}"
-        try:
-            r = requests.get(url, timeout=6)
-            if r.status_code == 200:
+        for torneo in ["arg.1", "arg.copa.liga"]:
+            if len(historial) >= 5: break
+            
+            url_calendario = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{torneo}/teams/{id_loc}/schedule?season={anio}"
+            try:
+                r = requests.get(url_calendario, timeout=5)
                 events = r.json().get("events", [])
                 for ev in events:
-                    if not ev.get("status", {}).get("type", {}).get("completed", False): continue
+                    if not ev.get("status", {}).get("type", {}).get("completed", False): 
+                        continue
                         
                     comps = ev.get("competitions", [])
-                    if not comps or len(comps[0].get("competitors", [])) < 2: continue
+                    if not comps or len(comps[0].get("competitors", [])) < 2: 
+                        continue
                     
                     competitors = comps[0]["competitors"]
                     id_1 = str(competitors[0].get("team", {}).get("id", ""))
                     id_2 = str(competitors[1].get("team", {}).get("id", ""))
                     
-                    if (id_1 == str(id_loc) and id_2 == str(id_vis)) or (id_1 == str(id_vis) and id_2 == str(id_loc)):
-                        eq_loc_data = competitors[0] if id_1 == str(id_loc) else competitors[1]
-                        eq_vis_data = competitors[1] if id_1 == str(id_loc) else competitors[0]
-                        
-                        goles_loc = int(eq_loc_data.get("score", {}).get("value", 0))
-                        goles_vis = int(eq_vis_data.get("score", {}).get("value", 0))
-                        
-                        fecha_str = ev.get("date", "")
-                        res = 'E'
-                        if goles_loc > goles_vis: res = 'G'
-                        elif goles_loc < goles_vis: res = 'P'
-                            
-                        historial.append({"res": res, "fecha": fecha_str})
-        except Exception:
-            continue
+                    # Verificamos si en
 
-    historial.sort(key=lambda x: x["fecha"], reverse=True)
-    return [h["res"] for h in historial[:5]]
-
-# =====================================================================
-# GOLEADORES EN VIVO (ESPN API - ROBUSTO Y SIN BLOQUEOS)
-# =====================================================================
-@st.cache_data(ttl=900)
-def obtener_goleadores_espn_vivo():
-    """Consulta la API pública de ESPN para traer los goleadores del torneo actual."""
-    url = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/leaders"
-    goleadores = []
-    try:
-        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
-        if r.status_code == 200:
-            data = r.json()
-            for cat in data.get("leaders", []):
-                # Extraer la lista de la categoría de goles
-                if cat.get("name") in ["goals", "goles", "topScorers"]:
-                    for item in cat.get("leaders", []):
-                        athlete = item.get("athlete", {})
-                        nombre = athlete.get("displayName", "")
-                        team = athlete.get("team", {}).get("displayName", "")
-                        headshot = athlete.get("headshot", {}).get("href", ESCUDO_DEFAULT)
-                        goles = int(item.get("value", 0))
-                        
-                        if nombre and team and goles > 0:
-                            goleadores.append({
-                                "nombre": nombre,
-                                "equipo": team,
-                                "escudo": headshot,
-                                "goles": goles
-                            })
-    except Exception:
-        pass
-    return goleadores
-
-def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
-    if df_unificado.empty:
-        return []
-
-    # 1. Traer lista en vivo de ESPN
-    goleadores_vivo = obtener_goleadores_espn_vivo()
-    if not goleadores_vivo:
-        return []
-
-    # 2. Ranking defensivo según goles recibidos
-    df_defensas = df_unificado.copy()
-    if "GC" in df_defensas.columns and "PJ" in df_defensas.columns:
-        df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
-        df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
-        ranking_defensas = {str(row["Equipo"]): idx + 1 for idx, row in df_defensas.iterrows()}
-    else:
-        ranking_defensas = {}
-
-    def norm(txt):
-        return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").replace("ca", "").strip()
-
-    candidatos = []
-
-    # Convertir partidos a lista
-    partidos_list = []
-    if isinstance(partidos_del_dia, pd.DataFrame):
-        partidos_list = partidos_del_dia.to_dict('records')
-    elif isinstance(partidos_del_dia, list):
-        partidos_list = partidos_del_dia
-
-    # 3. Cruzar con partidos de la fecha
-    if partidos_list:
-        for partido in partidos_list:
-            eq_loc = str(partido.get("Local", ""))
-            eq_vis = str(partido.get("Visitante", ""))
-
-            puesto_loc_gc = ranking_defensas.get(eq_loc, 15)
-            puesto_vis_gc = ranking_defensas.get(eq_vis, 15)
-
-            for g in goleadores_vivo:
-                nombre = g["nombre"]
-                eq_jugador = g["equipo"]
-                goles = g["goles"]
-
-                c_eq = norm(eq_jugador)
-                c_loc = norm(eq_loc)
-                c_vis = norm(eq_vis)
-
-                es_loc = (c_eq in c_loc or c_loc in c_eq) if c_eq and c_loc else False
-                es_vis = (c_eq in c_vis or c_vis in c_eq) if c_eq and c_vis else False
-
-                if es_loc:
-                    rival = eq_vis
-                    puesto_rival = puesto_vis_gc
-                elif es_vis:
-                    rival = eq_loc
-                    puesto_rival = puesto_loc_gc
-                else:
-                    continue
-
-                prob_base = min(88.0, max(25.0, float(goles) * 8.0))
-                descuento_pct = puesto_rival * 1.2
-                prob_final = max(10.0, prob_base - descuento_pct)
-                cuota_justa = round(100.0 / max(0.1, prob_final), 2)
-
-                candidatos.append({
-                    "nombre": nombre,
-                    "equipo": eq_jugador,
-                    "escudo": g["escudo"],
-                    "rival": rival,
-                    "puesto_rival_defensa": puesto_rival,
-                    "probabilidad": round(prob_final, 1),
-                    "cuota_justa": cuota_justa
-                })
-
-    # Si no coinciden partidos hoy, muestra directamente al top 3 de goleadores reales de la liga
-    if not candidatos:
-        for g in goleadores_vivo[:3]:
-            prob_final = min(88.0, max(25.0, float(g["goles"]) * 8.0))
-            cuota_justa = round(100.0 / max(0.1, prob_final), 2)
-
-            candidatos.append({
-                "nombre": g["nombre"],
-                "equipo": g["equipo"],
-                "escudo": g["escudo"],
-                "rival": "Fecha Actual",
-                "puesto_rival_defensa": "-",
-                "probabilidad": round(prob_final, 1),
-                "cuota_justa": cuota_justa
-            })
-
-    candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
-    return candidatos[:3]
 # =====================================================================
 # 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
 # =====================================================================
