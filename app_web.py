@@ -404,98 +404,76 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 
     return round(indice, 1), categoria, color
 
-# =====================================================================
-# MOTOR DE HISTORIAL DIRECTO (H2H) REAL DESDE PROMIEDOS
-# =====================================================================
-def normalizar_nombre_promiedos(nombre):
-    """Adapta el nombre del equipo de la App al formato exacto que usa la URL de Promiedos."""
-    if not isinstance(nombre, str): return ""
-    
-    # Sacar tildes y pasar a minúsculas
-    nombre = unicodedata.normalize('NFD', nombre.lower().strip()).encode('ascii', 'ignore').decode("utf-8")
-    
-    # Diccionario de traducción exacta a Promiedos
-    reemplazos = {
-        "boca juniors": "boca", "river plate": "river", "racing club": "racing",
-        "san lorenzo": "sanlorenzo", "rosario central": "rosariocentral", 
-        "estudiantes": "estudianteslp", "velez sarsfield": "velez", 
-        "argentinos juniors": "argentinos", "gimnasia lp": "gimnasialp", 
-        "newell's": "newells", "talleres": "talleres(c)",
-        "atletico tucuman": "atltucuman", "central cordoba": "centralcordoba(sde)",
-        "defensa y justicia": "defensayjusticia", "godoy cruz": "godoycruz",
-        "barracas central": "barracascentral", "sarmiento": "sarmiento(j)",
-        "deportivo riestra": "riestra", "independiente rivadavia": "indrivadavia"
-    }
-    
-    for clave, valor_promiedos in reemplazos.items():
-        if clave in nombre:
-            return valor_promiedos
-            
-    return nombre.replace(" ", "")
-
-@st.cache_data(ttl=86400) # Se actualiza una vez al día para no saturar
-def obtener_historial_directo(equipo_a, equipo_b, *args, **kwargs):
-    """Extrae el historial directo REAL (últimos 5 partidos) desde Promiedos."""
-    eq_a = normalizar_nombre_promiedos(equipo_a)
-    eq_b = normalizar_nombre_promiedos(equipo_b)
-    
-    url = f"https://www.promiedos.com.ar/historial.php?equipo1={eq_a}&equipo2={eq_b}"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    
-    historial = []
-    try:
-        r = requests.get(url, headers=headers, timeout=8)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, 'html.parser')
-            
-            # Promiedos guarda los partidos en divs con id="fixturein"
-            partidos = soup.find_all('div', id='fixturein')
-            
-            for p in partidos:
-                if len(historial) >= 5: # Solo necesitamos los últimos 5
-                    break
-                    
-                texto_partido = p.text.lower()
-                
-                # Buscamos la parte del resultado, suele estar después de los dos puntos
-                if ":" in texto_partido:
-                    detalle = texto_partido.split(":")[1].strip()
-                else:
-                    detalle = texto_partido
-                    
-                # Extraemos los números (goles) del string
-                goles = [int(s) for s in detalle.split() if s.isdigit()]
-                
-                if len(goles) >= 2:
-                    goles_local_partido = goles[0]
-                    goles_visita_partido = goles[1]
-                    
-                    # Verificamos si eq_a aparece ANTES del guion para saber si fue local en ese partido
-                    mitad_texto = detalle.split("-")[0]
-                    eq_a_es_local = eq_a in mitad_texto.replace(" ", "")
-                    
-                    if goles_local_partido == goles_visita_partido:
-                        historial.append('E')
-                    elif (goles_local_partido > goles_visita_partido and eq_a_es_local) or \
-                         (goles_local_partido < goles_visita_partido and not eq_a_es_local):
-                        historial.append('G') # Ganó nuestro equipo A
-                    else:
-                        historial.append('P') # Perdió nuestro equipo A
-
-    except Exception as e:
-        pass
+@st.cache_data(ttl=86400)
+def obtener_historial_directo(local, visitante, df_unificado=None):
+    """Busca el historial directo real filtrando los calendarios de los últimos 4 años (API Oficial)."""
+    if df_unificado is None or df_unificado.empty:
+        return []
         
-    # Si nunca jugaron o falló la página, devolvemos lista vacía para que no invente datos
+    try:
+        # Obtenemos el ID oficial de cada equipo
+        id_loc = df_unificado.loc[df_unificado['Equipo'] == local, 'ID_ESPN'].values[0]
+        id_vis = df_unificado.loc[df_unificado['Equipo'] == visitante, 'ID_ESPN'].values[0]
+    except IndexError:
+        return []
+
+    historial = []
+    # Revisar hasta 4 años atrás
+    año_actual = datetime.datetime.now().year
+    años_a_revisar = [año_actual, año_actual - 1, año_actual - 2, año_actual - 3]
+    
+    for anio in años_a_revisar:
+        if len(historial) >= 5:
+            break
+            
+        url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{id_loc}/schedule?season={anio}"
+        try:
+            r = requests.get(url, timeout=8)
+            if r.status_code == 200:
+                events = r.json().get("events", [])
+                for ev in events:
+                    # Validar que el partido esté terminado
+                    if not ev.get("status", {}).get("type", {}).get("completed", False):
+                        continue
+                        
+                    comps = ev.get("competitions", [])
+                    if not comps or len(comps[0].get("competitors", [])) < 2: 
+                        continue
+                    
+                    competitors = comps[0]["competitors"]
+                    id_1 = str(competitors[0].get("team", {}).get("id", ""))
+                    id_2 = str(competitors[1].get("team", {}).get("id", ""))
+                    
+                    # Verificamos si en este partido se enfrentaron Local vs Visitante
+                    if (id_1 == str(id_loc) and id_2 == str(id_vis)) or (id_1 == str(id_vis) and id_2 == str(id_loc)):
+                        eq_loc_data = competitors[0] if id_1 == str(id_loc) else competitors[1]
+                        eq_vis_data = competitors[1] if id_1 == str(id_loc) else competitors[0]
+                        
+                        goles_loc = int(eq_loc_data.get("score", {}).get("value", 0))
+                        goles_vis = int(eq_vis_data.get("score", {}).get("value", 0))
+                        
+                        if goles_loc > goles_vis:
+                            historial.append('G')
+                        elif goles_loc < goles_vis:
+                            historial.append('P')
+                        else:
+                            historial.append('E')
+                            
+                        if len(historial) >= 5:
+                            break
+        except Exception:
+            continue
+            
     return historial[:5]
 
 def render_h2h_pills(historial, local, visitante):
     if not historial:
-        return "<div style='text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 20px;'>No hay historial directo reciente registrado entre ambos.</div>"
+        return "<div style='text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 20px;'>No hay historial directo reciente registrado.</div>"
         
     html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
-    html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Gano {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
+    html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Ganó {local} &nbsp;&nbsp;|&nbsp;&nbsp; "
     html += "<span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; "
-    html += f"<span style='color: #ff3366; font-weight: bold;'>P</span> = Gano {visitante}</div>"
+    html += f"<span style='color: #ff3366; font-weight: bold;'>P</span> = Ganó {visitante}</div>"
     html += "<div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>"
 
     for res in historial:
