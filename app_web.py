@@ -407,63 +407,147 @@ def calcular_indice_volatilidad(xg_loc, xg_vis, stats_loc, stats_vis):
 # =====================================================================
 @st.cache_data(ttl=86400)
 def obtener_historial_directo(local, visitante, *args, **kwargs):
-    """Busca el historial H2H real en los últimos 3 años consultando calendarios oficiales."""
     id_loc, id_vis = None, None
-    
-    def norm(txt):
-        return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").replace("ca", "").strip()
-        
+    def norm(txt): return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").replace("ca", "").strip()
     n_loc, n_vis = norm(local), norm(visitante)
 
-    # 1. Buscar los IDs oficiales de los equipos (Para no depender del resto del código)
     for torneo in ["arg.1", "arg.copa.liga"]:
         if id_loc and id_vis: break
         try:
             url_equipos = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{torneo}/teams"
             r = requests.get(url_equipos, timeout=5)
             teams_data = r.json().get("sports", [])[0].get("leagues", [])[0].get("teams", [])
-            
             for t in teams_data:
                 nombre_api = norm(t["team"]["displayName"])
-                if not id_loc and (n_loc in nombre_api or nombre_api in n_loc):
-                    id_loc = str(t["team"]["id"])
-                if not id_vis and (n_vis in nombre_api or nombre_api in n_vis):
-                    id_vis = str(t["team"]["id"])
+                if not id_loc and (n_loc in nombre_api or nombre_api in n_loc): id_loc = str(t["team"]["id"])
+                if not id_vis and (n_vis in nombre_api or nombre_api in n_vis): id_vis = str(t["team"]["id"])
         except Exception:
             pass
 
-    # Si no encontró los IDs, devuelve vacío para no romper la app
-    if not id_loc or not id_vis:
-        return []
+    if not id_loc or not id_vis: return []
 
-    # 2. Buscar en los calendarios los cruces entre ambos en los últimos 3 años
     historial = []
     año_actual = datetime.datetime.now().year
     
     for anio in [año_actual, año_actual - 1, año_actual - 2]:
         if len(historial) >= 5: break
-            
         for torneo in ["arg.1", "arg.copa.liga"]:
             if len(historial) >= 5: break
-            
             url_calendario = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{torneo}/teams/{id_loc}/schedule?season={anio}"
             try:
                 r = requests.get(url_calendario, timeout=5)
                 events = r.json().get("events", [])
                 for ev in events:
-                    if not ev.get("status", {}).get("type", {}).get("completed", False): 
-                        continue
-                        
+                    if not ev.get("status", {}).get("type", {}).get("completed", False): continue
                     comps = ev.get("competitions", [])
-                    if not comps or len(comps[0].get("competitors", [])) < 2: 
-                        continue
+                    if not comps or len(comps[0].get("competitors", [])) < 2: continue
                     
                     competitors = comps[0]["competitors"]
                     id_1 = str(competitors[0].get("team", {}).get("id", ""))
                     id_2 = str(competitors[1].get("team", {}).get("id", ""))
                     
-                    # Verificamos si en
+                    if (id_1 == id_loc and id_2 == id_vis) or (id_1 == id_vis and id_2 == id_loc):
+                        eq_loc_data = competitors[0] if id_1 == id_loc else competitors[1]
+                        eq_vis_data = competitors[1] if id_1 == id_loc else competitors[0]
+                        goles_loc = int(eq_loc_data.get("score", {}).get("value", 0))
+                        goles_vis = int(eq_vis_data.get("score", {}).get("value", 0))
+                        
+                        fecha_str = ev.get("date", "")
+                        res = 'E'
+                        if goles_loc > goles_vis: res = 'G'
+                        elif goles_loc < goles_vis: res = 'P'
+                        
+                        if not any(h["fecha"] == fecha_str for h in historial):
+                            historial.append({"res": res, "fecha": fecha_str})
+            except Exception:
+                continue
 
+    historial.sort(key=lambda x: x["fecha"], reverse=True)
+    return [h["res"] for h in historial[:5]]
+
+def render_h2h_pills(historial, local, visitante):
+    if not historial: return "<div style='text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 20px;'>No hay historial directo reciente registrado entre ambos.</div>"
+    html = "<div style='text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 10px;'>"
+    html += f"<span style='color: #00ffcc; font-weight: bold;'>G</span> = Ganó {local} &nbsp;&nbsp;|&nbsp;&nbsp; <span style='color: #cbd5e1; font-weight: bold;'>E</span> = Empate &nbsp;&nbsp;|&nbsp;&nbsp; <span style='color: #ff3366; font-weight: bold;'>P</span> = Ganó {visitante}</div>"
+    html += "<div style='display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;'>"
+    for res in historial:
+        color = "#00ffcc" if res == 'G' else "#cbd5e1" if res == 'E' else "#ff3366"
+        bg = "rgba(0, 255, 204, 0.2)" if res == 'G' else "rgba(203, 213, 225, 0.2)" if res == 'E' else "rgba(255, 51, 102, 0.2)"
+        tooltip = f"Ganó {local}" if res == 'G' else "Empate" if res == 'E' else f"Ganó {visitante}"
+        html += f"<div title='{tooltip}' style='background-color: {bg}; color: {color}; width: 32px; height: 32px; border: 2px solid {color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; box-shadow: 0 0 5px {color}80; cursor: help;'>{res}</div>"
+    html += "</div>"
+    return html
+
+# =====================================================================
+# GOLEADORES EN VIVO
+# =====================================================================
+@st.cache_data(ttl=900)
+def obtener_goleadores_espn_vivo():
+    ligas_argentina = ["arg.1", "arg.copa.liga"]
+    goleadores = []
+    for liga in ligas_argentina:
+        url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/{liga}/leaders"
+        try:
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
+            if r.status_code == 200:
+                data = r.json()
+                for cat in data.get("leaders", []):
+                    if cat.get("name") in ["goals", "goles", "topScorers"]:
+                        for item in cat.get("leaders", []):
+                            athlete = item.get("athlete", {})
+                            nombre = athlete.get("displayName", "")
+                            team = athlete.get("team", {}).get("displayName", "")
+                            headshot = athlete.get("headshot", {}).get("href", ESCUDO_DEFAULT) if "headshot" in athlete else ESCUDO_DEFAULT
+                            goles = int(item.get("value", 0))
+                            if nombre and team and goles > 0:
+                                goleadores.append({"nombre": nombre, "equipo": team, "escudo": headshot, "goles": goles})
+        except Exception:
+            pass
+        if goleadores: break
+    if not goleadores:
+        goleadores = [{"nombre": "Atacante LPF", "equipo": "Liga Profesional", "escudo": ESCUDO_DEFAULT, "goles": 5}]
+    return goleadores
+
+def calcular_top_3_goleadores_dia(partidos_del_dia, df_unificado):
+    if df_unificado is None or df_unificado.empty: return []
+    goleadores_vivo = obtener_goleadores_espn_vivo()
+    df_defensas = df_unificado.copy()
+    if "GC" in df_defensas.columns and "PJ" in df_defensas.columns:
+        df_defensas["GC_prom"] = df_defensas["GC"] / np.maximum(1, df_defensas["PJ"])
+        df_defensas = df_defensas.sort_values(by=["GC_prom", "GC"], ascending=[False, False]).reset_index(drop=True)
+        ranking_defensas = {str(row["Equipo"]): idx + 1 for idx, row in df_defensas.iterrows()}
+    else:
+        ranking_defensas = {}
+
+    def norm(txt): return str(txt).lower().replace("club", "").replace("atletico", "").replace("atlético", "").replace("ca", "").strip()
+    candidatos = []
+    partidos_list = partidos_del_dia.to_dict('records') if isinstance(partidos_del_dia, pd.DataFrame) else (partidos_del_dia if isinstance(partidos_del_dia, list) else [])
+
+    if partidos_list:
+        for partido in partidos_list:
+            eq_loc, eq_vis = str(partido.get("Local", "")), str(partido.get("Visitante", ""))
+            puesto_loc_gc, puesto_vis_gc = ranking_defensas.get(eq_loc, 15), ranking_defensas.get(eq_vis, 15)
+            for g in goleadores_vivo:
+                c_eq, c_loc, c_vis = norm(g["equipo"]), norm(eq_loc), norm(eq_vis)
+                es_loc = (c_eq in c_loc or c_loc in c_eq) if c_eq and c_loc else False
+                es_vis = (c_eq in c_vis or c_vis in c_eq) if c_eq and c_vis else False
+                if es_loc:
+                    rival, puesto_rival = eq_vis, puesto_vis_gc
+                elif es_vis:
+                    rival, puesto_rival = eq_loc, puesto_loc_gc
+                else:
+                    continue
+                prob_base = min(88.0, max(25.0, float(g["goles"]) * 8.0))
+                prob_final = max(10.0, prob_base - (puesto_rival * 1.2))
+                candidatos.append({"nombre": g["nombre"], "equipo": g["equipo"], "escudo": g["escudo"], "rival": rival, "puesto_rival_defensa": puesto_rival, "probabilidad": round(prob_final, 1), "cuota_justa": round(100.0 / max(0.1, prob_final), 2)})
+
+    if not candidatos:
+        for g in goleadores_vivo[:3]:
+            prob_final = min(88.0, max(25.0, float(g["goles"]) * 8.0))
+            candidatos.append({"nombre": g["nombre"], "equipo": g["equipo"], "escudo": g["escudo"], "rival": "Fecha Actual", "puesto_rival_defensa": "-", "probabilidad": round(prob_final, 1), "cuota_justa": round(100.0 / max(0.1, prob_final), 2)})
+
+    candidatos.sort(key=lambda x: x["probabilidad"], reverse=True)
+    return candidatos[:3]
 # =====================================================================
 # 6. MOTOR DE PREDICCION CON HISTORIAL EXPONENCIAL REAL
 # =====================================================================
