@@ -8,3 +8,5 @@ plotly
 lxml
 html5lib
 xgboost
+gspread
+oauth2client
