@@ -196,72 +196,63 @@ def cargar_modelo_ia():
 
 paquete_ia = cargar_modelo_ia()
 
-import json
-import os
-import plotly.graph_objects as go
-import numpy as np
-import pandas as pd
-import streamlit as st
-
 # =====================================================================
-# PERSISTENCIA DEL MEDIDOR DE EFECTIVIDAD (NUNCA SE REINICIA)
+# PERSISTENCIA REAL: NUNCA SE REINICIA (GUARDA EN DISCO LOCAL)
 # =====================================================================
-ARCHIVO_HISTORIAL = "historial_efectividad.json"
+ARCHIVO_HISTORIAL_EFECTIVIDAD = "historial_efectividad.json"
 
-def cargar_historial_efectividad():
-    """Carga el historial guardado en disco para mantener la memoria permanente."""
-    if os.path.exists(ARCHIVO_HISTORIAL):
+def cargar_historial_permanente():
+    """Lee el archivo JSON local. Si la app se reinicia, los datos siguen acá."""
+    if os.path.exists(ARCHIVO_HISTORIAL_EFECTIVIDAD):
         try:
-            with open(ARCHIVO_HISTORIAL, "r", encoding="utf-8") as f:
+            with open(ARCHIVO_HISTORIAL_EFECTIVIDAD, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return []
     return []
 
-def guardar_historial_efectividad(historial):
-    """Guarda en el archivo JSON permanentemente."""
+def guardar_historial_permanente(historial):
+    """Escribe los datos permanentemente en el disco del servidor."""
     try:
-        with open(ARCHIVO_HISTORIAL, "w", encoding="utf-8") as f:
+        with open(ARCHIVO_HISTORIAL_EFECTIVIDAD, "w", encoding="utf-8") as f:
             json.dump(historial, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
 
-def registrar_partido_finalizado(partido_nombre, prediccion_hecha, acerto, fecha_str=None):
+def guardar_resultado_partido(partido, prediccion, acerto, fecha_str=None):
     """
-    Registra un nuevo partido en la historia indestructible de la app.
-    - partido_nombre: ej "River Plate vs Boca Juniors"
-    - prediccion_hecha: ej "Gana Local" o "Over 1.5"
-    - acerto: True o False
+    Agrega un partido al historial indestructible.
+    No permite duplicados.
     """
-    historial = cargar_historial_efectividad()
-    id_unico = f"{partido_nombre}_{fecha_str}" if fecha_str else partido_nombre
+    historial = cargar_historial_permanente()
+    id_unico = f"{partido}_{fecha_str}" if fecha_str else partido
     
-    # Evitar registrar dos veces el mismo partido
+    # Si el partido ya fue guardado previamente, no lo duplicamos
     if any(h.get("id") == id_unico for h in historial):
         return
-        
+
     historial.append({
         "id": id_unico,
-        "partido": partido_nombre,
-        "prediccion": prediccion_hecha,
+        "partido": partido,
+        "prediccion": prediccion,
         "acerto": bool(acerto),
-        "fecha": fecha_str or datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        "fecha": fecha_str or datetime.datetime.now().strftime("%Y-%m-%d")
     })
-    guardar_historial_efectividad(historial)
-
-
-# =====================================================================
-# GRÁFICO FACHERO DE EFECTIVIDAD Y ZOOM ADAPTATIVO
-# =====================================================================
-def renderizar_medidor_efectividad_fachero():
-    """Genera métricas KPI y el gráfico Plotly Neón con zoom dinámico."""
-    historial = cargar_historial_efectividad()
     
+    guardar_historial_permanente(historial)
+
+# =====================================================================
+# GRÁFICO FACHERO NEÓN CON ZOOM ADAPTATIVO ("ZOOM OUT" AUTOMÁTICO)
+# =====================================================================
+def renderizar_medidor_efectividad_definitivo():
+    """Muestra KPIs estilo Neón y el gráfico que va disminuyendo el zoom con N partidos."""
+    historial = cargar_historial_permanente()
+
     if not historial:
-        st.info("⚡ Todavía no hay partidos finalizados guardados en el historial de efectividad.")
+        st.info("⚡ Todavía no hay historial de partidos finalizados guardado en el archivo permanente.")
         return
 
-    # Convertimos a DataFrame para cómputo acumulado
+    # Creamos un DataFrame con los datos guardados en el JSON
     df = pd.DataFrame(historial)
     df["partido_num"] = range(1, len(df) + 1)
     df["acierto_int"] = df["acerto"].astype(int)
@@ -272,27 +263,27 @@ def renderizar_medidor_efectividad_fachero():
     total_aciertos = int(df["aciertos_acumulados"].iloc[-1])
     efectividad_actual = df["efectividad_pct"].iloc[-1]
 
-    # Cálculo de racha actual
+    # Calcular racha actual en verde
     racha = 0
     for ac in reversed(df["acerto"].tolist()):
         if ac: racha += 1
         else: break
 
-    # 1. TARJETAS KPI ESTILO NEÓN
+    # 1. MÉTRICAS KPI (Tarjetas Neón)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric(label="Total Evaluados", value=f"{total_partidos} Partidos")
+        st.metric("Total Analizados", f"{total_partidos} Partidos")
     with col2:
-        st.metric(label="Aciertos Totales", value=f"{total_aciertos} ✅")
+        st.metric("Aciertos Totales", f"{total_aciertos} ✅")
     with col3:
-        st.metric(label="Efectividad Global", value=f"{efectividad_actual:.1f}%")
+        st.metric("Efectividad Global", f"{efectividad_actual:.1f}%")
     with col4:
-        st.metric(label="Racha Actual", value=f"{racha} en verde 🔥" if racha > 0 else "0 ❄️")
+        st.metric("Racha Actual", f"{racha} seguidos 🔥" if racha > 0 else "0 ❄️")
 
-    # 2. CONSTRUCCIÓN DEL GRÁFICO CON PLOTLY
+    # 2. GRÁFICO PLOTLY CON ZOOM ADAPTATIVO
     fig = go.Figure()
 
-    # Línea punteada de referencia (50% Neutro)
+    # Línea de referencia 50%
     fig.add_trace(go.Scatter(
         x=[1, max(total_partidos, 10)],
         y=[50, 50],
@@ -302,9 +293,10 @@ def renderizar_medidor_efectividad_fachero():
         hoverinfo="skip"
     ))
 
-    # Curva principal Neón
+    # Colores por punto (Verde si acertó, Rojo si falló)
     colores_puntos = ["#00ffcc" if a else "#ff3366" for a in df["acerto"]]
-    
+
+    # Curva principal
     fig.add_trace(go.Scatter(
         x=df["partido_num"],
         y=df["efectividad_pct"],
@@ -314,19 +306,19 @@ def renderizar_medidor_efectividad_fachero():
         marker=dict(
             size=8,
             color=colores_puntos,
-            line=dict(width=2, color="#070b14")
+            line=dict(width=1.5, color="#070b14")
         ),
         fill="tozeroy",
         fillcolor="rgba(0, 255, 204, 0.08)",
         hovertemplate="<b>Partido #%{x}</b><br>Efectividad: <b>%{y:.1f}%</b><br>%{text}<extra></extra>",
-        text=[f"Partido: {p}<br>Resultado: {'✅ Acierto' if a else '❌ Fallo'}" for p, a in zip(df["partido"], df["acerto"])]
+        text=[f"{p}<br>Resultado: {'✅ Acierto' if a else '❌ Fallo'}" for p, a in zip(df["partido"], df["acerto"])]
     ))
 
-    # Configuración Visual Cyberpunk & Zoom Dinámico
+    # Configuración de Layout y Zoom Automático
     fig.update_layout(
         title=dict(
-            text="📈 Evolución de Efectividad Acumulada",
-            font=dict(color="#00ffcc", size=18, family="Segoe UI")
+            text="📈 Evolución Histórica del Win Predictor",
+            font=dict(color="#00ffcc", size=18)
         ),
         paper_bgcolor="#070b14",
         plot_bgcolor="#0c1322",
@@ -338,8 +330,8 @@ def renderizar_medidor_efectividad_fachero():
             titlefont=dict(color="#94a3b8", size=12),
             tickfont=dict(color="#cbd5e1"),
             gridcolor="rgba(255, 255, 255, 0.05)",
-            showgrid=True,
-            autorange=True,  # <--- DISMINUYE EL ZOOM AUTOMÁTICAMENTE A MEDIDA QUE AUMENTA N
+            # EL ZOOM DISMINUYE AUTOMÁTICAMENTE (ZOOM OUT) A MEDIDA QUE CRECE N:
+            autorange=True,
             zeroline=False
         ),
         yaxis=dict(
@@ -347,7 +339,6 @@ def renderizar_medidor_efectividad_fachero():
             titlefont=dict(color="#94a3b8", size=12),
             tickfont=dict(color="#cbd5e1"),
             gridcolor="rgba(255, 255, 255, 0.05)",
-            showgrid=True,
             range=[0, 105],
             ticksuffix="%"
         )
