@@ -1,15 +1,15 @@
 import datetime
+import hashlib
 import math
 import os
 import re
-import hashlib
+import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
-import joblib
-
+import streamlit.components.v1 as components  # <-- AGREGÁ ESTA LÍNEA AQUÍ
 # =====================================================================
 # 1. CONFIGURACION Y CSS ESTILO NEON / CORPORATIVO (OPTIMIZADO MÓVIL)
 # =====================================================================
