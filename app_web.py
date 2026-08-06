@@ -127,7 +127,26 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
+# =====================================================================
+# FUNCION PARA MOSTRAR ANUNCIO DE ADSENSE
+# =====================================================================
+def mostrar_anuncio_adsense():
+  codigo_adsense = """
+    <div style="text-align: center; margin: 10px 0;">
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6333118178688004"
+             crossorigin="anonymous"></script>
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-6333118178688004"
+             data-ad-slot="2020973308"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>
+             (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
+    </div>
+    """
+  components.html(codigo_adsense, height=130)
 # =====================================================================
 # 2. DICCIONARIO DE JERARQUIA DE PLANTELES Y CARGA DE MODELO IA
 # =====================================================================
@@ -1028,6 +1047,35 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
 # =====================================================================
 # 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
 # =====================================================================
+# =====================================================================
+# 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
+# =====================================================================
+col_logo, col_titulo = st.columns([1, 6])
+with col_logo:
+  st.image(
+      "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png",
+      width=80,
+  )
+with col_titulo:
+  st.markdown(
+      '<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True
+  )
+  st.markdown(
+      '<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS'
+      " ESTOCÁSTICO</div>",
+      unsafe_allow_html=True,
+  )
+
+# 📢 AQUÍ SE MUESTRA TU ANUNCIO DE ADSENSE (Debajo del título y arriba del menú)
+mostrar_anuncio_adsense()
+
+opcion_pantalla = st.radio(
+    "Menú de Navegación:",
+    ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
+    horizontal=True,
+    label_visibility="collapsed",
+)
+st.markdown("---")
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
     st.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=80)
