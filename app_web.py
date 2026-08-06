@@ -196,6 +196,165 @@ def cargar_modelo_ia():
 
 paquete_ia = cargar_modelo_ia()
 
+import json
+import os
+import plotly.graph_objects as go
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+# =====================================================================
+# PERSISTENCIA DEL MEDIDOR DE EFECTIVIDAD (NUNCA SE REINICIA)
+# =====================================================================
+ARCHIVO_HISTORIAL = "historial_efectividad.json"
+
+def cargar_historial_efectividad():
+    """Carga el historial guardado en disco para mantener la memoria permanente."""
+    if os.path.exists(ARCHIVO_HISTORIAL):
+        try:
+            with open(ARCHIVO_HISTORIAL, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def guardar_historial_efectividad(historial):
+    """Guarda en el archivo JSON permanentemente."""
+    try:
+        with open(ARCHIVO_HISTORIAL, "w", encoding="utf-8") as f:
+            json.dump(historial, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+def registrar_partido_finalizado(partido_nombre, prediccion_hecha, acerto, fecha_str=None):
+    """
+    Registra un nuevo partido en la historia indestructible de la app.
+    - partido_nombre: ej "River Plate vs Boca Juniors"
+    - prediccion_hecha: ej "Gana Local" o "Over 1.5"
+    - acerto: True o False
+    """
+    historial = cargar_historial_efectividad()
+    id_unico = f"{partido_nombre}_{fecha_str}" if fecha_str else partido_nombre
+    
+    # Evitar registrar dos veces el mismo partido
+    if any(h.get("id") == id_unico for h in historial):
+        return
+        
+    historial.append({
+        "id": id_unico,
+        "partido": partido_nombre,
+        "prediccion": prediccion_hecha,
+        "acerto": bool(acerto),
+        "fecha": fecha_str or datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    })
+    guardar_historial_efectividad(historial)
+
+
+# =====================================================================
+# GRÁFICO FACHERO DE EFECTIVIDAD Y ZOOM ADAPTATIVO
+# =====================================================================
+def renderizar_medidor_efectividad_fachero():
+    """Genera métricas KPI y el gráfico Plotly Neón con zoom dinámico."""
+    historial = cargar_historial_efectividad()
+    
+    if not historial:
+        st.info("⚡ Todavía no hay partidos finalizados guardados en el historial de efectividad.")
+        return
+
+    # Convertimos a DataFrame para cómputo acumulado
+    df = pd.DataFrame(historial)
+    df["partido_num"] = range(1, len(df) + 1)
+    df["acierto_int"] = df["acerto"].astype(int)
+    df["aciertos_acumulados"] = df["acierto_int"].cumsum()
+    df["efectividad_pct"] = (df["aciertos_acumulados"] / df["partido_num"]) * 100
+
+    total_partidos = len(df)
+    total_aciertos = int(df["aciertos_acumulados"].iloc[-1])
+    efectividad_actual = df["efectividad_pct"].iloc[-1]
+
+    # Cálculo de racha actual
+    racha = 0
+    for ac in reversed(df["acerto"].tolist()):
+        if ac: racha += 1
+        else: break
+
+    # 1. TARJETAS KPI ESTILO NEÓN
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric(label="Total Evaluados", value=f"{total_partidos} Partidos")
+    with col2:
+        st.metric(label="Aciertos Totales", value=f"{total_aciertos} ✅")
+    with col3:
+        st.metric(label="Efectividad Global", value=f"{efectividad_actual:.1f}%")
+    with col4:
+        st.metric(label="Racha Actual", value=f"{racha} en verde 🔥" if racha > 0 else "0 ❄️")
+
+    # 2. CONSTRUCCIÓN DEL GRÁFICO CON PLOTLY
+    fig = go.Figure()
+
+    # Línea punteada de referencia (50% Neutro)
+    fig.add_trace(go.Scatter(
+        x=[1, max(total_partidos, 10)],
+        y=[50, 50],
+        mode="lines",
+        name="Línea 50%",
+        line=dict(color="#475569", width=1.5, dash="dash"),
+        hoverinfo="skip"
+    ))
+
+    # Curva principal Neón
+    colores_puntos = ["#00ffcc" if a else "#ff3366" for a in df["acerto"]]
+    
+    fig.add_trace(go.Scatter(
+        x=df["partido_num"],
+        y=df["efectividad_pct"],
+        mode="lines+markers",
+        name="Efectividad",
+        line=dict(color="#00ffcc", width=3, shape="spline"),
+        marker=dict(
+            size=8,
+            color=colores_puntos,
+            line=dict(width=2, color="#070b14")
+        ),
+        fill="tozeroy",
+        fillcolor="rgba(0, 255, 204, 0.08)",
+        hovertemplate="<b>Partido #%{x}</b><br>Efectividad: <b>%{y:.1f}%</b><br>%{text}<extra></extra>",
+        text=[f"Partido: {p}<br>Resultado: {'✅ Acierto' if a else '❌ Fallo'}" for p, a in zip(df["partido"], df["acerto"])]
+    ))
+
+    # Configuración Visual Cyberpunk & Zoom Dinámico
+    fig.update_layout(
+        title=dict(
+            text="📈 Evolución de Efectividad Acumulada",
+            font=dict(color="#00ffcc", size=18, family="Segoe UI")
+        ),
+        paper_bgcolor="#070b14",
+        plot_bgcolor="#0c1322",
+        margin=dict(l=15, r=15, t=50, b=20),
+        height=380,
+        showlegend=False,
+        xaxis=dict(
+            title="Cantidad de Partidos Analizados (N)",
+            titlefont=dict(color="#94a3b8", size=12),
+            tickfont=dict(color="#cbd5e1"),
+            gridcolor="rgba(255, 255, 255, 0.05)",
+            showgrid=True,
+            autorange=True,  # <--- DISMINUYE EL ZOOM AUTOMÁTICAMENTE A MEDIDA QUE AUMENTA N
+            zeroline=False
+        ),
+        yaxis=dict(
+            title="Efectividad (%)",
+            titlefont=dict(color="#94a3b8", size=12),
+            tickfont=dict(color="#cbd5e1"),
+            gridcolor="rgba(255, 255, 255, 0.05)",
+            showgrid=True,
+            range=[0, 105],
+            ticksuffix="%"
+        )
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+    
 # =====================================================================
 # 3. EXTRAER TABLAS, ESCUDOS Y MAPA DE IDs DESDE ESPN
 # =====================================================================
