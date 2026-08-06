@@ -196,51 +196,68 @@ def cargar_modelo_ia():
 
 paquete_ia = cargar_modelo_ia()
 
+import datetime
+import json
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
 # =====================================================================
-# PERSISTENCIA REAL: NUNCA SE REINICIA (GUARDA EN DISCO LOCAL)
+# PERSISTENCIA ETERNA CON GOOGLE SHEETS
 # =====================================================================
-ARCHIVO_HISTORIAL_EFECTIVIDAD = "historial_efectividad.json"
+def obtener_conexion_gsheets():
+    """Autentica contra la API de Google Sheets leyendo st.secrets."""
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        client = gspread.authorize(creds)
+        
+        sheet_url = st.secrets.get("spreadsheet_url", "")
+        if sheet_url and "PEGAR_AQUI" not in sheet_url:
+            return client.open_by_url(sheet_url).sheet1
+        else:
+            return client.open("WinPredictor_Historial").sheet1
+    except Exception as e:
+        st.error(f"Error de conexión con Google Sheets: {e}")
+        return None
 
 def cargar_historial_permanente():
-    """Lee el archivo JSON local. Si la app se reinicia, los datos siguen acá."""
-    if os.path.exists(ARCHIVO_HISTORIAL_EFECTIVIDAD):
-        try:
-            with open(ARCHIVO_HISTORIAL_EFECTIVIDAD, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return []
-    return []
-
-def guardar_historial_permanente(historial):
-    """Escribe los datos permanentemente en el disco del servidor."""
+    """Lee el historial directamente desde la planilla de Google Sheets."""
+    sheet = obtener_conexion_gsheets()
+    if not sheet:
+        return []
     try:
-        with open(ARCHIVO_HISTORIAL_EFECTIVIDAD, "w", encoding="utf-8") as f:
-            json.dump(historial, f, ensure_ascii=False, indent=2)
+        records = sheet.get_all_records()
+        # Mapeamos para mantener compatibilidad de datos
+        historial = []
+        for r in records:
+            historial.append({
+                "id": str(r.get("id", "")),
+                "partido": str(r.get("partido", "")),
+                "prediccion": str(r.get("prediccion", "")),
+                "acerto": str(r.get("acerto", "")).upper() in ["TRUE", "1", "VERDADERO"],
+                "fecha": str(r.get("fecha", ""))
+            })
+        return historial
     except Exception:
-        pass
+        return []
 
 def guardar_resultado_partido(partido, prediccion, acerto, fecha_str=None):
-    """
-    Agrega un partido al historial indestructible.
-    No permite duplicados.
-    """
-    historial = cargar_historial_permanente()
-    id_unico = f"{partido}_{fecha_str}" if fecha_str else partido
-    
-    # Si el partido ya fue guardado previamente, no lo duplicamos
-    if any(h.get("id") == id_unico for h in historial):
+    """Guarda una nueva fila en Google Sheets evitando duplicados."""
+    sheet = obtener_conexion_gsheets()
+    if not sheet:
         return
 
-    historial.append({
-        "id": id_unico,
-        "partido": partido,
-        "prediccion": prediccion,
-        "acerto": bool(acerto),
-        "fecha": fecha_str or datetime.datetime.now().strftime("%Y-%m-%d")
-    })
-    
-    guardar_historial_permanente(historial)
+    fecha = fecha_str or datetime.datetime.now().strftime("%Y-%m-%d")
+    id_unico = f"{partido}_{fecha}"
 
+    # Cargar actual para verificar duplicados
+    historial_actual = cargar_historial_permanente()
+    if any(h.get("id") == id_unico for h in historial_actual):
+        return
+
+    nueva_fila = [id_unico, partido, prediccion, "TRUE" if acerto else "FALSE", fecha]
+    sheet.append_row(nueva_fila)
 # =====================================================================
 # GRÁFICO FACHERO NEÓN CON ZOOM ADAPTATIVO ("ZOOM OUT" AUTOMÁTICO)
 # =====================================================================
