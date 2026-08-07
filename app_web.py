@@ -1047,21 +1047,6 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
 # =====================================================================
 # 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
 # =====================================================================
-col_logo, col_titulo = st.columns([1, 6])
-with col_logo:
-  st.image(
-      "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png",
-      width=80,
-  )
-with col_titulo:
-  st.markdown(
-      '<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True
-  )
-  st.markdown(
-      '<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS'
-      " ESTOCÁSTICO</div>",
-      unsafe_allow_html=True,
-  )
 
 # 📢 AQUÍ SE MUESTRA TU ANUNCIO DE ADSENSE (Debajo del título y arriba del menú)
 mostrar_anuncio_adsense()
