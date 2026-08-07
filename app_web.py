@@ -1047,9 +1047,6 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
 # =====================================================================
 # 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
 # =====================================================================
-# =====================================================================
-# 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
-# =====================================================================
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
   st.image(
