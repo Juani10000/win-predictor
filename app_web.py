@@ -1067,13 +1067,6 @@ with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
     st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
 
-opcion_pantalla = st.radio(
-    "Menú de Navegación:",
-    ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
-    horizontal=True,
-    label_visibility="collapsed"
-)
-
 st.markdown("---")
 
 grupos = obtener_grupos_en_vivo_espn()
