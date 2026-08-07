@@ -1074,6 +1074,7 @@ opcion_pantalla = st.radio(
     ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
     horizontal=True,
     label_visibility="collapsed",
+    key="menu_navegacion_principal"  # <-- AGREGÁ ESTA LÍNEA
 )
 st.markdown("---")
 col_logo, col_titulo = st.columns([1, 6])
