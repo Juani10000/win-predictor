@@ -128,6 +128,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 # =====================================================================
+# SERVIR ADS.TXT EN LA RAÍZ (https://win-predictor-lpf.streamlit.app/ads.txt)
+# =====================================================================
+try:
+    import tornado.web
+    from streamlit.web.server.server import Server
+
+    class AdsTxtHandler(tornado.web.RequestHandler):
+        def get(self):
+            self.set_header("Content-Type", "text/plain")
+            self.write("google.com, pub-6333118178688004, DIRECT, f08c47fec0942fa0")
+
+    server_instance = Server.get_current()
+    if server_instance and hasattr(server_instance, "_tornado_app"):
+        server_instance._tornado_app.add_handlers(r".*", [(r"/ads\.txt", AdsTxtHandler)])
+except Exception:
+    pass
+# =====================================================================
 # FUNCION PARA MOSTRAR ANUNCIO DE ADSENSE
 # =====================================================================
 def mostrar_anuncio_adsense():
