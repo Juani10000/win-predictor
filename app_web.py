@@ -1,15 +1,15 @@
 import datetime
-import hashlib
 import math
 import os
 import re
-import joblib
+import hashlib
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
-import streamlit.components.v1 as components  # <-- AGREGÁ ESTA LÍNEA AQUÍ
+import joblib
+
 # =====================================================================
 # 1. CONFIGURACION Y CSS ESTILO NEON / CORPORATIVO (OPTIMIZADO MÓVIL)
 # =====================================================================
@@ -127,43 +127,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-# =====================================================================
-# SERVIR ADS.TXT EN LA RAÍZ (https://win-predictor-lpf.streamlit.app/ads.txt)
-# =====================================================================
-try:
-    import tornado.web
-    from streamlit.web.server.server import Server
 
-    class AdsTxtHandler(tornado.web.RequestHandler):
-        def get(self):
-            self.set_header("Content-Type", "text/plain")
-            self.write("google.com, pub-6333118178688004, DIRECT, f08c47fec0942fa0")
-
-    server_instance = Server.get_current()
-    if server_instance and hasattr(server_instance, "_tornado_app"):
-        server_instance._tornado_app.add_handlers(r".*", [(r"/ads\.txt", AdsTxtHandler)])
-except Exception:
-    pass
-# =====================================================================
-# FUNCION PARA MOSTRAR ANUNCIO DE ADSENSE
-# =====================================================================
-def mostrar_anuncio_adsense():
-  codigo_adsense = """
-    <div style="text-align: center; margin: 10px 0;">
-        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6333118178688004"
-             crossorigin="anonymous"></script>
-        <ins class="adsbygoogle"
-             style="display:block"
-             data-ad-client="ca-pub-6333118178688004"
-             data-ad-slot="2020973308"
-             data-ad-format="auto"
-             data-full-width-responsive="true"></ins>
-        <script>
-             (adsbygoogle = window.adsbygoogle || []).push({});
-        </script>
-    </div>
-    """
-  components.html(codigo_adsense, height=130)
 # =====================================================================
 # 2. DICCIONARIO DE JERARQUIA DE PLANTELES Y CARGA DE MODELO IA
 # =====================================================================
@@ -232,68 +196,51 @@ def cargar_modelo_ia():
 
 paquete_ia = cargar_modelo_ia()
 
-import datetime
-import json
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-
 # =====================================================================
-# PERSISTENCIA ETERNA CON GOOGLE SHEETS
+# PERSISTENCIA REAL: NUNCA SE REINICIA (GUARDA EN DISCO LOCAL)
 # =====================================================================
-def obtener_conexion_gsheets():
-    """Autentica contra la API de Google Sheets leyendo st.secrets."""
-    try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        
-        sheet_url = st.secrets.get("spreadsheet_url", "")
-        if sheet_url and "PEGAR_AQUI" not in sheet_url:
-            return client.open_by_url(sheet_url).sheet1
-        else:
-            return client.open("WinPredictor_Historial").sheet1
-    except Exception as e:
-        st.error(f"Error de conexión con Google Sheets: {e}")
-        return None
+ARCHIVO_HISTORIAL_EFECTIVIDAD = "historial_efectividad.json"
 
 def cargar_historial_permanente():
-    """Lee el historial directamente desde la planilla de Google Sheets."""
-    sheet = obtener_conexion_gsheets()
-    if not sheet:
-        return []
+    """Lee el archivo JSON local. Si la app se reinicia, los datos siguen acá."""
+    if os.path.exists(ARCHIVO_HISTORIAL_EFECTIVIDAD):
+        try:
+            with open(ARCHIVO_HISTORIAL_EFECTIVIDAD, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def guardar_historial_permanente(historial):
+    """Escribe los datos permanentemente en el disco del servidor."""
     try:
-        records = sheet.get_all_records()
-        # Mapeamos para mantener compatibilidad de datos
-        historial = []
-        for r in records:
-            historial.append({
-                "id": str(r.get("id", "")),
-                "partido": str(r.get("partido", "")),
-                "prediccion": str(r.get("prediccion", "")),
-                "acerto": str(r.get("acerto", "")).upper() in ["TRUE", "1", "VERDADERO"],
-                "fecha": str(r.get("fecha", ""))
-            })
-        return historial
+        with open(ARCHIVO_HISTORIAL_EFECTIVIDAD, "w", encoding="utf-8") as f:
+            json.dump(historial, f, ensure_ascii=False, indent=2)
     except Exception:
-        return []
+        pass
 
 def guardar_resultado_partido(partido, prediccion, acerto, fecha_str=None):
-    """Guarda una nueva fila en Google Sheets evitando duplicados."""
-    sheet = obtener_conexion_gsheets()
-    if not sheet:
+    """
+    Agrega un partido al historial indestructible.
+    No permite duplicados.
+    """
+    historial = cargar_historial_permanente()
+    id_unico = f"{partido}_{fecha_str}" if fecha_str else partido
+    
+    # Si el partido ya fue guardado previamente, no lo duplicamos
+    if any(h.get("id") == id_unico for h in historial):
         return
 
-    fecha = fecha_str or datetime.datetime.now().strftime("%Y-%m-%d")
-    id_unico = f"{partido}_{fecha}"
+    historial.append({
+        "id": id_unico,
+        "partido": partido,
+        "prediccion": prediccion,
+        "acerto": bool(acerto),
+        "fecha": fecha_str or datetime.datetime.now().strftime("%Y-%m-%d")
+    })
+    
+    guardar_historial_permanente(historial)
 
-    # Cargar actual para verificar duplicados
-    historial_actual = cargar_historial_permanente()
-    if any(h.get("id") == id_unico for h in historial_actual):
-        return
-
-    nueva_fila = [id_unico, partido, prediccion, "TRUE" if acerto else "FALSE", fecha]
-    sheet.append_row(nueva_fila)
 # =====================================================================
 # GRÁFICO FACHERO NEÓN CON ZOOM ADAPTATIVO ("ZOOM OUT" AUTOMÁTICO)
 # =====================================================================
@@ -1064,18 +1011,6 @@ def procesar_agente_autonomo(partidos_del_dia, df_datos, paquete_ia, lista_equip
 # =====================================================================
 # 8. ENCABEZADO Y BARRA SUPERIOR DE NAVEGACION PARA CELULAR
 # =====================================================================
-
-# 📢 AQUÍ SE MUESTRA TU ANUNCIO DE ADSENSE (Debajo del título y arriba del menú)
-mostrar_anuncio_adsense()
-
-opcion_pantalla = st.radio(
-    "Menú de Navegación:",
-    ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
-    horizontal=True,
-    label_visibility="collapsed",
-    key="menu_navegacion_principal"  # <-- AGREGÁ ESTA LÍNEA
-)
-st.markdown("---")
 col_logo, col_titulo = st.columns([1, 6])
 with col_logo:
     st.image("https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png", width=80)
@@ -1083,6 +1018,13 @@ with col_logo:
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
     st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
+
+opcion_pantalla = st.radio(
+    "Menú de Navegación:",
+    ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
+    horizontal=True,
+    label_visibility="collapsed"
+)
 
 st.markdown("---")
 
