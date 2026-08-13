@@ -1018,7 +1018,7 @@ with col_logo:
 with col_titulo:
     st.markdown('<div class="neon-title">Win Predictor LPF</div>', unsafe_allow_html=True)
     st.markdown('<div class="tech-sub">PLATAFORMA DE INTELIGENCIA PREDICTIVA & ANÁLISIS ESTOCÁSTICO</div>', unsafe_allow_html=True)
-
+st.caption("⚠️ **Aviso Legal:** Esta aplicación es exclusivamente de análisis estadístico e informativo. No realiza ni facilita apuestas con dinero real ni garantiza resultados deportivos.")
 opcion_pantalla = st.radio(
     "Menú de Navegación:",
     ["Predicciones y Métricas", "Cuotas Justas y Opciones de Valor"],
