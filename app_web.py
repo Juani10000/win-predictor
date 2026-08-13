@@ -3,7 +3,6 @@ import math
 import os
 import re
 import hashlib
-import json  # <--- AGREGAR ESTA LÍNEA OBLIGATORIA
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -49,7 +48,7 @@ st.markdown(
             text-align: left;
             color: #ffffff;
             text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 30px #00f3ff;
-            margin-bottom: 2px;
+            margin-bottom: 5px;
             text-transform: uppercase;
         }
         .tech-sub {
@@ -57,24 +56,78 @@ st.markdown(
             color: #94a3b8;
             letter-spacing: 2px;
             font-size: 13px;
-            margin-bottom: 6px;
+            margin-bottom: 15px;
             font-weight: 600;
         }
-        .disclaimer-banner {
-            text-align: left;
-            color: #64748b;
-            font-size: 11px;
-            line-height: 1.4;
-            margin-bottom: 20px;
-            padding: 8px 12px;
-            background-color: rgba(255, 255, 255, 0.03);
-            border-left: 3px solid #00f3ff;
-            border-radius: 4px;
+        [data-testid="stMetricValue"] {
+            color: #00ffcc !important;
+            font-size: 30px !important;
+            font-weight: 900 !important;
+            text-shadow: 0 0 5px #00ffcc80;
+        }
+        [data-testid="stMetricLabel"] {
+            color: #94a3b8 !important;
+            font-size: 13px !important;
+            text-transform: uppercase;
+        }
+        hr {
+            border-top: 1px solid #1e293b;
+        }
+        /* Estilos para Tarjetas de Goleadores (Móvil) */
+        .player-card {
+            background: linear-gradient(135deg, #0d1527 0%, #111e38 100%);
+            border: 1px solid #00f3ff40;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 243, 255, 0.1);
+            margin-bottom: 12px;
+        }
+        .player-name {
+            font-size: 19px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+        .player-team {
+            font-size: 12px;
+            color: #00ffcc;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        .player-stat {
+            font-size: 28px;
+            font-weight: 900;
+            color: #00f3ff;
+            text-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
+        }
+        .player-sub {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+        /* Estilo para escudos en el duelo de equipos */
+        .team-shield-box {
+            text-align: center;
+            background: #0d1527;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .team-shield-img {
+            max-width: 90px;
+            max-height: 90px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 8px rgba(0,243,255,0.3));
         }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 # =====================================================================
 # 2. DICCIONARIO DE JERARQUIA DE PLANTELES Y CARGA DE MODELO IA
 # =====================================================================
