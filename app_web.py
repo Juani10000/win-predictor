@@ -3,6 +3,7 @@ import math
 import os
 import re
 import hashlib
+import json  # <--- AGREGAR ESTA LÍNEA OBLIGATORIA
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
