@@ -1,12 +1,38 @@
 import datetime
 import os
+import joblib
 import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 
 # =====================================================================
-# 1. CONFIGURACIÓN Y CSS COMPACTO PARA MÓVIL
+# 1. GARANTIZAR MODELO EN PRIMERA EJECUCIÓN
+# =====================================================================
+def asegurar_modelo_existente():
+    """Genera un modelo base si no existe 'modelo_ia_lpf.pkl'."""
+    if not os.path.exists("modelo_ia_lpf.pkl"):
+        X_init = np.array([
+            [1.8, 0.8, 0.5, -0.3, 1.0],
+            [0.9, 1.7, -0.4, 0.5, -0.8],
+            [1.2, 1.1, 0.1, -0.1, 0.1]
+        ])
+        y_init = np.array([1, 2, 0])
+
+        modelo_base = Pipeline([
+            ('scaler', StandardScaler()),
+            ('rf', RandomForestClassifier(n_estimators=10, random_state=42))
+        ])
+        modelo_base.fit(X_init, y_init)
+        joblib.dump(modelo_base, "modelo_ia_lpf.pkl")
+
+asegurar_modelo_existente()
+
+# =====================================================================
+# 2. CONFIGURACIÓN Y CSS COMPACTO PARA MÓVIL
 # =====================================================================
 st.set_page_config(page_title="Win Predictor LPF", layout="centered")
 
@@ -45,7 +71,6 @@ css_mobile_compact = """
         letter-spacing: 1px;
     }
 
-    /* Tarjeta de Partido */
     .match-card {
         background: #161b22;
         border: 1px solid #30363d;
@@ -90,7 +115,6 @@ css_mobile_compact = """
         border-radius: 4px;
     }
 
-    /* Contenedor de la barra unificada */
     .prob-container {
         background-color: #0d1117;
         border-radius: 6px;
@@ -117,7 +141,6 @@ css_mobile_compact = """
         font-weight: 800;
     }
     
-    /* Barra progresiva continua */
     .prob-bar-wrapper {
         display: flex;
         height: 7px;
@@ -130,10 +153,7 @@ css_mobile_compact = """
     .bar-emp { background-color: #cbd5e1; }
     .bar-vis { background-color: #70a1ff; }
 
-    /* Achicar tablas */
-    .dataframe {
-        font-size: 10px !important;
-    }
+    .dataframe { font-size: 10px !important; }
     </style>
 """
 st.markdown(css_mobile_compact, unsafe_allow_html=True)
@@ -141,7 +161,7 @@ st.markdown(css_mobile_compact, unsafe_allow_html=True)
 ESCUDO_DEFAULT = "https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500/1.png"
 
 # =====================================================================
-# 2. CONEXIÓN ESPN EN VIVO
+# 3. CONEXIÓN ESPN EN VIVO
 # =====================================================================
 @st.cache_data(ttl=1800)
 def obtener_tabla_posiciones_espn():
@@ -151,9 +171,7 @@ def obtener_tabla_posiciones_espn():
         r = requests.get(url, timeout=10)
         if r.status_code == 200:
             data = r.json()
-            children = data.get("children", [])
-            if not children and "standings" in data:
-                children = [data]
+            children = data.get("children", []) or [data]
 
             for idx, grupo in enumerate(children):
                 nombre_grupo = grupo.get("name", f"Zona {chr(65 + idx)}")
@@ -234,50 +252,67 @@ def obtener_partidos_hoy(lista_equipos):
     return partidos
 
 # =====================================================================
-# 3. MOTOR DE PREDICCIÓN DINÁMICO E INSTANTÁNEO
+# 4. EXTRACCIÓN SEGURA Y PREDICCIÓN CON MODELO PKL
 # =====================================================================
+def extraer_features_seguras_df(row_loc, row_vis):
+    pj_loc = int(row_loc.get("PJ", 0))
+    pts_loc = float(row_loc.get("Pts", 0))
+    dg_loc = float(row_loc.get("DG", 0))
+
+    pj_vis = int(row_vis.get("PJ", 0))
+    pts_vis = float(row_vis.get("Pts", 0))
+    dg_vis = float(row_vis.get("DG", 0))
+
+    if pj_loc < 3:
+        ppm_loc = (pts_loc + 1.0) / (pj_loc + 1.0)
+        dg_prom_loc = dg_loc / (pj_loc + 1.0)
+    else:
+        ppm_loc = pts_loc / pj_loc
+        dg_prom_loc = dg_loc / pj_loc
+
+    if pj_vis < 3:
+        ppm_vis = (pts_vis + 1.0) / (pj_vis + 1.0)
+        dg_prom_vis = dg_vis / (pj_vis + 1.0)
+    else:
+        ppm_vis = pts_vis / pj_vis
+        dg_prom_vis = dg_vis / pj_vis
+
+    return pd.DataFrame([{
+        "ppm_loc": ppm_loc,
+        "ppm_vis": ppm_vis,
+        "dg_loc": dg_prom_loc,
+        "dg_vis": dg_prom_vis,
+        "dif_ppm": ppm_loc - ppm_vis
+    }])
+
 def predecir_partido_ia(local, visitante, df_unificado):
-    """
-    Calcula probabilidades dinámicas al instante basándose en puntos, 
-    rendimiento relativo, diferencia de gol y ventaja de localía.
-    """
     try:
         row_loc = df_unificado[df_unificado["Equipo"] == local].iloc[0]
         row_vis = df_unificado[df_unificado["Equipo"] == visitante].iloc[0]
 
-        pts_loc = float(row_loc.get("Pts", 0))
-        pj_loc = max(1, int(row_loc.get("PJ", 1)))
-        dg_loc = float(row_loc.get("DG", 0))
+        features = extraer_features_seguras_df(row_loc, row_vis)
 
-        pts_vis = float(row_vis.get("Pts", 0))
-        pj_vis = max(1, int(row_vis.get("PJ", 1)))
-        dg_vis = float(row_vis.get("DG", 0))
+        if os.path.exists("modelo_ia_lpf.pkl"):
+            modelo = joblib.load("modelo_ia_lpf.pkl")
+            probs = modelo.predict_proba(features)[0]
+            clases = list(modelo.classes_)
 
-        # Puntos por partido + Factor Diferencia de gol + Bonus Localia (+0.25 ppm)
-        ppm_loc = (pts_loc / pj_loc) + (dg_loc / (pj_loc * 12.0)) + 0.25
-        ppm_vis = (pts_vis / pj_vis) + (dg_vis / (pj_vis * 12.0))
+            p_loc_raw = probs[clases.index(1)] if 1 in clases else 0.33
+            p_emp_raw = probs[clases.index(0)] if 0 in clases else 0.33
+            p_vis_raw = probs[clases.index(2)] if 2 in clases else 0.33
 
-        dif_fuerza = ppm_loc - ppm_vis
+            p_loc = int(round(p_loc_raw * 100))
+            p_emp = int(round(p_emp_raw * 100))
+            p_vis = 100 - p_loc - p_emp
 
-        # Modelo Sigmoide de Rendimiento
-        prob_loc_raw = 1.0 / (1.0 + np.exp(-1.4 * dif_fuerza))
-        prob_emp_raw = 0.28 * np.exp(-1.3 * (dif_fuerza ** 2)) + 0.12
-        prob_vis_raw = max(0.05, 1.0 - prob_loc_raw - prob_emp_raw)
-
-        total = prob_loc_raw + prob_emp_raw + prob_vis_raw
-
-        p_loc = int(round((prob_loc_raw / total) * 100))
-        p_emp = int(round((prob_emp_raw / total) * 100))
-        p_vis = 100 - p_loc - p_emp
-
-        return p_loc, p_emp, p_vis
+            return p_loc, p_emp, p_vis
     except Exception:
-        # Fallback de seguridad dinámico por equipo (evita repetidos fijos)
-        val_hash = abs(hash(local + visitante)) % 10
-        return 43 + val_hash, 27, 30 - val_hash
+        pass
+
+    return 40, 30, 30
 
 # =====================================================================
-# 4. TARJETA VISUAL COMPACTA
+# 5. TARJETA VISUAL Y VISTA PRINCIPAL
 # =====================================================================
 def renderizar_tarjeta_partido(local, visitante, hora, df_unificado):
     prob_loc, prob_emp, prob_vis = predecir_partido_ia(local, visitante, df_unificado)
@@ -327,9 +362,6 @@ def renderizar_tarjeta_partido(local, visitante, hora, df_unificado):
     """
     st.markdown(html_card, unsafe_allow_html=True)
 
-# =====================================================================
-# 5. VISTA PRINCIPAL
-# =====================================================================
 st.markdown("""
     <div class="mobile-header">
         <div class="mobile-title">Win Predictor LPF</div>
@@ -343,9 +375,6 @@ if grupos:
     df_unificado = pd.concat(grupos.values(), ignore_index=True)
     lista_equipos = sorted(df_unificado["Equipo"].unique())
 
-    # -----------------------------------------------------------------
-    # SECCIÓN: PARTIDOS DE HOY
-    # -----------------------------------------------------------------
     st.markdown("<div style='font-size: 13px; font-weight: 800; color: #00f3ff; margin-bottom: 8px;'>⚽ PARTIDOS DE HOY</div>", unsafe_allow_html=True)
     
     partidos_hoy = obtener_partidos_hoy(lista_equipos)
@@ -364,9 +393,6 @@ if grupos:
         if eq_loc != eq_vis:
             renderizar_tarjeta_partido(eq_loc, eq_vis, "VS", df_unificado)
 
-    # -----------------------------------------------------------------
-    # SECCIÓN: TABLAS DE POSICIONES
-    # -----------------------------------------------------------------
     st.markdown("<div style='font-size: 13px; font-weight: 800; color: #00ffcc; margin-top: 15px; margin-bottom: 8px;'>🏆 TABLA DE POSICIONES</div>", unsafe_allow_html=True)
     
     for nombre_grupo, df_g in grupos.items():
