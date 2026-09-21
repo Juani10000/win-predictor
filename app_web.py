@@ -10,17 +10,17 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 # =====================================================================
-# 1. GARANTIZAR MODELO EN PRIMERA EJECUCIÓN CON REGRESIÓN LOGÍSTICA
+# 1. GARANTIZAR MODELO COMPATIBLE EN PRIMERA EJECUCIÓN
 # =====================================================================
 def asegurar_modelo_existente():
-    """Genera un modelo suave inicial si no existe 'modelo_ia_lpf.pkl'."""
+    """Genera un modelo compatible de 7 variables si aún no existe 'modelo_ia_lpf.pkl'."""
     if not os.path.exists("modelo_ia_lpf.pkl"):
         X_init = np.array([
-            [1.8, 0.8, 0.5, -0.3, 1.0],  # Gana Local
-            [0.9, 1.7, -0.4, 0.5, -0.8], # Gana Visitante
-            [1.2, 1.1, 0.1, -0.1, 0.1],  # Empate
-            [1.5, 1.0, 0.3, -0.2, 0.5],  # Gana Local
-            [1.0, 1.4, -0.2, 0.3, -0.4]  # Gana Visitante
+            [1.8, 0.8, 0.5, -0.3, 2.0, 1.0, 1.0],
+            [0.9, 1.7, -0.4, 0.5, 0.8, 2.1, -0.8],
+            [1.2, 1.1, 0.1, -0.1, 1.2, 1.1, 0.1],
+            [1.5, 1.0, 0.3, -0.2, 1.8, 1.2, 0.5],
+            [1.0, 1.4, -0.2, 0.3, 0.9, 1.7, -0.4]
         ])
         y_init = np.array([1, 2, 0, 1, 2])
 
@@ -254,7 +254,7 @@ def obtener_partidos_hoy(lista_equipos):
     return partidos
 
 # =====================================================================
-# 4. EXTRACCIÓN SEGURA Y PREDICCIÓN CONTINUA / SUAVIZADA
+# 4. EXTRACCIÓN Y PREDICCIÓN AVANZADA CON MODELO MULTITEMPORADA
 # =====================================================================
 def extraer_features_seguras_df(row_loc, row_vis):
     pj_loc = int(row_loc.get("PJ", 0))
@@ -279,11 +279,16 @@ def extraer_features_seguras_df(row_loc, row_vis):
         ppm_vis = pts_vis / pj_vis
         dg_prom_vis = dg_vis / pj_vis
 
+    forma_loc = ppm_loc
+    forma_vis = ppm_vis
+
     return pd.DataFrame([{
         "ppm_loc": ppm_loc,
         "ppm_vis": ppm_vis,
         "dg_loc": dg_prom_loc,
         "dg_vis": dg_prom_vis,
+        "forma_loc": forma_loc,
+        "forma_vis": forma_vis,
         "dif_ppm": ppm_loc - ppm_vis
     }])
 
@@ -303,10 +308,10 @@ def predecir_partido_ia(local, visitante, df_unificado):
             p_emp_raw = probs[clases.index(0)] if 0 in clases else 0.30
             p_vis_raw = probs[clases.index(2)] if 2 in clases else 0.35
 
-            # Suavizado de probabilidades: Mínimo 8% por opción y límite de empates desbordados
+            # Suavizado de probabilidades
             probs_arr = np.array([p_loc_raw, p_emp_raw, p_vis_raw])
-            probs_arr = np.clip(probs_arr, 0.08, 0.65)
-            probs_arr = probs_arr / probs_arr.sum()  # Normalizar a suma de 1.0
+            probs_arr = np.clip(probs_arr, 0.10, 0.65)
+            probs_arr = probs_arr / probs_arr.sum()
 
             p_loc = int(round(probs_arr[0] * 100))
             p_emp = int(round(probs_arr[1] * 100))
