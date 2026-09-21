@@ -2,9 +2,13 @@ name: Auto Aprendizaje IA LPF
 
 on:
   schedule:
-    # Se ejecuta automáticamente todos los días a las 02:00 AM UTC (después de los partidos)
+    # Se ejecuta automáticamente todos los días a las 02:00 AM UTC
     - cron: '0 2 * * *'
-  workflow_dispatch: # Permite ejecutarlo manualmente cuando quieras desde la pestaña Actions
+  workflow_dispatch: # Permite ejecutarlo manualmente desde GitHub
+
+# Otorga permisos de escritura al bot de GitHub Actions para guardar los cambios
+permissions:
+  contents: write
 
 jobs:
   train-and-commit:
@@ -29,6 +33,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
-          git add dataset_historico.csv modelo_ia_lpf.pkl
+          
+          # Agrega los archivos únicamente si fueron generados por train.py
+          if [ -f dataset_historico.csv ]; then git add dataset_historico.csv; fi
+          if [ -f modelo_ia_lpf.pkl ]; then git add modelo_ia_lpf.pkl; fi
+          
           git commit -m "Auto-reentrenamiento de la IA con resultados de la fecha" || exit 0
           git push
