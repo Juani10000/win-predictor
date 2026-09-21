@@ -31,7 +31,7 @@ def obtener_datos_espn():
             equipos[t_id] = {
                 "nombre": nombre,
                 "pts": int(stats.get("points", 0)),
-                "pj": max(1, int(stats.get("gamesPlayed", 1))),
+                "pj": int(stats.get("gamesPlayed", 0)),
                 "dg": int(stats.get("pointsFor", 0)) - int(stats.get("pointsAgainst", 0))
             }
 
@@ -66,16 +66,38 @@ def obtener_datos_espn():
                         })
     return equipos, partidos_finalizados
 
-def extraer_features(loc_info, vis_info):
-    """Genera las variables numéricas que la IA utiliza para predecir."""
-    ppm_loc = loc_info["pts"] / loc_info["pj"]
-    ppm_vis = vis_info["pts"] / vis_info["pj"]
-    
+def extraer_features_seguras(loc_info, vis_info):
+    """
+    Calcula variables aplicando suavizado si el torneo recién empieza (PJ < 3).
+    Evita divisiones por cero o estadísticas distorsionadas en las primeras fechas.
+    """
+    pj_loc = int(loc_info.get("pj", 0))
+    pts_loc = float(loc_info.get("pts", 0))
+    dg_loc = float(loc_info.get("dg", 0))
+
+    pj_vis = int(vis_info.get("pj", 0))
+    pts_vis = float(vis_info.get("pts", 0))
+    dg_vis = float(vis_info.get("dg", 0))
+
+    if pj_loc < 3:
+        ppm_loc = (pts_loc + 1.0) / (pj_loc + 1.0)
+        dg_prom_loc = dg_loc / (pj_loc + 1.0)
+    else:
+        ppm_loc = pts_loc / pj_loc
+        dg_prom_loc = dg_loc / pj_loc
+
+    if pj_vis < 3:
+        ppm_vis = (pts_vis + 1.0) / (pj_vis + 1.0)
+        dg_prom_vis = dg_vis / (pj_vis + 1.0)
+    else:
+        ppm_vis = pts_vis / pj_vis
+        dg_prom_vis = dg_vis / pj_vis
+
     return {
         "ppm_loc": ppm_loc,
         "ppm_vis": ppm_vis,
-        "dg_loc": loc_info["dg"] / loc_info["pj"],
-        "dg_vis": vis_info["dg"] / vis_info["pj"],
+        "dg_loc": dg_prom_loc,
+        "dg_vis": dg_prom_vis,
         "dif_ppm": ppm_loc - ppm_vis
     }
 
@@ -87,7 +109,7 @@ def ejecutar_auto_aprendizaje():
 
     filas = []
     for p in partidos:
-        f = extraer_features(equipos[p["loc_id"]], equipos[p["vis_id"]])
+        f = extraer_features_seguras(equipos[p["loc_id"]], equipos[p["vis_id"]])
         f["id_partido"] = p["id_partido"]
         f["resultado"] = p["resultado"]
         filas.append(f)
