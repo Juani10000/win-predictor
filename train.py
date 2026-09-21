@@ -11,26 +11,27 @@ from sklearn.pipeline import Pipeline
 RUTA_DATASET = "dataset_historico.csv"
 RUTA_MODELO = "modelo_ia_lpf.pkl"
 
-# =====================================================================
-# CALCULO DINÁMICO DE TEMPORADAS (Ventana deslizante de los últimos 5 años)
-# =====================================================================
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
+
 ANIO_ACTUAL = datetime.datetime.now().year
-VENTANA_ANIOS = 5  # Cambia esto si prefieres entrenar con más o menos años
-
-# Genera dinámicamente la lista de años. Ej: en 2045 generará [2041, 2042, 2043, 2044, 2045]
+VENTANA_ANIOS = 5
 TEMPORADAS = list(range(ANIO_ACTUAL - VENTANA_ANIOS + 1, ANIO_ACTUAL + 1))
-
-# Si prefieres conservar TODO desde 2022 hasta el año actual sin borrar años viejos:
-# TEMPORADAS = list(range(2022, ANIO_ACTUAL + 1))
 
 
 def descargar_historial_multitemporada():
     url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
-    r = requests.get(url_tabla, timeout=10)
-    if r.status_code != 200:
+    try:
+        r = requests.get(url_tabla, headers=HEADERS, timeout=10)
+        if r.status_code != 200:
+            print(f"Error ESPN Standings: HTTP {r.status_code}")
+            return []
+        data = r.json()
+    except Exception as e:
+        print(f"Excepción al conectar con ESPN: {e}")
         return []
 
-    data = r.json()
     children = data.get("children", []) or [data]
     team_ids = set()
     for grupo in children:
@@ -46,7 +47,7 @@ def descargar_historial_multitemporada():
         for t_id in team_ids:
             url_sched = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{t_id}/schedule?season={year}"
             try:
-                r_s = requests.get(url_sched, timeout=5)
+                r_s = requests.get(url_sched, headers=HEADERS, timeout=5)
                 if r_s.status_code == 200:
                     for ev in r_s.json().get("events", []):
                         if ev.get("status", {}).get("type", {}).get("completed", False):
@@ -95,7 +96,7 @@ def construir_dataset_cronologico(partidos):
         temp = p["temporada"]
         if temp != temporada_actual:
             temporada_actual = temp
-            stats_equipos = {}  # Reinicia estadísticas al comenzar cada nueva temporada
+            stats_equipos = {}
 
         loc_id = p["loc_id"]
         vis_id = p["vis_id"]
@@ -153,8 +154,7 @@ def construir_dataset_cronologico(partidos):
 def ejecutar_auto_aprendizaje():
     partidos = descargar_historial_multitemporada()
     if not partidos:
-        print("No se encontraron partidos.")
-        return
+        raise RuntimeError("No se pudieron obtener partidos de la API de ESPN. Operación abortada.")
 
     df = construir_dataset_cronologico(partidos)
     df.to_csv(RUTA_DATASET, index=False)
@@ -169,7 +169,7 @@ def ejecutar_auto_aprendizaje():
     modelo.fit(X, y)
 
     joblib.dump(modelo, RUTA_MODELO)
-    print(f"Modelo reentrenado con éxito. Se guardó '{RUTA_MODELO}'.")
+    print(f"Modelo reentrenado con éxito ({len(df)} partidos). Guardado en '{RUTA_MODELO}'.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
