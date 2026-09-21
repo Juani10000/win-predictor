@@ -3,7 +3,7 @@ import os
 import joblib
 import pandas as pd
 import requests
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
@@ -11,7 +11,6 @@ RUTA_DATASET = "dataset_historico.csv"
 RUTA_MODELO = "modelo_ia_lpf.pkl"
 
 def obtener_datos_espn():
-    """Obtiene la tabla actual y el historial de partidos finalizados desde ESPN."""
     url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
     r = requests.get(url_tabla, timeout=10)
     if r.status_code != 200:
@@ -35,7 +34,6 @@ def obtener_datos_espn():
                 "dg": int(stats.get("pointsFor", 0)) - int(stats.get("pointsAgainst", 0))
             }
 
-    # Obtener resultados finalizados
     partidos_finalizados = []
     for t_id in equipos.keys():
         url_sched = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{t_id}/schedule"
@@ -56,7 +54,6 @@ def obtener_datos_espn():
                         g_vis = int(comps[0].get("score", {}).get("value", 0))
 
                     if loc_id in equipos and vis_id in equipos:
-                        # Resultado: 1 = Gana Local, 0 = Empate, 2 = Gana Visitante
                         res = 1 if g_loc > g_vis else (0 if g_loc == g_vis else 2)
                         partidos_finalizados.append({
                             "id_partido": ev.get("id"),
@@ -67,10 +64,6 @@ def obtener_datos_espn():
     return equipos, partidos_finalizados
 
 def extraer_features_seguras(loc_info, vis_info):
-    """
-    Calcula variables aplicando suavizado si el torneo recién empieza (PJ < 3).
-    Evita divisiones por cero o estadísticas distorsionadas en las primeras fechas.
-    """
     pj_loc = int(loc_info.get("pj", 0))
     pts_loc = float(loc_info.get("pts", 0))
     dg_loc = float(loc_info.get("dg", 0))
@@ -116,7 +109,6 @@ def ejecutar_auto_aprendizaje():
 
     df_nuevo = pd.DataFrame(filas).drop_duplicates(subset=["id_partido"])
 
-    # Actualizar Dataset en disco
     if os.path.exists(RUTA_DATASET):
         df_existente = pd.read_csv(RUTA_DATASET)
         df_total = pd.concat([df_existente, df_nuevo]).drop_duplicates(subset=["id_partido"])
@@ -124,21 +116,19 @@ def ejecutar_auto_aprendizaje():
         df_total = df_nuevo
 
     df_total.to_csv(RUTA_DATASET, index=False)
-    print(f"Dataset actualizado con {len(df_total)} partidos reales.")
 
-    # Reentrenar Modelo de Machine Learning
     X = df_total.drop(columns=["id_partido", "resultado"])
     y = df_total["resultado"]
 
+    # Modelo estadístico continuo
     modelo = Pipeline([
         ('scaler', StandardScaler()),
-        ('rf', RandomForestClassifier(n_estimators=100, random_state=42))
+        ('lr', LogisticRegression(max_iter=1000))
     ])
     modelo.fit(X, y)
     
-    # Guardar modelo entrenado
     joblib.dump(modelo, RUTA_MODELO)
-    print("Modelo 'modelo_ia_lpf.pkl' reentrenado y guardado con éxito.")
+    print("Modelo reentrenado con Regresión Logística guardado con éxito.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
