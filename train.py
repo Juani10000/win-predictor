@@ -1,4 +1,3 @@
-import datetime
 import os
 import joblib
 import numpy as np
@@ -11,86 +10,33 @@ from sklearn.pipeline import Pipeline
 RUTA_DATASET = "dataset_historico.csv"
 RUTA_MODELO = "modelo_ia_lpf.pkl"
 
-# Encabezados de navegador completo para evitar bloqueos HTTP 403 en GitHub Actions
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1"
-}
-
-# IDs de respaldo de la LPF en caso de bloqueo HTTP en el endpoint de la tabla de posiciones
-EQUIPOS_LPF_FALLBACK = {
-    "1", "2", "3", "6", "8", "9", "10", "11", "12", "13", "14", "16", "17", "18", 
-    "24", "26", "2524", "3271", "3272", "3593", "5121", "8291", "10849", "10850", 
-    "10851", "19182", "19183", "20630"
-}
-
-ANIO_ACTUAL = datetime.datetime.now().year
-VENTANA_ANIOS = 5
-TEMPORADAS = list(range(ANIO_ACTUAL - VENTANA_ANIOS + 1, ANIO_ACTUAL + 1))
-
-
-def obtener_ids_equipos(session):
-    team_ids = set()
-    
-    # Intento 1: Obtener desde Standings
-    url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
-    try:
-        r = session.get(url_tabla, headers=HEADERS, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            children = data.get("children", []) or [data]
-            for grupo in children:
-                for entry in grupo.get("standings", {}).get("entries", []):
-                    t_id = str(entry.get("team", {}).get("id"))
-                    if t_id:
-                        team_ids.add(t_id)
-        else:
-            print(f"Aviso: Standings respondió HTTP {r.status_code}. Intentando método alternativo...")
-    except Exception as e:
-        print(f"Excepción al conectar con Standings: {e}")
-
-    # Intento 2: Si Standings falló o vino vacío, intentar con el endpoint /teams
-    if not team_ids:
-        url_teams = "https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams"
-        try:
-            r = session.get(url_teams, headers=HEADERS, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
-                sports = data.get("sports", [])
-                if sports:
-                    leagues = sports[0].get("leagues", [])
-                    if leagues:
-                        for tm in leagues[0].get("teams", []):
-                            t_id = str(tm.get("team", {}).get("id"))
-                            if t_id:
-                                team_ids.add(t_id)
-        except Exception as e:
-            print(f"Excepción al conectar con Teams: {e}")
-
-    # Intento 3: Si ambos fallan (403), usar el conjunto de IDs por defecto
-    if not team_ids:
-        print("Usando lista de respaldos de IDs de la Liga Profesional...")
-        team_ids = EQUIPOS_LPF_FALLBACK
-
-    return team_ids
+# Temporadas fijas originales
+TEMPORADAS = [2022, 2023, 2024, 2025, 2026]
 
 
 def descargar_historial_multitemporada():
-    session = requests.Session()
-    team_ids = obtener_ids_equipos(session)
+    url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
+    r = requests.get(url_tabla, timeout=10)
+    if r.status_code != 200:
+        return []
+
+    data = r.json()
+    children = data.get("children", []) or [data]
+    team_ids = set()
+    for grupo in children:
+        for entry in grupo.get("standings", {}).get("entries", []):
+            t_id = str(entry.get("team", {}).get("id"))
+            if t_id:
+                team_ids.add(t_id)
+
     partidos_map = {}
-    
-    print(f"Descargando historial para {len(team_ids)} equipos en las temporadas {TEMPORADAS}...")
+    print(f"Descargando historial para las temporadas {TEMPORADAS}...")
 
     for year in TEMPORADAS:
         for t_id in team_ids:
             url_sched = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{t_id}/schedule?season={year}"
             try:
-                r_s = session.get(url_sched, headers=HEADERS, timeout=7)
+                r_s = requests.get(url_sched, timeout=5)
                 if r_s.status_code == 200:
                     for ev in r_s.json().get("events", []):
                         if ev.get("status", {}).get("type", {}).get("completed", False):
@@ -197,7 +143,8 @@ def construir_dataset_cronologico(partidos):
 def ejecutar_auto_aprendizaje():
     partidos = descargar_historial_multitemporada()
     if not partidos:
-        raise RuntimeError("No se pudieron descargar partidos. Verifica la conectividad de red.")
+        print("No se encontraron partidos.")
+        return
 
     df = construir_dataset_cronologico(partidos)
     df.to_csv(RUTA_DATASET, index=False)
@@ -212,7 +159,7 @@ def ejecutar_auto_aprendizaje():
     modelo.fit(X, y)
 
     joblib.dump(modelo, RUTA_MODELO)
-    print(f"Modelo reentrenado exitosamente con {len(df)} partidos. Guardado en '{RUTA_MODELO}'.")
+    print(f"Modelo reentrenado con éxito. Se guardó '{RUTA_MODELO}'.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
