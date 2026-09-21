@@ -10,11 +10,24 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 # =====================================================================
-# 1. GARANTIZAR MODELO COMPATIBLE EN PRIMERA EJECUCIÓN
+# 1. GARANTIZAR MODELO COMPATIBLE (7 FEATURES)
 # =====================================================================
 def asegurar_modelo_existente():
-    """Genera un modelo compatible de 7 variables si aún no existe 'modelo_ia_lpf.pkl'."""
+    """Verifica y recrea 'modelo_ia_lpf.pkl' si no existe o si es de 5 variables."""
+    necesita_recrear = False
+    
     if not os.path.exists("modelo_ia_lpf.pkl"):
+        necesita_recrear = True
+    else:
+        try:
+            m = joblib.load("modelo_ia_lpf.pkl")
+            # Prueba de control enviando 7 columnas para validar compatibilidad
+            test_x = np.ones((1, 7))
+            m.predict_proba(test_x)
+        except Exception:
+            necesita_recrear = True
+
+    if necesita_recrear:
         X_init = np.array([
             [1.8, 0.8, 0.5, -0.3, 2.0, 1.0, 1.0],
             [0.9, 1.7, -0.4, 0.5, 0.8, 2.1, -0.8],
@@ -226,7 +239,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 @st.cache_data(ttl=1800)
 def obtener_partidos_hoy(lista_equipos):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
+    fecha_hoy_str = me_hoy = ahora_arg.strftime("%Y-%m-%d")
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={ahora_arg.strftime('%Y%m%d')}"
     partidos = []
 
@@ -254,7 +267,7 @@ def obtener_partidos_hoy(lista_equipos):
     return partidos
 
 # =====================================================================
-# 4. EXTRACCIÓN Y PREDICCIÓN AVANZADA CON MODELO MULTITEMPORADA
+# 4. EXTRACCIÓN Y PREDICCIÓN CON MODELO DE 7 VARIABLES
 # =====================================================================
 def extraer_features_seguras_df(row_loc, row_vis):
     pj_loc = int(row_loc.get("PJ", 0))
@@ -321,7 +334,7 @@ def predecir_partido_ia(local, visitante, df_unificado):
     except Exception:
         pass
 
-    return 40, 30, 30
+    return 38, 31, 31
 
 # =====================================================================
 # 5. TARJETA VISUAL Y VISTA PRINCIPAL
