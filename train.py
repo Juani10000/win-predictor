@@ -1,6 +1,7 @@
 import datetime
 import os
 import joblib
+import numpy as np
 import pandas as pd
 import requests
 from sklearn.linear_model import LogisticRegression
@@ -9,126 +10,156 @@ from sklearn.pipeline import Pipeline
 
 RUTA_DATASET = "dataset_historico.csv"
 RUTA_MODELO = "modelo_ia_lpf.pkl"
+TEMPORADAS = [2022, 2023, 2024, 2025, 2026]
 
-def obtener_datos_espn():
+def descargar_historial_multitemporada():
+    """Obtiene todos los partidos completados de múltiples temporadas de la LPF."""
     url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
     r = requests.get(url_tabla, timeout=10)
     if r.status_code != 200:
-        return None, []
-    
+        return []
+
     data = r.json()
     children = data.get("children", []) or [data]
-    
-    equipos = {}
+    team_ids = set()
     for grupo in children:
         for entry in grupo.get("standings", {}).get("entries", []):
-            team = entry.get("team", {})
-            t_id = str(team.get("id"))
-            nombre = team.get("displayName")
-            stats = {s.get("name"): s.get("value", 0) for s in entry.get("stats", [])}
-            
-            equipos[t_id] = {
-                "nombre": nombre,
-                "pts": int(stats.get("points", 0)),
-                "pj": int(stats.get("gamesPlayed", 0)),
-                "dg": int(stats.get("pointsFor", 0)) - int(stats.get("pointsAgainst", 0))
-            }
+            t_id = str(entry.get("team", {}).get("id"))
+            if t_id:
+                team_ids.add(t_id)
 
-    partidos_finalizados = []
-    for t_id in equipos.keys():
-        url_sched = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{t_id}/schedule"
-        r_s = requests.get(url_sched, timeout=5)
-        if r_s.status_code == 200:
-            for ev in r_s.json().get("events", []):
-                if ev.get("status", {}).get("type", {}).get("completed", False):
-                    comps = ev["competitions"][0]["competitors"]
-                    if comps[0].get("homeAway") == "home":
-                        loc_id = str(comps[0].get("team", {}).get("id"))
-                        vis_id = str(comps[1].get("team", {}).get("id"))
-                        g_loc = int(comps[0].get("score", {}).get("value", 0))
-                        g_vis = int(comps[1].get("score", {}).get("value", 0))
-                    else:
-                        loc_id = str(comps[1].get("team", {}).get("id"))
-                        vis_id = str(comps[0].get("team", {}).get("id"))
-                        g_loc = int(comps[1].get("score", {}).get("value", 0))
-                        g_vis = int(comps[0].get("score", {}).get("value", 0))
+    partidos_map = {}
+    print(f"Descargando datos históricos de {len(team_ids)} equipos para temporadas {TEMPORADAS}...")
 
-                    if loc_id in equipos and vis_id in equipos:
-                        res = 1 if g_loc > g_vis else (0 if g_loc == g_vis else 2)
-                        partidos_finalizados.append({
-                            "id_partido": ev.get("id"),
-                            "loc_id": loc_id,
-                            "vis_id": vis_id,
-                            "resultado": res
-                        })
-    return equipos, partidos_finalizados
+    for year in TEMPORADAS:
+        for t_id in team_ids:
+            url_sched = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{t_id}/schedule?season={year}"
+            try:
+                r_s = requests.get(url_sched, timeout=5)
+                if r_s.status_code == 200:
+                    for ev in r_s.json().get("events", []):
+                        if ev.get("status", {}).get("type", {}).get("completed", False):
+                            p_id = str(ev.get("id"))
+                            if p_id in partidos_map:
+                                continue
 
-def extraer_features_seguras(loc_info, vis_info):
-    pj_loc = int(loc_info.get("pj", 0))
-    pts_loc = float(loc_info.get("pts", 0))
-    dg_loc = float(loc_info.get("dg", 0))
+                            fecha_str = ev.get("date")
+                            comps = ev["competitions"][0]["competitors"]
+                            if comps[0].get("homeAway") == "home":
+                                loc_id = str(comps[0].get("team", {}).get("id"))
+                                vis_id = str(comps[1].get("team", {}).get("id"))
+                                g_loc = int(comps[0].get("score", {}).get("value", 0))
+                                g_vis = int(comps[1].get("score", {}).get("value", 0))
+                            else:
+                                loc_id = str(comps[1].get("team", {}).get("id"))
+                                vis_id = str(comps[0].get("team", {}).get("id"))
+                                g_loc = int(comps[1].get("score", {}).get("value", 0))
+                                g_vis = int(comps[0].get("score", {}).get("value", 0))
 
-    pj_vis = int(vis_info.get("pj", 0))
-    pts_vis = float(vis_info.get("pts", 0))
-    dg_vis = float(vis_info.get("dg", 0))
+                            res = 1 if g_loc > g_vis else (0 if g_loc == g_vis else 2)
+                            partidos_map[p_id] = {
+                                "id_partido": p_id,
+                                "fecha": fecha_str,
+                                "temporada": year,
+                                "loc_id": loc_id,
+                                "vis_id": vis_id,
+                                "g_loc": g_loc,
+                                "g_vis": g_vis,
+                                "resultado": res
+                            }
+            except Exception:
+                continue
 
-    if pj_loc < 3:
-        ppm_loc = (pts_loc + 1.0) / (pj_loc + 1.0)
-        dg_prom_loc = dg_loc / (pj_loc + 1.0)
-    else:
-        ppm_loc = pts_loc / pj_loc
-        dg_prom_loc = dg_loc / pj_loc
+    partidos_lista = list(partidos_map.values())
+    partidos_lista.sort(key=lambda x: x["fecha"])
+    return partidos_lista
 
-    if pj_vis < 3:
-        ppm_vis = (pts_vis + 1.0) / (pj_vis + 1.0)
-        dg_prom_vis = dg_vis / (pj_vis + 1.0)
-    else:
-        ppm_vis = pts_vis / pj_vis
-        dg_prom_vis = dg_vis / pj_vis
+def construir_dataset_cronologico(partidos):
+    """Calcula las métricas de rendimiento momento a momento previas a cada partido."""
+    filas = []
+    stats_equipos = {}
+    temporada_actual = None
 
-    return {
-        "ppm_loc": ppm_loc,
-        "ppm_vis": ppm_vis,
-        "dg_loc": dg_prom_loc,
-        "dg_vis": dg_prom_vis,
-        "dif_ppm": ppm_loc - ppm_vis
-    }
+    for p in partidos:
+        temp = p["temporada"]
+        if temp != temporada_actual:
+            temporada_actual = temp
+            stats_equipos = {}  # Reiniciar métricas al inicio de cada torneo
+
+        loc_id = p["loc_id"]
+        vis_id = p["vis_id"]
+
+        for tid in [loc_id, vis_id]:
+            if tid not in stats_equipos:
+                stats_equipos[tid] = {"pj": 0, "pts": 0, "gf": 0, "gc": 0, "ultimos": []}
+
+        st_loc = stats_equipos[loc_id]
+        st_vis = stats_equipos[vis_id]
+
+        pj_l = st_loc["pj"]
+        pj_v = st_vis["pj"]
+
+        ppm_loc = (st_loc["pts"] + 1.0) / (pj_l + 1.0) if pj_l < 3 else st_loc["pts"] / pj_l
+        ppm_vis = (st_vis["pts"] + 1.0) / (pj_v + 1.0) if pj_v < 3 else st_vis["pts"] / pj_v
+
+        dg_loc = (st_loc["gf"] - st_loc["gc"]) / (pj_l + 1.0) if pj_l < 3 else (st_loc["gf"] - st_loc["gc"]) / pj_l
+        dg_vis = (st_vis["gf"] - st_vis["gc"]) / (pj_v + 1.0) if pj_v < 3 else (st_vis["gf"] - st_vis["gc"]) / pj_v
+
+        forma_loc = np.mean(st_loc["ultimos"][-5:]) if st_loc["ultimos"] else ppm_loc
+        forma_vis = np.mean(st_vis["ultimos"][-5:]) if st_vis["ultimos"] else ppm_vis
+
+        filas.append({
+            "id_partido": p["id_partido"],
+            "ppm_loc": ppm_loc,
+            "ppm_vis": ppm_vis,
+            "dg_loc": dg_loc,
+            "dg_vis": dg_vis,
+            "forma_loc": forma_loc,
+            "forma_vis": forma_vis,
+            "dif_ppm": ppm_loc - ppm_vis,
+            "resultado": p["resultado"]
+        })
+
+        # Actualizar acumulados post-partido
+        res = p["resultado"]
+        pts_l = 3 if res == 1 else (1 if res == 0 else 0)
+        pts_v = 3 if res == 2 else (1 if res == 0 else 0)
+
+        st_loc["pj"] += 1
+        st_loc["pts"] += pts_l
+        st_loc["gf"] += p["g_loc"]
+        st_loc["gc"] += p["g_vis"]
+        st_loc["ultimos"].append(pts_l)
+
+        st_vis["pj"] += 1
+        st_vis["pts"] += pts_v
+        st_vis["gf"] += p["g_vis"]
+        st_vis["gc"] += p["g_loc"]
+        st_vis["ultimos"].append(pts_v)
+
+    return pd.DataFrame(filas)
 
 def ejecutar_auto_aprendizaje():
-    equipos, partidos = obtener_datos_espn()
-    if not equipos or not partidos:
-        print("No se pudieron obtener datos de ESPN.")
+    partidos = descargar_historial_multitemporada()
+    if not partidos:
+        print("No se encontraron partidos para entrenar.")
         return
 
-    filas = []
-    for p in partidos:
-        f = extraer_features_seguras(equipos[p["loc_id"]], equipos[p["vis_id"]])
-        f["id_partido"] = p["id_partido"]
-        f["resultado"] = p["resultado"]
-        filas.append(f)
+    df = construir_dataset_cronologico(partidos)
+    df.to_csv(RUTA_DATASET, index=False)
+    print(f"Dataset histórico generado con {len(df)} partidos entrenables.")
 
-    df_nuevo = pd.DataFrame(filas).drop_duplicates(subset=["id_partido"])
+    X = df[["ppm_loc", "ppm_vis", "dg_loc", "dg_vis", "forma_loc", "forma_vis", "dif_ppm"]]
+    y = df["resultado"]
 
-    if os.path.exists(RUTA_DATASET):
-        df_existente = pd.read_csv(RUTA_DATASET)
-        df_total = pd.concat([df_existente, df_nuevo]).drop_duplicates(subset=["id_partido"])
-    else:
-        df_total = df_nuevo
-
-    df_total.to_csv(RUTA_DATASET, index=False)
-
-    X = df_total.drop(columns=["id_partido", "resultado"])
-    y = df_total["resultado"]
-
-    # Modelo estadístico continuo
     modelo = Pipeline([
         ('scaler', StandardScaler()),
-        ('lr', LogisticRegression(max_iter=1000))
+        ('lr', LogisticRegression(C=0.5, max_iter=1000, class_weight='balanced'))
     ])
     modelo.fit(X, y)
-    
+
     joblib.dump(modelo, RUTA_MODELO)
-    print("Modelo reentrenado con Regresión Logística guardado con éxito.")
+    print("Modelo de IA multitemporada entrenado y guardado exitosamente.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
