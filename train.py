@@ -81,6 +81,15 @@ def descargar_historial_multitemporada():
     return partidos_lista
 
 
+def calcular_forma_ponderada(ultimos, ppm_fallback):
+    """Calcula la forma dando más peso a los partidos más recientes."""
+    if not ultimos:
+        return ppm_fallback
+    sub_u = ultimos[-5:]
+    pesos = np.arange(1, len(sub_u) + 1)
+    return float(np.average(sub_u, weights=pesos))
+
+
 def construir_dataset_cronologico(partidos):
     filas = []
     stats_equipos = {}
@@ -88,9 +97,34 @@ def construir_dataset_cronologico(partidos):
 
     for p in partidos:
         temp = p["temporada"]
+
+        # MEJORA: Transición suave de temporada (no reiniciar a cero absoluto)
         if temp != temporada_actual:
+            if temporada_actual is not None:
+                for tid, st in stats_equipos.items():
+                    pj = max(st["pj_tot"], 1)
+                    pj_l = max(st["pj_loc"], 1)
+                    pj_v = max(st["pj_vis"], 1)
+
+                    ppm = st["pts_tot"] / pj
+                    gf_p = st["gf_tot"] / pj
+                    gc_p = st["gc_tot"] / pj
+                    ppm_l = st["pts_loc"] / pj_l
+                    ppm_v = st["pts_vis"] / pj_v
+
+                    # Se conserva como inercia el equivalente a 3 partidos jugados con el promedio previo
+                    stats_equipos[tid] = {
+                        "pj_tot": 3,
+                        "pts_tot": ppm * 3,
+                        "gf_tot": gf_p * 3,
+                        "gc_tot": gc_p * 3,
+                        "pj_loc": 2,
+                        "pts_loc": ppm_l * 2,
+                        "pj_vis": 2,
+                        "pts_vis": ppm_v * 2,
+                        "ultimos": st["ultimos"][-3:] if st["ultimos"] else []
+                    }
             temporada_actual = temp
-            stats_equipos = {}
 
         loc_id = p["loc_id"]
         vis_id = p["vis_id"]
@@ -117,17 +151,18 @@ def construir_dataset_cronologico(partidos):
         dg_loc = (st_loc["gf_tot"] - st_loc["gc_tot"]) / (pj_l + 1.0) if pj_l < 3 else (st_loc["gf_tot"] - st_loc["gc_tot"]) / pj_l
         dg_vis = (st_vis["gf_tot"] - st_vis["gc_tot"]) / (pj_v + 1.0) if pj_v < 3 else (st_vis["gf_tot"] - st_vis["gc_tot"]) / pj_v
 
-        forma_loc = np.mean(st_loc["ultimos"][-5:]) if st_loc["ultimos"] else ppm_loc
-        forma_vis = np.mean(st_vis["ultimos"][-5:]) if st_vis["ultimos"] else ppm_vis
+        # Forma Ponderada por Recencia
+        forma_loc = calcular_forma_ponderada(st_loc["ultimos"], ppm_loc)
+        forma_vis = calcular_forma_ponderada(st_vis["ultimos"], ppm_vis)
 
-        # Métricas Específicas: Rendimiento de Local para el local, Rendimiento de Visitante para el visitante
+        # Métricas Específicas: Local de local, Visitante de visitante
         pj_loc_cancha = st_loc["pj_loc"]
         pj_vis_cancha = st_vis["pj_vis"]
 
         ppm_loc_cancha = (st_loc["pts_loc"] + 1.0) / (pj_loc_cancha + 1.0) if pj_loc_cancha < 2 else st_loc["pts_loc"] / pj_loc_cancha
         ppm_vis_cancha = (st_vis["pts_vis"] + 1.0) / (pj_vis_cancha + 1.0) if pj_vis_cancha < 2 else st_vis["pts_vis"] / pj_vis_cancha
 
-        # Guardar en el Dataset con Diferencias Directas
+        # Dataset con Diferencias Directas
         filas.append({
             "id_partido": p["id_partido"],
             "ppm_loc": ppm_loc,
@@ -179,7 +214,6 @@ def ejecutar_auto_aprendizaje():
     df = construir_dataset_cronologico(partidos)
     df.to_csv(RUTA_DATASET, index=False)
 
-    # Columnas de entrenamiento mejoradas
     columnas_features = [
         "ppm_loc", "ppm_vis",
         "ppm_loc_cancha", "ppm_vis_cancha",
@@ -191,7 +225,7 @@ def ejecutar_auto_aprendizaje():
     X = df[columnas_features]
     y = df["resultado"]
 
-    # Modelo basado en Árboles de Decisión Potenciados (Mucho más preciso para fútbol)
+    # Árboles de decisión potenciados con regularización
     modelo = HistGradientBoostingClassifier(
         max_iter=150,
         learning_rate=0.03,
@@ -200,11 +234,11 @@ def ejecutar_auto_aprendizaje():
         class_weight='balanced',
         random_state=42
     )
-    
+
     modelo.fit(X, y)
 
     joblib.dump(modelo, RUTA_MODELO)
-    print(f"Modelo reentrenado con éxito. Se procesaron {len(df)} partidos y se guardó en '{RUTA_MODELO}'.")
+    print(f"Modelo reentrenado con éxito en tu máquina. Se procesaron {len(df)} partidos y se guardó '{RUTA_MODELO}'.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
