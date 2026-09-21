@@ -5,26 +5,28 @@ import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 # =====================================================================
-# 1. GARANTIZAR MODELO EN PRIMERA EJECUCIÓN
+# 1. GARANTIZAR MODELO EN PRIMERA EJECUCIÓN CON REGRESIÓN LOGÍSTICA
 # =====================================================================
 def asegurar_modelo_existente():
-    """Genera un modelo base si no existe 'modelo_ia_lpf.pkl'."""
+    """Genera un modelo suave inicial si no existe 'modelo_ia_lpf.pkl'."""
     if not os.path.exists("modelo_ia_lpf.pkl"):
         X_init = np.array([
-            [1.8, 0.8, 0.5, -0.3, 1.0],
-            [0.9, 1.7, -0.4, 0.5, -0.8],
-            [1.2, 1.1, 0.1, -0.1, 0.1]
+            [1.8, 0.8, 0.5, -0.3, 1.0],  # Gana Local
+            [0.9, 1.7, -0.4, 0.5, -0.8], # Gana Visitante
+            [1.2, 1.1, 0.1, -0.1, 0.1],  # Empate
+            [1.5, 1.0, 0.3, -0.2, 0.5],  # Gana Local
+            [1.0, 1.4, -0.2, 0.3, -0.4]  # Gana Visitante
         ])
-        y_init = np.array([1, 2, 0])
+        y_init = np.array([1, 2, 0, 1, 2])
 
         modelo_base = Pipeline([
             ('scaler', StandardScaler()),
-            ('rf', RandomForestClassifier(n_estimators=10, random_state=42))
+            ('lr', LogisticRegression())
         ])
         modelo_base.fit(X_init, y_init)
         joblib.dump(modelo_base, "modelo_ia_lpf.pkl")
@@ -252,7 +254,7 @@ def obtener_partidos_hoy(lista_equipos):
     return partidos
 
 # =====================================================================
-# 4. EXTRACCIÓN SEGURA Y PREDICCIÓN CON MODELO PKL
+# 4. EXTRACCIÓN SEGURA Y PREDICCIÓN CONTINUA / SUAVIZADA
 # =====================================================================
 def extraer_features_seguras_df(row_loc, row_vis):
     pj_loc = int(row_loc.get("PJ", 0))
@@ -297,12 +299,17 @@ def predecir_partido_ia(local, visitante, df_unificado):
             probs = modelo.predict_proba(features)[0]
             clases = list(modelo.classes_)
 
-            p_loc_raw = probs[clases.index(1)] if 1 in clases else 0.33
-            p_emp_raw = probs[clases.index(0)] if 0 in clases else 0.33
-            p_vis_raw = probs[clases.index(2)] if 2 in clases else 0.33
+            p_loc_raw = probs[clases.index(1)] if 1 in clases else 0.35
+            p_emp_raw = probs[clases.index(0)] if 0 in clases else 0.30
+            p_vis_raw = probs[clases.index(2)] if 2 in clases else 0.35
 
-            p_loc = int(round(p_loc_raw * 100))
-            p_emp = int(round(p_emp_raw * 100))
+            # Suavizado de probabilidades: Mínimo 8% por opción y límite de empates desbordados
+            probs_arr = np.array([p_loc_raw, p_emp_raw, p_vis_raw])
+            probs_arr = np.clip(probs_arr, 0.08, 0.65)
+            probs_arr = probs_arr / probs_arr.sum()  # Normalizar a suma de 1.0
+
+            p_loc = int(round(probs_arr[0] * 100))
+            p_emp = int(round(probs_arr[1] * 100))
             p_vis = 100 - p_loc - p_emp
 
             return p_loc, p_emp, p_vis
