@@ -1,26 +1,31 @@
+import datetime
 import os
 import joblib
 import numpy as np
 import pandas as pd
 import requests
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
+from sklearn.ensemble import HistGradientBoostingClassifier
 
 RUTA_DATASET = "dataset_historico.csv"
 RUTA_MODELO = "modelo_ia_lpf.pkl"
 
-# Temporadas fijas originales
-TEMPORADAS = [2022, 2023, 2024, 2025, 2026]
+# Años a entrenar (se calculan automáticamente según el año actual)
+ANIO_ACTUAL = datetime.datetime.now().year
+TEMPORADAS = list(range(2022, ANIO_ACTUAL + 1))
 
 
 def descargar_historial_multitemporada():
     url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
-    r = requests.get(url_tabla, timeout=10)
-    if r.status_code != 200:
+    try:
+        r = requests.get(url_tabla, timeout=10)
+        if r.status_code != 200:
+            print("Error al conectar con ESPN.")
+            return []
+        data = r.json()
+    except Exception as e:
+        print(f"Error de red: {e}")
         return []
 
-    data = r.json()
     children = data.get("children", []) or [data]
     team_ids = set()
     for grupo in children:
@@ -92,49 +97,74 @@ def construir_dataset_cronologico(partidos):
 
         for tid in [loc_id, vis_id]:
             if tid not in stats_equipos:
-                stats_equipos[tid] = {"pj": 0, "pts": 0, "gf": 0, "gc": 0, "ultimos": []}
+                stats_equipos[tid] = {
+                    "pj_tot": 0, "pts_tot": 0, "gf_tot": 0, "gc_tot": 0,
+                    "pj_loc": 0, "pts_loc": 0,
+                    "pj_vis": 0, "pts_vis": 0,
+                    "ultimos": []
+                }
 
         st_loc = stats_equipos[loc_id]
         st_vis = stats_equipos[vis_id]
 
-        pj_l = st_loc["pj"]
-        pj_v = st_vis["pj"]
+        # Métricas Generales
+        pj_l = st_loc["pj_tot"]
+        pj_v = st_vis["pj_tot"]
 
-        ppm_loc = (st_loc["pts"] + 1.0) / (pj_l + 1.0) if pj_l < 3 else st_loc["pts"] / pj_l
-        ppm_vis = (st_vis["pts"] + 1.0) / (pj_v + 1.0) if pj_v < 3 else st_vis["pts"] / pj_v
+        ppm_loc = (st_loc["pts_tot"] + 1.0) / (pj_l + 1.0) if pj_l < 3 else st_loc["pts_tot"] / pj_l
+        ppm_vis = (st_vis["pts_tot"] + 1.0) / (pj_v + 1.0) if pj_v < 3 else st_vis["pts_tot"] / pj_v
 
-        dg_loc = (st_loc["gf"] - st_loc["gc"]) / (pj_l + 1.0) if pj_l < 3 else (st_loc["gf"] - st_loc["gc"]) / pj_l
-        dg_vis = (st_vis["gf"] - st_vis["gc"]) / (pj_v + 1.0) if pj_v < 3 else (st_vis["gf"] - st_vis["gc"]) / pj_v
+        dg_loc = (st_loc["gf_tot"] - st_loc["gc_tot"]) / (pj_l + 1.0) if pj_l < 3 else (st_loc["gf_tot"] - st_loc["gc_tot"]) / pj_l
+        dg_vis = (st_vis["gf_tot"] - st_vis["gc_tot"]) / (pj_v + 1.0) if pj_v < 3 else (st_vis["gf_tot"] - st_vis["gc_tot"]) / pj_v
 
         forma_loc = np.mean(st_loc["ultimos"][-5:]) if st_loc["ultimos"] else ppm_loc
         forma_vis = np.mean(st_vis["ultimos"][-5:]) if st_vis["ultimos"] else ppm_vis
 
+        # Métricas Específicas: Rendimiento de Local para el local, Rendimiento de Visitante para el visitante
+        pj_loc_cancha = st_loc["pj_loc"]
+        pj_vis_cancha = st_vis["pj_vis"]
+
+        ppm_loc_cancha = (st_loc["pts_loc"] + 1.0) / (pj_loc_cancha + 1.0) if pj_loc_cancha < 2 else st_loc["pts_loc"] / pj_loc_cancha
+        ppm_vis_cancha = (st_vis["pts_vis"] + 1.0) / (pj_vis_cancha + 1.0) if pj_vis_cancha < 2 else st_vis["pts_vis"] / pj_vis_cancha
+
+        # Guardar en el Dataset con Diferencias Directas
         filas.append({
             "id_partido": p["id_partido"],
             "ppm_loc": ppm_loc,
             "ppm_vis": ppm_vis,
+            "ppm_loc_cancha": ppm_loc_cancha,
+            "ppm_vis_cancha": ppm_vis_cancha,
             "dg_loc": dg_loc,
             "dg_vis": dg_vis,
             "forma_loc": forma_loc,
             "forma_vis": forma_vis,
             "dif_ppm": ppm_loc - ppm_vis,
+            "dif_dg": dg_loc - dg_vis,
+            "dif_forma": forma_loc - forma_vis,
             "resultado": p["resultado"]
         })
 
+        # Actualizar acumulados
         res = p["resultado"]
         pts_l = 3 if res == 1 else (1 if res == 0 else 0)
         pts_v = 3 if res == 2 else (1 if res == 0 else 0)
 
-        st_loc["pj"] += 1
-        st_loc["pts"] += pts_l
-        st_loc["gf"] += p["g_loc"]
-        st_loc["gc"] += p["g_vis"]
+        # Totales Local
+        st_loc["pj_tot"] += 1
+        st_loc["pts_tot"] += pts_l
+        st_loc["gf_tot"] += p["g_loc"]
+        st_loc["gc_tot"] += p["g_vis"]
+        st_loc["pj_loc"] += 1
+        st_loc["pts_loc"] += pts_l
         st_loc["ultimos"].append(pts_l)
 
-        st_vis["pj"] += 1
-        st_vis["pts"] += pts_v
-        st_vis["gf"] += p["g_vis"]
-        st_vis["gc"] += p["g_loc"]
+        # Totales Visitante
+        st_vis["pj_tot"] += 1
+        st_vis["pts_tot"] += pts_v
+        st_vis["gf_tot"] += p["g_vis"]
+        st_vis["gc_tot"] += p["g_loc"]
+        st_vis["pj_vis"] += 1
+        st_vis["pts_vis"] += pts_v
         st_vis["ultimos"].append(pts_v)
 
     return pd.DataFrame(filas)
@@ -149,17 +179,32 @@ def ejecutar_auto_aprendizaje():
     df = construir_dataset_cronologico(partidos)
     df.to_csv(RUTA_DATASET, index=False)
 
-    X = df[["ppm_loc", "ppm_vis", "dg_loc", "dg_vis", "forma_loc", "forma_vis", "dif_ppm"]]
+    # Columnas de entrenamiento mejoradas
+    columnas_features = [
+        "ppm_loc", "ppm_vis",
+        "ppm_loc_cancha", "ppm_vis_cancha",
+        "dg_loc", "dg_vis",
+        "forma_loc", "forma_vis",
+        "dif_ppm", "dif_dg", "dif_forma"
+    ]
+
+    X = df[columnas_features]
     y = df["resultado"]
 
-    modelo = Pipeline([
-        ('scaler', StandardScaler()),
-        ('lr', LogisticRegression(C=0.5, max_iter=1000, class_weight='balanced'))
-    ])
+    # Modelo basado en Árboles de Decisión Potenciados (Mucho más preciso para fútbol)
+    modelo = HistGradientBoostingClassifier(
+        max_iter=150,
+        learning_rate=0.03,
+        max_depth=4,
+        l2_regularization=1.5,
+        class_weight='balanced',
+        random_state=42
+    )
+    
     modelo.fit(X, y)
 
     joblib.dump(modelo, RUTA_MODELO)
-    print(f"Modelo reentrenado con éxito. Se guardó '{RUTA_MODELO}'.")
+    print(f"Modelo reentrenado con éxito. Se procesaron {len(df)} partidos y se guardó en '{RUTA_MODELO}'.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
