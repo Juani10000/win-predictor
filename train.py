@@ -10,28 +10,15 @@ from sklearn.pipeline import Pipeline
 
 RUTA_DATASET = "dataset_historico.csv"
 RUTA_MODELO = "modelo_ia_lpf.pkl"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
-
-ANIO_ACTUAL = datetime.datetime.now().year
-VENTANA_ANIOS = 5
-TEMPORADAS = list(range(ANIO_ACTUAL - VENTANA_ANIOS + 1, ANIO_ACTUAL + 1))
-
+TEMPORADAS = [2022, 2023, 2024, 2025, 2026]
 
 def descargar_historial_multitemporada():
     url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
-    try:
-        r = requests.get(url_tabla, headers=HEADERS, timeout=10)
-        if r.status_code != 200:
-            print(f"Error ESPN Standings: HTTP {r.status_code}")
-            return []
-        data = r.json()
-    except Exception as e:
-        print(f"Excepción al conectar con ESPN: {e}")
+    r = requests.get(url_tabla, timeout=10)
+    if r.status_code != 200:
         return []
 
+    data = r.json()
     children = data.get("children", []) or [data]
     team_ids = set()
     for grupo in children:
@@ -41,13 +28,13 @@ def descargar_historial_multitemporada():
                 team_ids.add(t_id)
 
     partidos_map = {}
-    print(f"Descargando historial para las temporadas {TEMPORADAS}...")
+    print(f"Descargando historial de {len(team_ids)} equipos...")
 
     for year in TEMPORADAS:
         for t_id in team_ids:
             url_sched = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/teams/{t_id}/schedule?season={year}"
             try:
-                r_s = requests.get(url_sched, headers=HEADERS, timeout=5)
+                r_s = requests.get(url_sched, timeout=5)
                 if r_s.status_code == 200:
                     for ev in r_s.json().get("events", []):
                         if ev.get("status", {}).get("type", {}).get("completed", False):
@@ -85,7 +72,6 @@ def descargar_historial_multitemporada():
     partidos_lista = list(partidos_map.values())
     partidos_lista.sort(key=lambda x: x["fecha"])
     return partidos_lista
-
 
 def construir_dataset_cronologico(partidos):
     filas = []
@@ -150,11 +136,11 @@ def construir_dataset_cronologico(partidos):
 
     return pd.DataFrame(filas)
 
-
 def ejecutar_auto_aprendizaje():
     partidos = descargar_historial_multitemporada()
     if not partidos:
-        raise RuntimeError("No se pudieron obtener partidos de la API de ESPN. Operación abortada.")
+        print("No se encontraron partidos.")
+        return
 
     df = construir_dataset_cronologico(partidos)
     df.to_csv(RUTA_DATASET, index=False)
@@ -169,7 +155,7 @@ def ejecutar_auto_aprendizaje():
     modelo.fit(X, y)
 
     joblib.dump(modelo, RUTA_MODELO)
-    print(f"Modelo reentrenado con éxito ({len(df)} partidos). Guardado en '{RUTA_MODELO}'.")
+    print("Modelo entrenado y guardado correctamente.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
