@@ -10,26 +10,38 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 # =====================================================================
-# 1. GARANTIZAR MODELO COMPATIBLE (11 FEATURES)
+# 1. GARANTIZAR MODELO COMPATIBLE (14 FEATURES + ELO)
 # =====================================================================
+def cargar_modelo_y_elos():
+    """Carga el modelo y el diccionario de Elos desde el pkl de forma segura."""
+    if os.path.exists("modelo_ia_lpf.pkl"):
+        try:
+            data = joblib.load("modelo_ia_lpf.pkl")
+            if isinstance(data, dict):
+                return data.get("modelo"), data.get("elos", {})
+            else:
+                return data, {}
+        except Exception:
+            pass
+    return None, {}
+
 def asegurar_modelo_existente():
-    """Verifica y recrea 'modelo_ia_lpf.pkl' si no existe o si no coincide la dimensión de 11 variables."""
+    """Verifica y recrea 'modelo_ia_lpf.pkl' si no existe o si no coincide la dimensión de 14 variables."""
+    modelo, elos = cargar_modelo_y_elos()
     necesita_recrear = False
-    
-    if not os.path.exists("modelo_ia_lpf.pkl"):
+
+    if modelo is None:
         necesita_recrear = True
     else:
         try:
-            m = joblib.load("modelo_ia_lpf.pkl")
-            # Prueba de control enviando 11 columnas para validar compatibilidad con train.py
-            test_x = np.ones((1, 11))
-            m.predict_proba(test_x)
+            # Prueba de control enviando 14 columnas para validar compatibilidad
+            test_x = np.ones((1, 14))
+            modelo.predict_proba(test_x)
         except Exception:
             necesita_recrear = True
 
     if necesita_recrear:
-        # Dataset dummy inicial con 11 variables para evitar fallos si no se ha ejecutado train.py
-        X_init = np.random.randn(10, 11)
+        X_init = np.random.randn(10, 14)
         y_init = np.array([1, 2, 0, 1, 2, 1, 0, 2, 1, 0])
 
         modelo_base = Pipeline([
@@ -37,7 +49,8 @@ def asegurar_modelo_existente():
             ('lr', LogisticRegression())
         ])
         modelo_base.fit(X_init, y_init)
-        joblib.dump(modelo_base, "modelo_ia_lpf.pkl")
+
+        joblib.dump({"modelo": modelo_base, "elos": {}}, "modelo_ia_lpf.pkl")
 
 asegurar_modelo_existente()
 
@@ -191,7 +204,7 @@ def obtener_tabla_posiciones_espn():
                 for entry in entries:
                     team_info = entry.get("team", {})
                     nombre = team_info.get("displayName", "")
-                    team_id = team_info.get("id", "")
+                    team_id = str(team_info.get("id", ""))
                     logos = team_info.get("logos", [])
                     logo_url = logos[0].get("href", ESCUDO_DEFAULT) if logos else ESCUDO_DEFAULT
 
@@ -262,31 +275,35 @@ def obtener_partidos_hoy(lista_equipos):
     return partidos
 
 # =====================================================================
-# 4. EXTRACCIÓN Y PREDICCIÓN CON MODELO DE 11 VARIABLES
+# 4. EXTRACCIÓN Y PREDICCIÓN CON MODELO DE 14 VARIABLES + ELO
 # =====================================================================
-def extraer_features_seguras_df(row_loc, row_vis):
+def extraer_features_seguras_df(row_loc, row_vis, elos_dict):
     pj_loc = float(row_loc.get("PJ", 0))
     pts_loc = float(row_loc.get("Pts", 0))
     dg_loc_tot = float(row_loc.get("DG", 0))
+    id_loc = str(row_loc.get("ID_ESPN", ""))
 
     pj_vis = float(row_vis.get("PJ", 0))
     pts_vis = float(row_vis.get("Pts", 0))
     dg_vis_tot = float(row_vis.get("DG", 0))
+    id_vis = str(row_vis.get("ID_ESPN", ""))
 
-    # Métricas y promedios por partido
     ppm_loc = (pts_loc + 1.0) / (pj_loc + 1.0) if pj_loc < 3 else pts_loc / pj_loc
     ppm_vis = (pts_vis + 1.0) / (pj_vis + 1.0) if pj_vis < 3 else pts_vis / pj_vis
 
     dg_loc = dg_loc_tot / (pj_loc + 1.0) if pj_loc < 3 else dg_loc_tot / pj_loc
     dg_vis = dg_vis_tot / (pj_vis + 1.0) if pj_vis < 3 else dg_vis_tot / pj_vis
 
-    # Estimación de rendimiento según cancha y estado de forma
     ppm_loc_cancha = ppm_loc * 1.15
     ppm_vis_cancha = ppm_vis * 0.85
     forma_loc = ppm_loc
     forma_vis = ppm_vis
 
-    # Retorna exactamente las 11 variables que espera el ensamble de train.py
+    # Obtención de Elo guardado por el entrenamiento o 1500.0 por defecto
+    elo_loc = float(elos_dict.get(id_loc, 1500.0))
+    elo_vis = float(elos_dict.get(id_vis, 1500.0))
+    dif_elo = (elo_loc + 60.0) - elo_vis
+
     return pd.DataFrame([{
         "ppm_loc": ppm_loc,
         "ppm_vis": ppm_vis,
@@ -298,7 +315,10 @@ def extraer_features_seguras_df(row_loc, row_vis):
         "forma_vis": forma_vis,
         "dif_ppm": ppm_loc - ppm_vis,
         "dif_dg": dg_loc - dg_vis,
-        "dif_forma": forma_loc - forma_vis
+        "dif_forma": forma_loc - forma_vis,
+        "elo_loc": elo_loc,
+        "elo_vis": elo_vis,
+        "dif_elo": dif_elo
     }])
 
 def predecir_partido_ia(local, visitante, df_unificado):
@@ -306,10 +326,10 @@ def predecir_partido_ia(local, visitante, df_unificado):
         row_loc = df_unificado[df_unificado["Equipo"] == local].iloc[0]
         row_vis = df_unificado[df_unificado["Equipo"] == visitante].iloc[0]
 
-        features = extraer_features_seguras_df(row_loc, row_vis)
+        modelo, elos_dict = cargar_modelo_y_elos()
 
-        if os.path.exists("modelo_ia_lpf.pkl"):
-            modelo = joblib.load("modelo_ia_lpf.pkl")
+        if modelo is not None:
+            features = extraer_features_seguras_df(row_loc, row_vis, elos_dict)
             probs = modelo.predict_proba(features)[0]
             clases = list(modelo.classes_)
 
@@ -317,7 +337,6 @@ def predecir_partido_ia(local, visitante, df_unificado):
             p_emp_raw = probs[clases.index(0)] if 0 in clases else 0.30
             p_vis_raw = probs[clases.index(2)] if 2 in clases else 0.35
 
-            # Normalización directa sin truncamiento artificial
             total = p_loc_raw + p_emp_raw + p_vis_raw
             p_loc = int(round((p_loc_raw / total) * 100))
             p_emp = int(round((p_emp_raw / total) * 100))
