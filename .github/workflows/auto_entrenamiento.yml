@@ -1,0 +1,34 @@
+name: Auto Aprendizaje IA LPF
+
+on:
+  schedule:
+    # Se ejecuta automáticamente todos los días a las 02:00 AM UTC (después de los partidos)
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Permite ejecutarlo manualmente cuando quieras desde la pestaña Actions
+
+jobs:
+  train-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar Repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar Dependencias
+        run: |
+          pip install pandas numpy scikit-learn requests joblib
+
+      - name: Ejecutar Auto-Aprendizaje
+        run: python train.py
+
+      - name: Guardar Cambios del Modelo y Dataset
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          git add dataset_historico.csv modelo_ia_lpf.pkl
+          git commit -m "Auto-reentrenamiento de la IA con resultados de la fecha" || exit 0
+          git push
