@@ -4,12 +4,17 @@ import joblib
 import numpy as np
 import pandas as pd
 import requests
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.ensemble import (
+    HistGradientBoostingClassifier,
+    RandomForestClassifier,
+    ExtraTreesClassifier,
+    VotingClassifier
+)
 
 RUTA_DATASET = "dataset_historico.csv"
 RUTA_MODELO = "modelo_ia_lpf.pkl"
 
-# Años a entrenar (se calculan automáticamente según el año actual)
+# Años a entrenar
 ANIO_ACTUAL = datetime.datetime.now().year
 TEMPORADAS = list(range(2022, ANIO_ACTUAL + 1))
 
@@ -82,7 +87,6 @@ def descargar_historial_multitemporada():
 
 
 def calcular_forma_ponderada(ultimos, ppm_fallback):
-    """Calcula la forma dando más peso a los partidos más recientes."""
     if not ultimos:
         return ppm_fallback
     sub_u = ultimos[-5:]
@@ -98,7 +102,7 @@ def construir_dataset_cronologico(partidos):
     for p in partidos:
         temp = p["temporada"]
 
-        # MEJORA: Transición suave de temporada (no reiniciar a cero absoluto)
+        # Transición suave entre temporadas (Memoria inter-temporada)
         if temp != temporada_actual:
             if temporada_actual is not None:
                 for tid, st in stats_equipos.items():
@@ -112,7 +116,6 @@ def construir_dataset_cronologico(partidos):
                     ppm_l = st["pts_loc"] / pj_l
                     ppm_v = st["pts_vis"] / pj_v
 
-                    # Se conserva como inercia el equivalente a 3 partidos jugados con el promedio previo
                     stats_equipos[tid] = {
                         "pj_tot": 3,
                         "pts_tot": ppm * 3,
@@ -151,18 +154,17 @@ def construir_dataset_cronologico(partidos):
         dg_loc = (st_loc["gf_tot"] - st_loc["gc_tot"]) / (pj_l + 1.0) if pj_l < 3 else (st_loc["gf_tot"] - st_loc["gc_tot"]) / pj_l
         dg_vis = (st_vis["gf_tot"] - st_vis["gc_tot"]) / (pj_v + 1.0) if pj_v < 3 else (st_vis["gf_tot"] - st_vis["gc_tot"]) / pj_v
 
-        # Forma Ponderada por Recencia
+        # Forma Ponderada
         forma_loc = calcular_forma_ponderada(st_loc["ultimos"], ppm_loc)
         forma_vis = calcular_forma_ponderada(st_vis["ultimos"], ppm_vis)
 
-        # Métricas Específicas: Local de local, Visitante de visitante
+        # Rendimiento Local vs Visitante
         pj_loc_cancha = st_loc["pj_loc"]
         pj_vis_cancha = st_vis["pj_vis"]
 
         ppm_loc_cancha = (st_loc["pts_loc"] + 1.0) / (pj_loc_cancha + 1.0) if pj_loc_cancha < 2 else st_loc["pts_loc"] / pj_loc_cancha
         ppm_vis_cancha = (st_vis["pts_vis"] + 1.0) / (pj_vis_cancha + 1.0) if pj_vis_cancha < 2 else st_vis["pts_vis"] / pj_vis_cancha
 
-        # Dataset con Diferencias Directas
         filas.append({
             "id_partido": p["id_partido"],
             "ppm_loc": ppm_loc,
@@ -179,12 +181,11 @@ def construir_dataset_cronologico(partidos):
             "resultado": p["resultado"]
         })
 
-        # Actualizar acumulados
         res = p["resultado"]
         pts_l = 3 if res == 1 else (1 if res == 0 else 0)
         pts_v = 3 if res == 2 else (1 if res == 0 else 0)
 
-        # Totales Local
+        # Actualización de acumulación
         st_loc["pj_tot"] += 1
         st_loc["pts_tot"] += pts_l
         st_loc["gf_tot"] += p["g_loc"]
@@ -193,7 +194,6 @@ def construir_dataset_cronologico(partidos):
         st_loc["pts_loc"] += pts_l
         st_loc["ultimos"].append(pts_l)
 
-        # Totales Visitante
         st_vis["pj_tot"] += 1
         st_vis["pts_tot"] += pts_v
         st_vis["gf_tot"] += p["g_vis"]
@@ -225,8 +225,8 @@ def ejecutar_auto_aprendizaje():
     X = df[columnas_features]
     y = df["resultado"]
 
-    # Árboles de decisión potenciados con regularización
-    modelo = HistGradientBoostingClassifier(
+    # 1. Modelo Gradient Boosting
+    m1_gb = HistGradientBoostingClassifier(
         max_iter=150,
         learning_rate=0.03,
         max_depth=4,
@@ -235,10 +235,36 @@ def ejecutar_auto_aprendizaje():
         random_state=42
     )
 
-    modelo.fit(X, y)
+    # 2. Modelo Random Forest
+    m2_rf = RandomForestClassifier(
+        n_estimators=150,
+        max_depth=5,
+        class_weight='balanced',
+        random_state=42
+    )
 
-    joblib.dump(modelo, RUTA_MODELO)
-    print(f"Modelo reentrenado con éxito en tu máquina. Se procesaron {len(df)} partidos y se guardó '{RUTA_MODELO}'.")
+    # 3. Modelo Extra Trees
+    m3_et = ExtraTreesClassifier(
+        n_estimators=150,
+        max_depth=5,
+        class_weight='balanced',
+        random_state=42
+    )
+
+    # Ensamble por votación suave (Promedio de probabilidades)
+    modelo_ensamble = VotingClassifier(
+        estimators=[
+            ('hist_gb', m1_gb),
+            ('rf', m2_rf),
+            ('et', m3_et)
+        ],
+        voting='soft'
+    )
+
+    modelo_ensamble.fit(X, y)
+
+    joblib.dump(modelo_ensamble, RUTA_MODELO)
+    print(f"Ensamble reentrenado con éxito ({len(df)} partidos). Guardado en '{RUTA_MODELO}'.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
