@@ -10,7 +10,19 @@ from sklearn.pipeline import Pipeline
 
 RUTA_DATASET = "dataset_historico.csv"
 RUTA_MODELO = "modelo_ia_lpf.pkl"
-TEMPORADAS = [2022, 2023, 2024, 2025, 2026]
+
+# =====================================================================
+# CALCULO DINÁMICO DE TEMPORADAS (Ventana deslizante de los últimos 5 años)
+# =====================================================================
+ANIO_ACTUAL = datetime.datetime.now().year
+VENTANA_ANIOS = 5  # Cambia esto si prefieres entrenar con más o menos años
+
+# Genera dinámicamente la lista de años. Ej: en 2045 generará [2041, 2042, 2043, 2044, 2045]
+TEMPORADAS = list(range(ANIO_ACTUAL - VENTANA_ANIOS + 1, ANIO_ACTUAL + 1))
+
+# Si prefieres conservar TODO desde 2022 hasta el año actual sin borrar años viejos:
+# TEMPORADAS = list(range(2022, ANIO_ACTUAL + 1))
+
 
 def descargar_historial_multitemporada():
     url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
@@ -28,7 +40,7 @@ def descargar_historial_multitemporada():
                 team_ids.add(t_id)
 
     partidos_map = {}
-    print(f"Descargando historial de {len(team_ids)} equipos...")
+    print(f"Descargando historial para las temporadas {TEMPORADAS}...")
 
     for year in TEMPORADAS:
         for t_id in team_ids:
@@ -73,6 +85,7 @@ def descargar_historial_multitemporada():
     partidos_lista.sort(key=lambda x: x["fecha"])
     return partidos_lista
 
+
 def construir_dataset_cronologico(partidos):
     filas = []
     stats_equipos = {}
@@ -82,7 +95,7 @@ def construir_dataset_cronologico(partidos):
         temp = p["temporada"]
         if temp != temporada_actual:
             temporada_actual = temp
-            stats_equipos = {}
+            stats_equipos = {}  # Reinicia estadísticas al comenzar cada nueva temporada
 
         loc_id = p["loc_id"]
         vis_id = p["vis_id"]
@@ -136,6 +149,7 @@ def construir_dataset_cronologico(partidos):
 
     return pd.DataFrame(filas)
 
+
 def ejecutar_auto_aprendizaje():
     partidos = descargar_historial_multitemporada()
     if not partidos:
@@ -155,7 +169,7 @@ def ejecutar_auto_aprendizaje():
     modelo.fit(X, y)
 
     joblib.dump(modelo, RUTA_MODELO)
-    print("Modelo entrenado y guardado correctamente.")
+    print(f"Modelo reentrenado con éxito. Se guardó '{RUTA_MODELO}'.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
