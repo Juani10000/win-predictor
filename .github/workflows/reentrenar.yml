@@ -1,43 +1,36 @@
-name: Reentrenamiento Automático de IA
+name: Reentrenar Modelo IA LPF
 
 on:
   schedule:
-    - cron: '0 3 * * 1'
-  workflow_dispatch:
-
-# 👇 ESTO ES LO QUE FALTABA: Darle permiso al bot para guardar los archivos
-permissions:
-  contents: write
+    # Se ejecuta automáticamente todos los lunes a las 04:00 AM UTC (1:00 AM Argentina)
+    - cron: '0 4 * * 1'
+  workflow_dispatch: # Permite ejecutarlo manualmente desde GitHub cuando quieras
 
 jobs:
-  entrenar-ia:
+  reentrenar:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Descargar el código del repositorio
-        uses: actions/checkout@v3
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
 
-      - name: 🐍 Preparar entorno de Python
-        uses: actions/setup-python@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
-      - name: 📦 Instalar dependencias
+      - name: Instalar dependencias
         run: |
-          pip install --upgrade pip
-          pip install lxml html5lib joblib
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: 🚀 Ejecutar Pipeline
-        run: |
-          python 1_obtener_datos.py
-          python 2_preparar_datos.py
-          python 3_entrenar_y_predecir.py
+      - name: Ejecutar script de entrenamiento
+        run: python train.py
 
-      - name: 💾 Guardar modelo y cambios en GitHub
+      - name: Confirmar y subir cambios en el repositorio
         run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
-          git add .
-          git commit -m "🤖 Reentrenamiento automático completado" || echo "Sin cambios"
-          git push
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add modelo_ia_lpf.pkl dataset_historico.csv
+          git diff --quiet && git diff --staged --quiet || (git commit -m "bot: reentrenamiento automático de IA" && git push)
