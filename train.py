@@ -13,7 +13,6 @@ RUTA_MODELO = "modelo_ia_lpf.pkl"
 TEMPORADAS = [2022, 2023, 2024, 2025, 2026]
 
 def descargar_historial_multitemporada():
-    """Obtiene todos los partidos completados de múltiples temporadas de la LPF."""
     url_tabla = "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings"
     r = requests.get(url_tabla, timeout=10)
     if r.status_code != 200:
@@ -29,7 +28,7 @@ def descargar_historial_multitemporada():
                 team_ids.add(t_id)
 
     partidos_map = {}
-    print(f"Descargando datos históricos de {len(team_ids)} equipos para temporadas {TEMPORADAS}...")
+    print(f"Descargando historial de {len(team_ids)} equipos...")
 
     for year in TEMPORADAS:
         for t_id in team_ids:
@@ -75,7 +74,6 @@ def descargar_historial_multitemporada():
     return partidos_lista
 
 def construir_dataset_cronologico(partidos):
-    """Calcula las métricas de rendimiento momento a momento previas a cada partido."""
     filas = []
     stats_equipos = {}
     temporada_actual = None
@@ -84,7 +82,7 @@ def construir_dataset_cronologico(partidos):
         temp = p["temporada"]
         if temp != temporada_actual:
             temporada_actual = temp
-            stats_equipos = {}  # Reiniciar métricas al inicio de cada torneo
+            stats_equipos = {}
 
         loc_id = p["loc_id"]
         vis_id = p["vis_id"]
@@ -120,7 +118,6 @@ def construir_dataset_cronologico(partidos):
             "resultado": p["resultado"]
         })
 
-        # Actualizar acumulados post-partido
         res = p["resultado"]
         pts_l = 3 if res == 1 else (1 if res == 0 else 0)
         pts_v = 3 if res == 2 else (1 if res == 0 else 0)
@@ -142,12 +139,11 @@ def construir_dataset_cronologico(partidos):
 def ejecutar_auto_aprendizaje():
     partidos = descargar_historial_multitemporada()
     if not partidos:
-        print("No se encontraron partidos para entrenar.")
+        print("No se encontraron partidos.")
         return
 
     df = construir_dataset_cronologico(partidos)
     df.to_csv(RUTA_DATASET, index=False)
-    print(f"Dataset histórico generado con {len(df)} partidos entrenables.")
 
     X = df[["ppm_loc", "ppm_vis", "dg_loc", "dg_vis", "forma_loc", "forma_vis", "dif_ppm"]]
     y = df["resultado"]
@@ -159,7 +155,7 @@ def ejecutar_auto_aprendizaje():
     modelo.fit(X, y)
 
     joblib.dump(modelo, RUTA_MODELO)
-    print("Modelo de IA multitemporada entrenado y guardado exitosamente.")
+    print("Modelo entrenado y guardado correctamente.")
 
 if __name__ == "__main__":
     ejecutar_auto_aprendizaje()
