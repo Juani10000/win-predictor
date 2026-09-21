@@ -10,10 +10,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 # =====================================================================
-# 1. GARANTIZAR MODELO COMPATIBLE (7 FEATURES)
+# 1. GARANTIZAR MODELO COMPATIBLE (11 FEATURES)
 # =====================================================================
 def asegurar_modelo_existente():
-    """Verifica y recrea 'modelo_ia_lpf.pkl' si no existe o si es de 5 variables."""
+    """Verifica y recrea 'modelo_ia_lpf.pkl' si no existe o si no coincide la dimensión de 11 variables."""
     necesita_recrear = False
     
     if not os.path.exists("modelo_ia_lpf.pkl"):
@@ -21,21 +21,16 @@ def asegurar_modelo_existente():
     else:
         try:
             m = joblib.load("modelo_ia_lpf.pkl")
-            # Prueba de control enviando 7 columnas para validar compatibilidad
-            test_x = np.ones((1, 7))
+            # Prueba de control enviando 11 columnas para validar compatibilidad con train.py
+            test_x = np.ones((1, 11))
             m.predict_proba(test_x)
         except Exception:
             necesita_recrear = True
 
     if necesita_recrear:
-        X_init = np.array([
-            [1.8, 0.8, 0.5, -0.3, 2.0, 1.0, 1.0],
-            [0.9, 1.7, -0.4, 0.5, 0.8, 2.1, -0.8],
-            [1.2, 1.1, 0.1, -0.1, 1.2, 1.1, 0.1],
-            [1.5, 1.0, 0.3, -0.2, 1.8, 1.2, 0.5],
-            [1.0, 1.4, -0.2, 0.3, 0.9, 1.7, -0.4]
-        ])
-        y_init = np.array([1, 2, 0, 1, 2])
+        # Dataset dummy inicial con 11 variables para evitar fallos si no se ha ejecutado train.py
+        X_init = np.random.randn(10, 11)
+        y_init = np.array([1, 2, 0, 1, 2, 1, 0, 2, 1, 0])
 
         modelo_base = Pipeline([
             ('scaler', StandardScaler()),
@@ -239,7 +234,7 @@ def buscar_equipo(nombre_buscado, lista_equipos):
 @st.cache_data(ttl=1800)
 def obtener_partidos_hoy(lista_equipos):
     ahora_arg = datetime.datetime.utcnow() - datetime.timedelta(hours=3)
-    fecha_hoy_str = me_hoy = ahora_arg.strftime("%Y-%m-%d")
+    fecha_hoy_str = ahora_arg.strftime("%Y-%m-%d")
     url = f"https://site.api.espn.com/apis/site/v2/sports/soccer/arg.1/scoreboard?dates={ahora_arg.strftime('%Y%m%d')}"
     partidos = []
 
@@ -267,42 +262,43 @@ def obtener_partidos_hoy(lista_equipos):
     return partidos
 
 # =====================================================================
-# 4. EXTRACCIÓN Y PREDICCIÓN CON MODELO DE 7 VARIABLES
+# 4. EXTRACCIÓN Y PREDICCIÓN CON MODELO DE 11 VARIABLES
 # =====================================================================
 def extraer_features_seguras_df(row_loc, row_vis):
-    pj_loc = int(row_loc.get("PJ", 0))
+    pj_loc = float(row_loc.get("PJ", 0))
     pts_loc = float(row_loc.get("Pts", 0))
-    dg_loc = float(row_loc.get("DG", 0))
+    dg_loc_tot = float(row_loc.get("DG", 0))
 
-    pj_vis = int(row_vis.get("PJ", 0))
+    pj_vis = float(row_vis.get("PJ", 0))
     pts_vis = float(row_vis.get("Pts", 0))
-    dg_vis = float(row_vis.get("DG", 0))
+    dg_vis_tot = float(row_vis.get("DG", 0))
 
-    if pj_loc < 3:
-        ppm_loc = (pts_loc + 1.0) / (pj_loc + 1.0)
-        dg_prom_loc = dg_loc / (pj_loc + 1.0)
-    else:
-        ppm_loc = pts_loc / pj_loc
-        dg_prom_loc = dg_loc / pj_loc
+    # Métricas y promedios por partido
+    ppm_loc = (pts_loc + 1.0) / (pj_loc + 1.0) if pj_loc < 3 else pts_loc / pj_loc
+    ppm_vis = (pts_vis + 1.0) / (pj_vis + 1.0) if pj_vis < 3 else pts_vis / pj_vis
 
-    if pj_vis < 3:
-        ppm_vis = (pts_vis + 1.0) / (pj_vis + 1.0)
-        dg_prom_vis = dg_vis / (pj_vis + 1.0)
-    else:
-        ppm_vis = pts_vis / pj_vis
-        dg_prom_vis = dg_vis / pj_vis
+    dg_loc = dg_loc_tot / (pj_loc + 1.0) if pj_loc < 3 else dg_loc_tot / pj_loc
+    dg_vis = dg_vis_tot / (pj_vis + 1.0) if pj_vis < 3 else dg_vis_tot / pj_vis
 
+    # Estimación de rendimiento según cancha y estado de forma
+    ppm_loc_cancha = ppm_loc * 1.15
+    ppm_vis_cancha = ppm_vis * 0.85
     forma_loc = ppm_loc
     forma_vis = ppm_vis
 
+    # Retorna exactamente las 11 variables que espera el ensamble de train.py
     return pd.DataFrame([{
         "ppm_loc": ppm_loc,
         "ppm_vis": ppm_vis,
-        "dg_loc": dg_prom_loc,
-        "dg_vis": dg_prom_vis,
+        "ppm_loc_cancha": ppm_loc_cancha,
+        "ppm_vis_cancha": ppm_vis_cancha,
+        "dg_loc": dg_loc,
+        "dg_vis": dg_vis,
         "forma_loc": forma_loc,
         "forma_vis": forma_vis,
-        "dif_ppm": ppm_loc - ppm_vis
+        "dif_ppm": ppm_loc - ppm_vis,
+        "dif_dg": dg_loc - dg_vis,
+        "dif_forma": forma_loc - forma_vis
     }])
 
 def predecir_partido_ia(local, visitante, df_unificado):
@@ -321,14 +317,11 @@ def predecir_partido_ia(local, visitante, df_unificado):
             p_emp_raw = probs[clases.index(0)] if 0 in clases else 0.30
             p_vis_raw = probs[clases.index(2)] if 2 in clases else 0.35
 
-            # Suavizado de probabilidades
-            probs_arr = np.array([p_loc_raw, p_emp_raw, p_vis_raw])
-            probs_arr = np.clip(probs_arr, 0.10, 0.65)
-            probs_arr = probs_arr / probs_arr.sum()
-
-            p_loc = int(round(probs_arr[0] * 100))
-            p_emp = int(round(probs_arr[1] * 100))
-            p_vis = 100 - p_loc - p_emp
+            # Normalización directa sin truncamiento artificial
+            total = p_loc_raw + p_emp_raw + p_vis_raw
+            p_loc = int(round((p_loc_raw / total) * 100))
+            p_emp = int(round((p_emp_raw / total) * 100))
+            p_vis = max(0, 100 - p_loc - p_emp)
 
             return p_loc, p_emp, p_vis
     except Exception:
